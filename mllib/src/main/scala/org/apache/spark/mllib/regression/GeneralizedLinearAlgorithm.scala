@@ -126,6 +126,16 @@ abstract class GeneralizedLinearAlgorithm[M <: GeneralizedLinearModel]
     run(input, initialWeights)
   }
 
+  /** Prepends one to the input vector. */
+  def prependOne(vector: Vector): Vector = {
+    val vector1 = vector.toBreeze match {
+      case dv: BDV[Double] => BDV.vertcat(BDV.ones[Double](1), dv)
+      case sv: BSV[Double] => BSV.vertcat(new BSV[Double](Array(0), Array(1.0), 1), sv)
+      case v: Any => throw new IllegalArgumentException("Do not support vector type " + v.getClass)
+    }
+    Vectors.fromBreeze(vector1)
+  }
+
   /**
    * Run the algorithm with the configured parameters on an input RDD
    * of LabeledPoint entries starting from the initial weights provided.
