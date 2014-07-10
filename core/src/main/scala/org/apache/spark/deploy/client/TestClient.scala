@@ -20,6 +20,7 @@ package org.apache.spark.deploy.client
 import org.apache.spark.{SecurityManager, SparkConf, Logging}
 import org.apache.spark.deploy.{ApplicationDescription, Command}
 import org.apache.spark.util.{AkkaUtils, Utils}
+import org.apache.spark.deploy.worker.Worker
 
 private[spark] object TestClient {
 
@@ -48,8 +49,16 @@ private[spark] object TestClient {
     val conf = new SparkConf
     val (actorSystem, _) = AkkaUtils.createActorSystem("spark", Utils.localIpAddress, 0,
       conf = conf, securityManager = new SecurityManager(conf))
+
+    Worker.HACKakkaHost = "akka.tcp://%s@%s:%s/user/".format("spark", port, 0)
+    Worker.HACKworkerActorSystem = actorSystem
+
     val desc = new ApplicationDescription("TestClient", Some(1), 512,
       Command("spark.deploy.client.TestExecutor", Seq(), Map(), Seq(), Seq(), Seq()), "ignored")
+//    val desc = new ApplicationDescription(
+//      "TestClient", Some(1), 512, Command("spark.deploy.client.TestExecutor", Seq(), Map(), Seq(),
+//        Seq()), Some("dummy-spark-home"), "ignored")
+
     val listener = new TestListener
     val client = new AppClient(actorSystem, Array(url), desc, listener, new SparkConf)
     client.start()
