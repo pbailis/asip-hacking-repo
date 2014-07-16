@@ -147,7 +147,7 @@ class HingeGradient extends Gradient {
     // Therefore the gradient is -(2y - 1)*x
     val labelScaled = 2 * label - 1.0
 
-    if (1.0 > labelScaled * dotProduct) {
+    if (labelScaled * dotProduct < 1.0) {
       (Vectors.fromBreeze(brzData * (-labelScaled)), 1.0 - labelScaled * dotProduct)
     } else {
       (Vectors.dense(new Array[Double](weights.size)), 0.0)
@@ -167,7 +167,7 @@ class HingeGradient extends Gradient {
     // Therefore the gradient is -(2y - 1)*x
     val labelScaled = 2 * label - 1.0
 
-    if (1.0 > labelScaled * dotProduct) {
+    if (labelScaled * dotProduct < 1.0) {
       brzAxpy(-labelScaled, brzData, cumGradient.toBreeze)
       1.0 - labelScaled * dotProduct
     } else {
