@@ -127,20 +127,41 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
                              val maxLocalSolves: Int = 10,
                              val maxIterations: Int = Integer.MAX_VALUE,
                              val epsilon: Double = 0.001) {
-  def apply(data: Array[(Double, Vector)], w0: BDV[Double], w_avg_input: BDV[Double], lambda: BDV[Double],
-            rho: Double, comm: WorkerCommunication): BDV[Double] = {
+  def apply(data: Array[(Double, Vector)], w0: BDV[Double], w_avg_input: BDV[Double], lambda_input: BDV[Double],
+            rho_input: Double, comm: WorkerCommunication): BDV[Double] = {
 
     val w: BDV[Double] = w0.copy
     val nExamples = data.length
 
+    var rho = rho_input
+    var lambda = lambda_input
+
     comm.currentAvg = w_avg_input
+
+    var w_avg = comm.currentAvg
 
     var solveNo = 0
     while(solveNo < maxLocalSolves) {
       comm.newDataSemaphore.acquireUninterruptibly()
       comm.newDataSemaphore.drainPermits()
 
-      val w_avg = comm.currentAvg
+
+
+      // primalResidual = sum( ||w_i - w_avg||_2^2 )
+      var primalResidual = Math.pow(norm(w - comm.currentAvg, 2.0), 2)
+      var dualResidual = rho * Math.pow(norm(comm.currentAvg - w_avg, 2.0), 2)
+
+      if (rho == 0.0) {
+        rho = epsilon
+      } else if (primalResidual > 10.0 * dualResidual) {
+        rho = 2.0 * rho
+        println("Increasing rho")
+      } else if (dualResidual > 10.0 * primalResidual) {
+        rho = rho / 2.0
+        println("Decreasing rho")
+      }
+
+      w_avg = comm.currentAvg
 
       var t = 0
       var residual = Double.MaxValue
@@ -162,8 +183,10 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 
       comm.broadcastWeightVector(w-w_avg)
 
-      // TODO: recalculate lambda and rho here
+      // TODO: check this math
+      lambda = lambda + (w - w_avg) * rho
 
+      solveNo += 1
 
       // Check the local prediction error:
       val propCorrect =
