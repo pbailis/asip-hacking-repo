@@ -145,8 +145,10 @@ object BinaryClassification {
           .setRegParam(params.regParam)
         algorithm.run(training).clearThreshold()
       case SVMADMM =>
-        val algorithm = new SVMWithADMM(maxGlobalIterations = 3,
-          updater = updater, regParam = params.regParam)
+        val algorithm = new SVMWithADMM()
+        algorithm.maxGlobalIterations = params.numIterations
+        algorithm.updater = updater
+        algorithm.regParam = params.regParam
         algorithm.run(training).clearThreshold()
       case Pegasos =>
         val algorithm = new PegasosSVM()
