@@ -102,6 +102,37 @@ class SVMWithSGD private (
 }
 
 /**
+ * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
+ * NOTE: Labels used in SVM should be {0, 1}.
+ */
+class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
+  var stepSize: Double = 1.0
+  var maxGlobalIterations: Int = Int.MaxValue
+  var maxLocalIterations: Int = Int.MaxValue
+  var regParam: Double = 1.0
+  var miniBatchFraction: Double = 2.0
+  var epsilon: Double = 1.0e-5
+  var updater: Updater = new SquaredL2Updater()
+
+
+  private val gradient = new HingeGradient()
+  private val localSolver = new SGDLocalOptimizer(gradient, updater)
+  localSolver.eta_0 = stepSize
+  localSolver.maxIterations = maxLocalIterations
+  localSolver.epsilon = epsilon
+  localSolver.miniBatchFraction = miniBatchFraction
+  override val optimizer = new ADMM(localSolver)
+  optimizer.numIterations = maxGlobalIterations
+  optimizer.regParam = regParam
+  optimizer.epsilon = epsilon
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new SVMModel(weights, intercept)
+  }
+}
+
+
+/**
  * Top-level methods for calling SVM. NOTE: Labels used in SVM should be {0, 1}.
  */
 object SVMWithSGD {

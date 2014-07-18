@@ -22,7 +22,7 @@ import org.apache.spark.mllib.admm.PegasosSVM
 import scopt.OptionParser
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithSGD}
+import org.apache.spark.mllib.classification.{SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.mllib.optimization.{SquaredL2Updater, L1Updater}
@@ -39,7 +39,7 @@ object BinaryClassification {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, LR, Pegasos, PegasosAsync = Value
+    val SVM, LR, SVMADMM, Pegasos, PegasosAsync = Value
   }
 
   object RegType extends Enumeration {
@@ -143,6 +143,12 @@ object BinaryClassification {
           .setStepSize(params.stepSize)
           .setUpdater(updater)
           .setRegParam(params.regParam)
+        algorithm.run(training).clearThreshold()
+      case SVMADMM =>
+        val algorithm = new SVMWithADMM()
+        algorithm.maxGlobalIterations = params.numIterations
+        algorithm.updater = updater
+        algorithm.regParam = params.regParam
         algorithm.run(training).clearThreshold()
       case Pegasos =>
         val algorithm = new PegasosSVM()
