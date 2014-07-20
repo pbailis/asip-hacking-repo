@@ -15,38 +15,41 @@ import org.apache.spark.mllib.optimization.{SquaredL2Updater, L1Updater}
 
 
 
-class DataLoaders(val sc: SparkContext) {
-  def loadBismark(filename: String): RDD[LabeledPoint] = {
+object DataLoaders {
+  def loadBismark(sc: SparkContext, filename: String): RDD[LabeledPoint] = {
     val data = sc.textFile(filename)
       .filter(s => !s.isEmpty && s(0) == '{')
       .map(s => s.split('\t'))
       .map { case Array(x, y) =>
         val features = x.stripPrefix("{").stripSuffix("}").split(',').map(xi => xi.toDouble)
-        val label = y.toDouble
+        val label = if (y.toDouble > 0) 1 else 0
         LabeledPoint(label, new DenseVector(features))
     }.cache()
 
     data
   }
 
-  def loadFlights(filename: String): RDD[LabeledPoint] = {
+  def makeDictionary(colId: Int, tbl: RDD[Array[String]]): Map[String, Int] = {
+    tbl.map(row => row(colId)).distinct.collect.zipWithIndex.toMap
+  }
+  def makeBinary(value: String, dict: Map[String, Int]): Array[Double] = {
+      val array = new Array[Double](dict.size)
+      array(dict(value)) = 1.0
+      array
+  }
+
+
+  def loadFlights(sc: SparkContext, filename: String): RDD[LabeledPoint] = {
     val labels = Array("Year", "Month", "DayOfMonth", "DayOfWeek", "DepTime", "CRSDepTime", "ArrTime",
       "CRSArrTime", "UniqueCarrier", "FlightNum", "TailNum", "ActualElapsedTime", "CRSElapsedTime",
       "AirTime", "ArrDelay", "DepDelay", "Origin", "Dest", "Distance", "TaxiIn", "TaxiOut",
       "Cancelled", "CancellationCode", "Diverted", "CarrierDelay", "WeatherDelay",
       "NASDelay", "SecurityDelay", "LateAircraftDelay").zipWithIndex.toMap
+    println("Loading data")
     val rawData = sc.textFile(filename, 128).
       filter(s => !s.contains("Year")).
       map(s => s.split(",")).cache()
 
-    def makeDictionary(colId: Int, tbl: RDD[Array[String]]): Map[String, Int] = {
-      tbl.map(row => row(colId)).distinct.collect.zipWithIndex.toMap
-    }
-    def makeBinary(value: String, dict: Map[String, Int]): Array[Double] = {
-      val array = new Array[Double](dict.size)
-      array(dict(value)) = 1.0
-      array
-    }
     val carrierDict = makeDictionary(labels("UniqueCarrier"), rawData)
     val flightNumDict = makeDictionary(labels("FlightNum"), rawData)
     val tailNumDict = makeDictionary(labels("TailNum"), rawData)
@@ -54,18 +57,23 @@ class DataLoaders(val sc: SparkContext) {
     val destDict = makeDictionary(labels("Dest"), rawData)
 
     val data = rawData.map { row =>
-      val firstFiveFeatures = (row.view(0, 5) ++ row.view(6, 7)).map(_.toDouble).toArray
+      val firstFiveFeatures = (row.view(0, 5) ++ row.view(6, 7)).map{ x => 
+      	  if(x == "NA") 0.0 else x.toDouble
+      }
       val carrierFeatures = makeBinary(row(labels("UniqueCarrier")), carrierDict)
       val flightFeatures = makeBinary(row(labels("FlightNum")), flightNumDict)
       val tailNumFeatures = makeBinary(row(labels("TailNum")), tailNumDict)
       val originFeatures = makeBinary(row(labels("Origin")), originDict)
       val destFeatures = makeBinary(row(labels("Dest")), destDict)
-      val features: Array[Double] = firstFiveFeatures ++ carrierFeatures ++ flightFeatures ++
-        tailNumFeatures ++ originFeatures ++ destFeatures
-      val label = if (row(labels("ArrDelay")).toDouble > 0) 1.0 else 0.0
+      val features: Array[Double] = (firstFiveFeatures ++ carrierFeatures ++ flightFeatures ++
+        tailNumFeatures ++ originFeatures ++ destFeatures).toArray
+      val delay = row(labels("ArrDelay"))
+      val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
       LabeledPoint(label, new DenseVector(features))
     }.cache()
-
+    data.count
+    println("FINISHED LOADING SUCKA")
+    println(s"THIS MANY PLUSES SUCKA ${data.filter(x => x.label == 1).count/data.count.toDouble}")
     data
   }
 }
@@ -149,14 +157,12 @@ object SynchronousADMMTests {
 
     Logger.getRootLogger.setLevel(Level.WARN)
 
-    val dataloader = new DataLoaders(sc)
-
     val examples = if(params.format == "lisbsvm") {
       MLUtils.loadLibSVMFile(sc, params.input).cache()
     } else if (params.format == "bismarck") {
-      dataloader.loadBismark(params.input).cache()
+      DataLoaders.loadBismark(sc, params.input).cache()
     } else if (params.format == "flights") {
-      dataloader.loadFlights(params.input).cache()
+      DataLoaders.loadFlights(sc, params.input).cache()
     } else {
       throw new RuntimeException("F off")
     }
@@ -173,6 +179,8 @@ object SynchronousADMMTests {
     println(s"Training: $numTraining, test: $numTest.")
 
     examples.unpersist(blocking = false)
+
+    println("STARTING SUCKA")
 
     val updater = params.regType match {
       case L1 => new L1Updater()
