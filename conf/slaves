@@ -1,2 +1,9 @@
-# A Spark Worker will be started on each of the machines listed below.
-localhost
+ec2-54-203-223-46.us-west-2.compute.amazonaws.com
+ec2-54-202-226-28.us-west-2.compute.amazonaws.com
+ec2-54-203-142-34.us-west-2.compute.amazonaws.com
+ec2-54-203-215-74.us-west-2.compute.amazonaws.com
+ec2-54-184-210-61.us-west-2.compute.amazonaws.com
+ec2-54-184-189-175.us-west-2.compute.amazonaws.com
+ec2-54-203-167-251.us-west-2.compute.amazonaws.com
+ec2-54-244-104-241.us-west-2.compute.amazonaws.com
+ec2-54-184-164-7.us-west-2.compute.amazonaws.com
