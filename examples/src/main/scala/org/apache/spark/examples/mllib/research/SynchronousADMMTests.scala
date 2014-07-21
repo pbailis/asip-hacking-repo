@@ -81,7 +81,7 @@ object DataLoaders {
         var currentSparseIndex = 0
 
         for(i <- 0 until features.size) {
-          val fv = featureValues(i)
+          val fv = features(i)
           if(fv > 0) {
             featureIndexes(currentSparseIndex) = i
             featureValues(currentSparseIndex) = fv
