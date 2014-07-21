@@ -113,14 +113,15 @@ object DataLoaders {
                         partitionSkew: Double,
                         numPartitions: Int,
                         pointsPerPartition: Int): RDD[LabeledPoint] = {
-    val plusCloud = new DenseVector(Array.fill[Double](dim)(5))
-    plusCloud.values(dim - 1) = 1
-    val negCloud = new DenseVector(Array.fill[Double](dim)(10))
-    negCloud.values(dim - 1) = 1
-
-    val random = new Random()
     sc.parallelize(1 to numPartitions, numPartitions).flatMap {
       idx =>
+        val plusCloud = new DenseVector(Array.fill[Double](dim)(5))
+        plusCloud.values(dim - 1) = 1
+        val negCloud = new DenseVector(Array.fill[Double](dim)(10))
+        negCloud.values(dim - 1) = 1
+
+        val random = new Random()
+
         val ret = new Array[LabeledPoint](pointsPerPartition)
         val isPartitionPlus = idx % 2 == 1
 
@@ -235,7 +236,6 @@ object SynchronousADMMTests {
       opt[Int]("numPartitions")
         .action((x, c) => c.copy(numPartitions = x))
       opt[String]("input")
-        .required()
         .text("input paths to labeled examples in LIBSVM format")
         .action((x, c) => c.copy(input = x))
       opt[String]("format")
