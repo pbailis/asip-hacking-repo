@@ -151,6 +151,8 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
     }
     var w_avg = BV.zeros[Double](dim)
 
+    println(s"ADMM numIterations: $numIterations")
+
     val optimizer = localOptimizer
     while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) ) {
       println("========================================================")

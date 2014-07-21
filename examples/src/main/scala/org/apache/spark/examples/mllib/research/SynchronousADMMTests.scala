@@ -379,6 +379,7 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.setup()
         algorithm.run(training).clearThreshold()
     }
   }

@@ -117,14 +117,19 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
 
   private val gradient = new HingeGradient()
   private val localSolver = new SGDLocalOptimizer(gradient, updater)
-  localSolver.eta_0 = stepSize
-  localSolver.maxIterations = maxLocalIterations
-  localSolver.epsilon = epsilon
-  localSolver.miniBatchFraction = miniBatchFraction
+
   override val optimizer = new ADMM(localSolver)
-  optimizer.numIterations = maxGlobalIterations
-  optimizer.regParam = regParam
-  optimizer.epsilon = epsilon
+
+  def setup() {
+    localSolver.eta_0 = stepSize
+    localSolver.maxIterations = maxLocalIterations
+    localSolver.epsilon = epsilon
+    localSolver.miniBatchFraction = miniBatchFraction
+    optimizer.numIterations = maxGlobalIterations
+    optimizer.regParam = regParam
+    optimizer.epsilon = epsilon
+  }
+
   override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
     new SVMModel(weights, intercept)
