@@ -159,8 +159,6 @@ object SynchronousADMMTests {
     val L1, L2 = Value
   }
 
-  val logger = Logger.getLogger(SynchronousADMMTests.getClass)
-
   import Algorithm._
   import RegType._
 
@@ -274,7 +272,7 @@ object SynchronousADMMTests {
 
     Logger.getRootLogger.setLevel(Level.WARN)
 
-    logger.info("Starting to load data...")
+    println("Starting to load data...")
 
     val examples = if(params.format == "lisbsvm") {
       MLUtils.loadLibSVMFile(sc, params.input).cache()
@@ -304,7 +302,7 @@ object SynchronousADMMTests {
     val numTraining = training.count()
     val numTest = test.count()
 
-    logger.info(s"Loaded data! Training: $numTraining, test: $numTest.")
+    println(s"Loaded data! Training: $numTraining, test: $numTest.")
 
     println(s"defaultparallelism: ${sc.defaultParallelism} minpart: ${sc.defaultMinPartitions}")
 
@@ -315,7 +313,7 @@ object SynchronousADMMTests {
       case L2 => new SquaredL2Updater()
     }
 
-    logger.info("Starting test!")
+    println("Starting test!")
 
 
     var it_st = params.sweepIterationStart
@@ -342,10 +340,10 @@ object SynchronousADMMTests {
 
       val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
-      logger.info(s"Iterations = ${i}")
-      logger.info(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
-      logger.info(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
-      logger.info(s"Total time ${totalTimeMs}ms")
+      println(s"Iterations = ${i}")
+      println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
+      println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
+      println(s"Total time ${totalTimeMs}ms")
     }
 
     sc.stop()
