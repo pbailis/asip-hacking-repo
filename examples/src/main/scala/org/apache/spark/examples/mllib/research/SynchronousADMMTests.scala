@@ -344,6 +344,8 @@ object SynchronousADMMTests {
       println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
       println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
       println(s"Total time ${totalTimeMs}ms")
+
+      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()}")
     }
 
     sc.stop()
