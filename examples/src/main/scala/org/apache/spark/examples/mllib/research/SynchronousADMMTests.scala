@@ -138,7 +138,7 @@ object DataLoaders {
           }
           chosenPoint.values(dim - 1) = 1.0
 
-          val chosenLabel = if (random.nextDouble() < labelNoise) -trueLabel else trueLabel
+          val chosenLabel = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
 
           ret(pt) = new LabeledPoint(chosenLabel, chosenPoint)
         }
