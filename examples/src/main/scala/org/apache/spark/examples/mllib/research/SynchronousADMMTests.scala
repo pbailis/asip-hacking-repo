@@ -353,6 +353,8 @@ object SynchronousADMMTests {
               updater: Updater,
               params: Params,
               iterations: Int) = {
+    println(s"Running algorithm ${params.algorithm} $iterations iterations")
+
     params.algorithm match {
       case LR =>
         val algorithm = new LogisticRegressionWithSGD()
