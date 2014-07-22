@@ -14,6 +14,7 @@ import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.mllib.optimization.{Updater, SquaredL2Updater, L1Updater}
 import java.util.concurrent.TimeUnit
 import scala.util.Random
+import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 
 
 object DataLoaders {
@@ -41,14 +42,14 @@ object DataLoaders {
     array
   }
 
-  def loadFlights(sc: SparkContext, filename: String): RDD[LabeledPoint] = {
+  def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
     val labels = Array("Year", "Month", "DayOfMonth", "DayOfWeek", "DepTime", "CRSDepTime", "ArrTime",
       "CRSArrTime", "UniqueCarrier", "FlightNum", "TailNum", "ActualElapsedTime", "CRSElapsedTime",
       "AirTime", "ArrDelay", "DepDelay", "Origin", "Dest", "Distance", "TaxiIn", "TaxiOut",
       "Cancelled", "CancellationCode", "Diverted", "CarrierDelay", "WeatherDelay",
       "NASDelay", "SecurityDelay", "LateAircraftDelay").zipWithIndex.toMap
     println("Loading data")
-    val rawData = sc.textFile(filename, 128).
+    val rawData = sc.textFile(filename, params.numPartitions).
       filter(s => !s.contains("Year")).
       map(s => s.split(",")).cache()
 
@@ -279,7 +280,7 @@ object SynchronousADMMTests {
     } else if (params.format == "bismarck") {
       DataLoaders.loadBismark(sc, params.input).cache()
     } else if (params.format == "flights") {
-      DataLoaders.loadFlights(sc, params.input).cache()
+      DataLoaders.loadFlights(sc, params.input, params).cache()
     } else if (params.format == "cloud") {
       DataLoaders.generatePairCloud(sc,
                                     params.pointCloudDimension,
