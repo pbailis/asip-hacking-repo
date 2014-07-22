@@ -2,7 +2,7 @@
 # if interrupted, run the following again, but add flag --resume
 ec2/spark-ec2 --slaves=5 --spot-price=1.0 --instance-type=m2.4xlarge --region=us-west-2 --key-pair kaiju --identity-file=/Users/pbailis/.ssh/kaiju_rsa.pub launch testing
 
-export MASTER=ec2-50-112-10-225.us-west-2.compute.amazonaws.com
+export MASTER=ec2-54-202-185-65.us-west-2.compute.amazonaws.com
 
 ssh root@$MASTER
 
@@ -12,7 +12,7 @@ ssh root@$MASTER
 mv spark spark-old
 git clone https://github.com/pbailis/spark.git
 cd spark
-git checkout --track origin/improving-harness
+git checkout --track origin/admm-emerson
 sbt/sbt assembly
 cp -r ~/spark-old/conf/* conf/
 yum install pssh; pssh -h ~/spark-ec2/slaves rm -rf ~/spark
