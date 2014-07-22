@@ -108,11 +108,11 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
     }
     println(s"t = $t and residual = $residual")
 //    // Check the local prediction error:
-//    val propCorrect =
-//      data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-//        .reduce(_ + _).toDouble / nExamples.toDouble
-//    println(s"Local prop correct: $propCorrect")
-//    println(s"Local iterations: $t")
+    val propCorrect =
+      data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
+        .reduce(_ + _).toDouble / nExamples.toDouble
+    println(s"Local prop correct: $propCorrect")
+    println(s"Local iterations: $t")
     // Return the final weight vector
     w
   }
@@ -134,7 +134,7 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
     val dim = blockData.map(block => block(0)._2.size).first()
     val nExamples = blockData.map(block => block.length).reduce(_+_)
     val numPartitions = blockData.partitions.length
-    val localReg = numPartitions.toDouble * regParam
+    val localReg = regParam / numPartitions.toDouble 
     println(s"nExamples: $nExamples")
     println(s"dim: $dim")
     println(s"number of solver $numPartitions")
