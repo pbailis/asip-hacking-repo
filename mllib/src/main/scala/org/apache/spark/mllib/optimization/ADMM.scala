@@ -13,7 +13,7 @@ import org.apache.spark.rdd.RDD
 trait LocalOptimizer extends Serializable {
   def apply(nSubProblems: Int, data: Array[(Double, Vector)],
             w: BV[Double], w_consensus: BV[Double], dualVar: BV[Double],
-            rho: Double, regParam: Double): BV[Double]
+            rho: Double, regParam: Double): (BV[Double], String)
 }
 
 
@@ -61,7 +61,7 @@ trait LocalOptimizer extends Serializable {
 //}
 
 @DeveloperApi
-class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends LocalOptimizer {
+class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends LocalOptimizer with Logging {
 
   var eta_0: Double = 1.0
   var maxIterations: Int = Integer.MAX_VALUE
@@ -70,7 +70,7 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
 
   def apply(nSubProblems: Int, data: Array[(Double, Vector)],
             w0: BV[Double], w_consensus: BV[Double], dualVar: BV[Double],
-            rho: Double, regParam: Double): BV[Double] = {
+            rho: Double, regParam: Double): (BV[Double], String) = {
     val nExamples = data.length
     val dim = data(0)._2.size
     val miniBatchSize = math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
@@ -82,10 +82,12 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
     var t = 0
     while(t < maxIterations && residual > epsilon) {
       grad *= 0.0 // Clear the gradient sum
-      for (b <- 0 until miniBatchSize) {
-        val ind = if (miniBatchSize == nExamples) b else rnd.nextInt(nExamples)
+      var b = 0
+      while (b < miniBatchSize) {
+        val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
         val (label, features) = data(ind)
         gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
+        b += 1
       }
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
@@ -101,20 +103,20 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
       // Compute residual.  This is a decaying residual definition.
       // residual = (eta_t * norm(grad, 2.0) + residual) / 2.0
       residual = norm(w - wOld, 2.0)
-//      if((t % 10) == 0) {
-//        println(s"Residual: $residual ")
-//      }
+      if((t % 10) == 0) {
+        logInfo(s"Residual: $residual ")
+      }
       t += 1
     }
-    println(s"t = $t and residual = $residual")
-//    // Check the local prediction error:
+    // Check the local prediction error:
     val propCorrect =
       data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
         .reduce(_ + _).toDouble / nExamples.toDouble
-    println(s"Local prop correct: $propCorrect")
-    println(s"Local iterations: $t")
+    logInfo(s"t = $t and residual = $residual")
+    logInfo(s"Local prop correct: $propCorrect")
+    val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect"
     // Return the final weight vector
-    w
+    (w, stats)
   }
 }
 
@@ -158,14 +160,16 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
       println("========================================================")
       println(s"Starting iteration $iteration.")
       // Compute w and new dualVar
-      wAndDualVar = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
+      val tmp = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
         dataIterator.zip(modelIterator).map { case (data, (w_old, dualVar_old)) =>
           // Update the lagrangian Multiplier by taking a gradient step
           val dualVar = dualVar_old + (w_old - w_avg)
-          val w = optimizer(numPartitions, data, w_old, w_avg, dualVar, rho, localReg)
-          (w, dualVar)
+          val (w, stats) = optimizer(numPartitions, data, w_old, w_avg, dualVar, rho, localReg)
+          (w, dualVar, stats)
         }
       }.cache()
+      wAndDualVar = tmp.map { case (w, dualVar, stats) => (w, dualVar) }
+      tmp.map { case (w, dualVar, stats) => stats } .collect.foreach(println(_))
 
       // Compute new w_avg
       val new_w_avg = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
@@ -197,6 +201,8 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
 
       iteration += 1
     }
+
+    println(s"${w_avg.toArray.mkString(",")}")
 
     Vectors.fromBreeze(w_avg)
   }

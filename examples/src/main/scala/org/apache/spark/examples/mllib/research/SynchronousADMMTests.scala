@@ -116,9 +116,9 @@ object DataLoaders {
                         pointsPerPartition: Int): RDD[LabeledPoint] = {
     sc.parallelize(1 to numPartitions, numPartitions).flatMap {
       idx =>
-        val plusCloud = new DenseVector(Array.fill[Double](dim)(5))
+        val plusCloud = new DenseVector(Array.fill[Double](dim)(5.0))
         plusCloud.values(dim - 1) = 1
-        val negCloud = new DenseVector(Array.fill[Double](dim)(10))
+        val negCloud = new DenseVector(Array.fill[Double](dim)(10.0))
         negCloud.values(dim - 1) = 1
 
         val random = new Random()
