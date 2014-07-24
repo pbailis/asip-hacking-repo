@@ -1,14 +1,13 @@
 package org.apache.spark.examples.mllib.research
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.mllib.admm.PegasosSVM
 import org.apache.spark.mllib.linalg.{SparseVector, DenseVector, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import scopt.OptionParser
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.classification.{SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
+import org.apache.spark.mllib.classification.{SVMWithAsyncADMM, SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.mllib.optimization.{Updater, SquaredL2Updater, L1Updater}
@@ -152,7 +151,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, LR, SVMADMM, Pegasos, PegasosAsync = Value
+    val SVM, LR, SVMADMM, SVMADMMAsync = Value
   }
 
   object RegType extends Enumeration {
@@ -225,7 +224,7 @@ object SynchronousADMMTests {
         .text(s"algorithm (${Algorithm.values.mkString(",")}), " +
         s"default: ${defaultParams.algorithm}")
         .action((x, c) => c.copy(algorithm = Algorithm.withName(x)))
-            opt[String]("regType")
+      opt[String]("regType")
         .text(s"regularization type (${RegType.values.mkString(",")}), " +
         s"default: ${defaultParams.regType}")
         .action((x, c) => c.copy(regType = RegType.withName(x)))
@@ -260,8 +259,9 @@ object SynchronousADMMTests {
 
 
 
-    parser.parse(args, defaultParams).map { params =>
-      run(params)
+    parser.parse(args, defaultParams).map {
+      params =>
+        run(params)
     } getOrElse {
       sys.exit(1)
     }
@@ -275,7 +275,7 @@ object SynchronousADMMTests {
 
     println("Starting to load data...")
 
-    val examples = if(params.format == "lisbsvm") {
+    val examples = if (params.format == "lisbsvm") {
       MLUtils.loadLibSVMFile(sc, params.input).cache()
     } else if (params.format == "bismarck") {
       DataLoaders.loadBismark(sc, params.input).cache()
@@ -283,12 +283,12 @@ object SynchronousADMMTests {
       DataLoaders.loadFlights(sc, params.input, params).cache()
     } else if (params.format == "cloud") {
       DataLoaders.generatePairCloud(sc,
-                                    params.pointCloudDimension,
-                                    params.pointCloudLabelNoise,
-                                    params.pointCloudSize,
-                                    params.pointCloudPartitionSkew,
-                                    params.numPartitions,
-                                    params.pointCloudPointsPerPartition).cache()
+        params.pointCloudDimension,
+        params.pointCloudLabelNoise,
+        params.pointCloudSize,
+        params.pointCloudPartitionSkew,
+        params.numPartitions,
+        params.pointCloudPointsPerPartition).cache()
     } else {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
@@ -322,13 +322,13 @@ object SynchronousADMMTests {
     var it_step = params.sweepIterationStep
 
     // this is terrible, but it's perhaps more of a venial sin
-    if(it_st == -1) {
+    if (it_st == -1) {
       it_st = params.numIterations
       it_end = it_st + 1
       it_step = 10
     }
 
-    for(i <- it_st to it_end by it_step) {
+    for (i <- it_st to it_end by it_step) {
       val startTime = System.nanoTime()
 
       val model = runTest(training, updater, params, i)
@@ -382,6 +382,15 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.setup()
+        algorithm.run(training).clearThreshold()
+      case SVMADMMAsync =>
+        val algorithm = new SVMWithAsyncADMM()
+        algorithm.updater = updater
+        algorithm.regParam = params.regParam
+        algorithm.epsilon = params.ADMMepsilon
+        algorithm.numberOfParamBroadcasts = 10
+        algorithm.totalSeconds = 10
         algorithm.setup()
         algorithm.run(training).clearThreshold()
     }
