@@ -47,6 +47,10 @@ abstract class GeneralizedLinearModel(val weights: Vector, val intercept: Double
    */
   protected def predictPoint(dataMatrix: Vector, weightMatrix: Vector, intercept: Double): Double
 
+
+  protected def pointLoss(point: LabeledPoint, weightMatrix: Vector, intercept: Double): Double = 0.0
+
+
   /**
    * Predict values for the given data set using the model trained.
    *
@@ -60,6 +64,24 @@ abstract class GeneralizedLinearModel(val weights: Vector, val intercept: Double
     val localIntercept = intercept
 
     testData.map(v => predictPoint(v, localWeights, localIntercept))
+  }
+
+
+  /**
+   * Predict values for the given data set using the model trained.
+   *
+   * @param testData RDD representing data points to be predicted
+   * @return RDD[Double] where each entry contains the corresponding prediction
+   */
+  def loss(testData: RDD[LabeledPoint]): Double = {
+    // A small optimization to avoid serializing the entire model. Only the weightsMatrix
+    // and intercept is needed.
+    val localWeights = weights
+    val localIntercept = intercept
+
+    val (count, sum) = testData.map(v => (1, pointLoss(v, localWeights, localIntercept)))
+      .reduce((a,b) => (a._1 + b._1, a._2 + b._2))
+    sum
   }
 
   /**

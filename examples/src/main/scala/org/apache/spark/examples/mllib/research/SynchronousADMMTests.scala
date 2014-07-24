@@ -1,10 +1,24 @@
 package org.apache.spark.examples.mllib.research
 
+import java.io.{FileOutputStream, PrintWriter}
+import java.util.concurrent.TimeUnit
+
 import org.apache.log4j.{Level, Logger}
+
 import org.apache.spark.mllib.linalg.{SparseVector, DenseVector, Vector}
+
+import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithADMM, SVMWithSGD}
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
+import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
+import org.apache.spark.mllib.optimization.{L1Updater, SquaredL2Updater, Updater}
+
 import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
+
 
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.classification.{SVMWithAsyncADMM, SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
@@ -12,8 +26,11 @@ import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.mllib.optimization.{Updater, SquaredL2Updater, L1Updater}
 import java.util.concurrent.TimeUnit
+
+
 import scala.util.Random
-import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
+
+
 
 
 object DataLoaders {
@@ -159,8 +176,8 @@ object SynchronousADMMTests {
     val L1, L2 = Value
   }
 
-  import Algorithm._
-  import RegType._
+  import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Algorithm._
+  import org.apache.spark.examples.mllib.research.SynchronousADMMTests.RegType._
 
   case class Params(
                      input: String = null,
@@ -171,6 +188,7 @@ object SynchronousADMMTests {
                      regParam: Double = 0.1,
 
                      ADMMepsilon: Double = 1.0e-5,
+                     ADMMLocalepsilon: Double = 1.0e-5,
                      ADMMmaxLocalIterations: Int = 10,
 
                      format: String = "libsvm",
@@ -243,6 +261,9 @@ object SynchronousADMMTests {
       // ADMM-specific stuff
       opt[Double]("ADMMepsilon")
         .action((x, c) => c.copy(ADMMepsilon = x))
+      opt[Double]("ADMMLocalepsilon")
+        .action((x, c) => c.copy(ADMMLocalepsilon = x))
+
       opt[Int]("ADMMmaxLocalIterations")
         .action((x, c) => c.copy(ADMMmaxLocalIterations = x))
 
@@ -291,9 +312,27 @@ object SynchronousADMMTests {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
 
+
+
     val splits = examples.randomSplit(Array(0.8, 0.2))
     val training = splits(0).cache()
     val test = splits(1).cache()
+
+    {
+      val fos = new FileOutputStream("train.tsv")
+      val pw = new PrintWriter(fos)
+      training.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
+      pw.flush()
+      pw.close()
+    }
+    {
+      val fos = new FileOutputStream("test.tsv")
+      val pw = new PrintWriter(fos)
+      test.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
+      pw.flush()
+      pw.close()
+    }
+
 
     training.repartition(params.numPartitions)
     test.repartition(params.numPartitions)
@@ -339,9 +378,13 @@ object SynchronousADMMTests {
 
       val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
+      val trainingLoss = model.loss(training)
+      val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
+
       println(s"Iterations = ${i}")
       println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
       println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
+      println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
       println(s"Total time ${totalTimeMs}ms")
 
       println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()} ${model.weights}")
@@ -372,7 +415,10 @@ object SynchronousADMMTests {
           .setStepSize(params.stepSize)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        algorithm.run(training).clearThreshold()
+        val model = algorithm.run(training).clearThreshold()
+        println(model.weights.toArray.mkString(","))
+        println(model.intercept)
+        model
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         algorithm.maxGlobalIterations = iterations

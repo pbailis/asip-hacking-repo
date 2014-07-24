@@ -23,7 +23,7 @@ import java.util.Arrays
 import scala.annotation.varargs
 import scala.collection.JavaConverters._
 
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, norm}
 
 import org.apache.spark.mllib.util.NumericParser
 import org.apache.spark.SparkException
@@ -52,6 +52,10 @@ trait Vector extends Serializable {
   }
 
   override def hashCode(): Int = Arrays.hashCode(this.toArray)
+
+  def l2Norm: Double = {
+    norm(toBreeze, 2)
+  }
 
   /**
    * Converts the instance to a breeze vector.

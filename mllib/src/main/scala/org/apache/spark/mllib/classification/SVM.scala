@@ -69,6 +69,16 @@ class SVMModel private[mllib] (
       case None => margin
     }
   }
+
+  override protected def pointLoss(
+      point: LabeledPoint,
+      weightMatrix: Vector,
+      intercept: Double) = {
+    val LabeledPoint(y, x) = point
+    val wdotx = weightMatrix.toBreeze.dot(x.toBreeze) + intercept
+    val svmLabel = 2 * y - 1.0
+    math.max(0.0, 1 - svmLabel * wdotx)
+  }
 }
 
 /**

@@ -108,13 +108,24 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
       }
       t += 1
     }
-    // Check the local prediction error:
-    val propCorrect =
-      data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-        .reduce(_ + _).toDouble / nExamples.toDouble
+    // Compute the total gradient and total loss and proportion of correct examples locally
+    grad *= 0.0
+    var i = 0
+    var loss = 0.0
+    var correct = 0
+    val vectorW = Vectors.fromBreeze(w)
+    while (i < nExamples) {
+      val (y, x) = data(i)
+      if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) correct += 1
+      loss += gradient.compute(x, y, vectorW, Vectors.fromBreeze(grad))
+      i += 1
+    }
+    val propCorrect = correct / nExamples.toDouble
+    val gradientNorm = norm(grad, 2.0)
     logInfo(s"t = $t and residual = $residual")
     logInfo(s"Local prop correct: $propCorrect")
-    val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect"
+    val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect, " +
+      s"gradientNorm = $gradientNorm, loss = $loss"
     // Return the final weight vector
     (w, stats)
   }
