@@ -10,17 +10,16 @@ regParam=0.01
 export MASTER="local[4]"
 ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests \
     examples/target/scala-*/spark-examples-*.jar \
-    --algorithm SVMADMM --regType L2 --regParam 0.01 \
+    --algorithm SVMADMM --regType L2 --regParam 0.0000001 \
     --format cloud \
-    --numPartitions 20 \
+    --numPartitions 40 \
     --pointCloudPointsPerPartition 100 \
     --pointCloudPartitionSkew 0 \
     --pointCloudLabelNoise 0 \
     --pointCloudDimension 3 \
-    --sweepIterationStart 50 \
-    --sweepIterationEnd  50 \
+    --sweepIterationStart 1 \
+    --sweepIterationEnd 100 \
     --sweepIterationStep 10 \
-    --localStats true \
-    --ADMMLocalepsilon 1e-3 \
-    --ADMMepsilon 1e-5 \
+    --ADMMmaxLocalIterations 100 \
+    --ADMMepsilon 0
 

@@ -186,12 +186,10 @@ object SynchronousADMMTests {
                      algorithm: Algorithm = LR,
                      regType: RegType = L2,
                      regParam: Double = 0.1,
-
                      ADMMepsilon: Double = 1.0e-5,
                      ADMMLocalepsilon: Double = 1.0e-5,
                      ADMMmaxLocalIterations: Int = Int.MaxValue,
                      localStats: Boolean = false,
-
                      format: String = "libsvm",
                      numPartitions: Int = 128,
                      sweepIterationStart: Int = -1,
