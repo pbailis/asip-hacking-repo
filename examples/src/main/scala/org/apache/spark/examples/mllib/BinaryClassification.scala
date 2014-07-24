@@ -18,7 +18,6 @@
 package org.apache.spark.examples.mllib
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.mllib.admm.PegasosSVM
 import scopt.OptionParser
 
 import org.apache.spark.{SparkConf, SparkContext}
@@ -39,7 +38,7 @@ object BinaryClassification {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, LR, SVMADMM, Pegasos, PegasosAsync = Value
+    val SVM, LR, SVMADMM = Value
   }
 
   object RegType extends Enumeration {
@@ -150,13 +149,6 @@ object BinaryClassification {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.run(training).clearThreshold()
-      case Pegasos =>
-        val algorithm = new PegasosSVM()
-        algorithm.run(training)
-      case PegasosAsync =>
-        val algorithm = new PegasosSVM(async = true)
-        algorithm.run(training)
-
     }
 
     val prediction = model.predict(test.map(_.features))
