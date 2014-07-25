@@ -121,8 +121,10 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   var maxLocalIterations: Int = Int.MaxValue
   var regParam: Double = 1.0
   var miniBatchFraction: Double = 2.0
+  var localEpsilon: Double = 1.0e-5
   var epsilon: Double = 1.0e-5
   var updater: Updater = new SquaredL2Updater()
+  var collectLocalStats: Boolean = true
 
 
   private val gradient = new HingeGradient()
@@ -135,9 +137,11 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
     localSolver.maxIterations = maxLocalIterations
     localSolver.epsilon = epsilon
     localSolver.miniBatchFraction = miniBatchFraction
+    localSolver.collectStats = collectLocalStats
+    optimizer.displayLocalStats = collectLocalStats
     optimizer.numIterations = maxGlobalIterations
     optimizer.regParam = regParam
-    optimizer.epsilon = epsilon
+    optimizer.epsilon = localEpsilon
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
