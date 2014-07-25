@@ -189,7 +189,8 @@ object SynchronousADMMTests {
 
                      ADMMepsilon: Double = 1.0e-5,
                      ADMMLocalepsilon: Double = 1.0e-5,
-                     ADMMmaxLocalIterations: Int = 10,
+                     ADMMmaxLocalIterations: Int = Int.MaxValue,
+                     localStats: Boolean = false,
 
                      format: String = "libsvm",
                      numPartitions: Int = 128,
@@ -266,6 +267,8 @@ object SynchronousADMMTests {
 
       opt[Int]("ADMMmaxLocalIterations")
         .action((x, c) => c.copy(ADMMmaxLocalIterations = x))
+      opt[Boolean]("localStats")
+        .action((x, c) => c.copy(localStats = x))
 
       note(
         """
@@ -428,6 +431,8 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
+        algorithm.collectLocalStats = params.localStats
         algorithm.setup()
         algorithm.run(training).clearThreshold()
       case SVMADMMAsync =>
