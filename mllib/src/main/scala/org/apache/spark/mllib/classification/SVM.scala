@@ -156,6 +156,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   var totalSeconds = 10
   var numberOfParamBroadcasts = 10
   var regParam: Double = 1.0
+  var miniBatchFraction: Double = 0.1
 
   private val gradient = new HingeGradient()
   override val optimizer = new AsyncADMMwithSGD(gradient, updater)
@@ -164,6 +165,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
     optimizer.totalSeconds = totalSeconds
     optimizer.numberOfParamBroadcasts = numberOfParamBroadcasts
     optimizer.regParam = regParam
+    optimizer.miniBatchFraction = miniBatchFraction
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
