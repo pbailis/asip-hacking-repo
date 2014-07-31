@@ -2,7 +2,7 @@
 # if interrupted, run the following again, but add flag --resume
 ec2/spark-ec2 --slaves=5 --spot-price=1.0 --instance-type=m2.4xlarge --region=us-west-2 --key-pair kaiju --identity-file=/Users/pbailis/.ssh/kaiju_rsa.pub launch testing
 
-export MASTER=ec2-54-202-185-65.us-west-2.compute.amazonaws.com
+export MASTER=ec2-54-214-194-226.us-west-2.compute.amazonaws.com
 
 ssh root@$MASTER
 
@@ -39,9 +39,17 @@ cd ~/spark; ./bin/spark-submit --class org.apache.spark.examples.mllib.research.
 cd ~/spark; ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests examples/target/scala-*/spark-examples-*.jar --algorithm LR --regType L2 --regParam 1.0 --format cloud  --numPartitions 40 --pointCloudPointsPerPartition 10000 --pointCloudPartitionSkew 0 --pointCloudLabelNoise 0.1 --pointCloudDimension 100 --sweepIterationStart 1 --sweepIterationEnd 12 --sweepIterationStep 2 | grep RESULT | cut -c 9-
 
 
+cd ~/spark; ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests examples/target/scala-*/spark-examples-*.jar --algorithm SVMADMMAsync --regType L2 --regParam 0.0001 --format cloud  --numPartitions 40 --pointCloudPointsPerPartition 10000 --pointCloudPartitionSkew 0 --pointCloudLabelNoise 0.1 --pointCloudDimension 3 --sweepIterationStart 1 --sweepIterationEnd 12 --sweepIterationStep 2 | grep RESULT | cut -c 9-
+
+
 
 # to rebuild THE EXPERIMENTS
 cd ~/spark; git pull; sbt/sbt "project examples" "assembly"; cd ~; spark-ec2/copy-dir spark; cd spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh
 
 # to rebuild ALL
 cd ~/spark; git pull; sbt/sbt assembly; cd ~; spark-ec2/copy-dir spark; cd spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh
+
+
+
+cd ~/spark; git pull; sbt/sbt assembly; cd ~; spark-ec2/copy-dir spark; cd spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; cd ~/spark; ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests examples/target/scala-*/spark-examples-*.jar --algorithm SVMADMM --regType L2 --regParam 0.0001 --format cloud  --numPartitions 40 --pointCloudPointsPerPartition 10000 --pointCloudPartitionSkew 0 --pointCloudLabelNoise 0.1 --pointCloudDimension 3 --sweepIterationStart 1 --sweepIterationEnd 12 --sweepIterationStep 2 | grep RESULT | cut -c 9-
+
