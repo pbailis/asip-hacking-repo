@@ -115,9 +115,9 @@ object DataLoaders {
                         pointsPerPartition: Int): RDD[LabeledPoint] = {
     sc.parallelize(1 to numPartitions, numPartitions).flatMap {
       idx =>
-        val plusCloud = new DenseVector(Array.fill[Double](dim)(5.0))
+        val plusCloud = new DenseVector(Array.fill[Double](dim)(0.0))
         plusCloud.values(dim - 1) = 1
-        val negCloud = new DenseVector(Array.fill[Double](dim)(10.0))
+        val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
         negCloud.values(dim - 1) = 1
 
         val random = new Random()
@@ -271,8 +271,6 @@ object SynchronousADMMTests {
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     val sc = new SparkContext(conf)
 
-    Logger.getRootLogger.setLevel(Level.WARN)
-
     println("Starting to load data...")
 
     val examples = if (params.format == "lisbsvm") {
@@ -346,7 +344,7 @@ object SynchronousADMMTests {
       println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
       println(s"Total time ${totalTimeMs}ms")
 
-      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()}")
+      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()} ${model.weights}")
     }
 
     sc.stop()
@@ -389,8 +387,8 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.numberOfParamBroadcasts = 10
-        algorithm.totalSeconds = 10
+        algorithm.numberOfParamBroadcasts = 10*iterations
+        algorithm.totalSeconds = iterations
         algorithm.setup()
         algorithm.run(training).clearThreshold()
     }

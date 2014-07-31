@@ -18,7 +18,8 @@ import scala.collection.mutable
 import org.apache.spark.mllib.linalg.Vector
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 import org.apache.spark.mllib.optimization.InternalMessages.VectorUpdateMessage
-import java.util.concurrent.{ScheduledExecutorService, ScheduledThreadPoolExecutor, TimeUnit, Executors}
+import java.util.concurrent._
+import java.util.concurrent.TimeUnit
 
 case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
 
@@ -30,25 +31,27 @@ class WorkerCommunicationHack {
 object InternalMessages {
   class WakeupMsg
   class PingPong
-  class VectorUpdateMessage(val delta: BV[Double])
+  class VectorUpdateMessage(val delta: BV[Double], val sender: Int)
 }
 
-class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor {
+class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  var others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorSelection]
+  var selfID: Int = -1
 
-  var inputQueue: java.util.Vector[BV[Double]] = new util.Vector[BV[Double]]()
+  var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
-      println("new message from " + sender)
-      sender ! "gotit!"
+      logInfo("new message from " + sender)
     }
     case m: InternalMessages.WakeupMsg => {
-      println("activated local!"); sender ! "yo"
+      logInfo("activated local!"); sender ! "yo"
     }
     case s: String => println(s)
-    case d: InternalMessages.VectorUpdateMessage => inputQueue.add(d.delta)
+    case d: InternalMessages.VectorUpdateMessage => {
+      inputQueue.add(d)
+    }
     case _ => println("hello, world!")
   }
 
@@ -58,17 +61,18 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
   def connectToOthers(allHosts: Array[String]) {
     var i = 0
+    //logInfo(s"Connecting to others ${allHosts.mkString(",")} ${allHosts.length}")
     for (host <- allHosts) {
       if (!host.equals(address)) {
+        //logInfo(s"Connecting to $host, $i")
         others.put(i, context.actorSelection(allHosts(i)))
-        /*
-        others(i) ! new PingPong
-        implicit val timeout = Timeout(15 seconds)
 
+        implicit val timeout = Timeout(15 seconds)
         val f = others(i).resolveOne()
         Await.ready(f, Duration.Inf)
-        println(f.value.get.get)
-        */
+        logInfo(s"Connected to ${f.value.get.get}")
+      } else {
+        selfID = i
       }
       i += 1
     }
@@ -81,7 +85,7 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   }
 
   def broadcastDeltaUpdate(delta: BV[Double]) {
-    val msg = new InternalMessages.VectorUpdateMessage(delta)
+    val msg = new InternalMessages.VectorUpdateMessage(delta, selfID)
     for (other <- others.values) {
       other ! msg
     }
@@ -91,12 +95,13 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 class DeltaBroadcaster(val comm: WorkerCommunication,
                         var w: BV[Double],
                         val scheduler: ScheduledExecutorService,
-                        var broadcastsRemaining: Int,
-                        var broadcastPeriodMs: Long) extends Runnable {
+                        @volatile var broadcastsRemaining: Int,
+                        var broadcastPeriodMs: Long) extends Runnable with Logging {
   var prev_w = w
   @volatile var done = false
 
   @Override def run = {
+    logInfo(s"Broadcasting at a rate of $broadcastPeriodMs; $broadcastsRemaining remaining")
     comm.broadcastDeltaUpdate(prev_w - w)
     prev_w = w
 
@@ -116,24 +121,30 @@ class DeltaBroadcaster(val comm: WorkerCommunication,
 class AsyncSGDLocalOptimizer(val gradient: Gradient,
                              val updater: Updater,
                              val totalSeconds: Double,
-                             val numberOfParamBroadcasts: Int) extends Logging {
-  var eta_0: Double = 1.0
+                             val numberOfParamBroadcasts: Int,
+                             val miniBatchFraction: Double) extends Logging {
+  var eta_0: Double = 0.1
   var maxIterations: Int = Integer.MAX_VALUE
   var epsilon: Double = 0.001
-  var miniBatchFraction: Double = 0.1
 
   val scheduler = Executors.newScheduledThreadPool(1)
 
   def apply(subproblem: AsyncSubProblem,
-            w0: BV[Double], w_consensus: BV[Double], dualVar: BV[Double],
+            w0: BV[Double], init_w_consensus: BV[Double], dualVar: BV[Double],
             rho: Double, regParam: Double): BV[Double] = {
 
+    val lastHeardVectors = new mutable.HashMap[Int, BV[Double]]()
+    var w_consensus = init_w_consensus
+
+    for(i <- subproblem.comm.others.keySet) {
+      lastHeardVectors.put(i, w0)
+    }
 
     val db = new DeltaBroadcaster(subproblem.comm,
                                   w0,
                                   scheduler,
                                   numberOfParamBroadcasts,
-      (totalSeconds*1000/numberOfParamBroadcasts).toLong)
+      (totalSeconds*1000.0/numberOfParamBroadcasts).toLong)
 
     db.scheduleThis()
 
@@ -176,13 +187,28 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
       }
       t += 1
 
+      // Check the local prediction error:
+      val propCorrect =
+        subproblem.data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
+          .reduce(_ + _).toDouble / nExamples.toDouble
+      logInfo(s"t = $t and residual = $residual")
+      logInfo(s"Local prop correct: $propCorrect")
+      val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect"
+      logInfo(stats)
+
       // process any inbound deltas that arrived during the last minibatch
-      if(!transverseIteratorQueue.isEmpty) {
-        val tiq_it = transverseIteratorQueue.iterator()
-        while(tiq_it.hasNext) {
-          val delta = tiq_it.next()
-          w_consensus += delta
-        }
+      var changed = false
+      var tiq = transverseIteratorQueue.poll()
+      while(tiq != null) {
+        lastHeardVectors(tiq.sender) = tiq.delta
+        tiq = transverseIteratorQueue.poll()
+        changed = true
+      }
+
+      if(changed) {
+        w_consensus = lastHeardVectors.values.reduce(_ + _)/lastHeardVectors.size.toDouble
+        dualVar += w - w_consensus
+        t = 0
       }
 
       // make sure our outbound sender is up to date!
@@ -197,6 +223,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
   var localSubProblems: RDD[AsyncSubProblem] = null
   var totalSeconds = 10
   var numberOfParamBroadcasts = 10
+  var miniBatchFraction: Double = 0.1
 
   var regParam = 1.0
 
@@ -206,7 +233,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
         val workerName = UUID.randomUUID().toString
         val address = Worker.HACKakkaHost+workerName
         val hack = new WorkerCommunicationHack()
-        println(address)
+        logInfo(s"local address is $address")
         val aref= Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
         implicit val timeout = Timeout(15 seconds)
 
@@ -214,7 +241,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
         Await.result(f, timeout.duration).asInstanceOf[String]
 
         Iterator(new AsyncSubProblem(iter.toArray, hack.ref))
-    }
+    }.cache()
 
     val addresses = localSubProblems.map { w => w.comm.address }.collect()
 
@@ -231,7 +258,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
     // TODO: run setup code outside of this loop
     val subProblems = setup(rawData)
 
-    var rho  = 0.0
+    var rho  = 4.0
     val dim = rawData.map(block => block._2.size).first()
     var w_0 = BV.zeros[Double](dim)
     var w_avg = w_0.copy
@@ -240,8 +267,8 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
     // TODO: average properly
     val avg = localSubProblems.map {
       p =>
-        val solver = new AsyncSGDLocalOptimizer(gradient, updater, totalSeconds, numberOfParamBroadcasts)
-        solver.apply(p, w_0, w_avg, dual_var, rho, regParam)
+        val solver = new AsyncSGDLocalOptimizer(gradient, updater, totalSeconds, numberOfParamBroadcasts, miniBatchFraction)
+        solver(p, w_0, w_avg, dual_var, rho, regParam)
     }.reduce(_ + _)/localSubProblems.count().toDouble
 
     Vectors.fromBreeze(avg)
