@@ -92,10 +92,11 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 class DeltaBroadcaster(val comm: WorkerCommunication,
                         var w: BV[Double],
                         val scheduler: ScheduledExecutorService,
-                        @volatile var broadcastsRemaining: Int,
-                        var broadcastPeriodMs: Long) extends Runnable with Logging {
+                        val totalSeconds: Double,
+                        var broadcastPeriodMs: Int) extends Runnable with Logging {
   var prev_w = w
   @volatile var done = false
+  @volatile var broadcastsRemaining: Int = Math.round(totalSeconds/(broadcastPeriodMs/1000.)).toInt
 
   @Override def run = {
     logInfo(s"Broadcasting at a rate of $broadcastPeriodMs; $broadcastsRemaining remaining")
@@ -117,7 +118,7 @@ class DeltaBroadcaster(val comm: WorkerCommunication,
 class AsyncSGDLocalOptimizer(val gradient: Gradient,
                              val updater: Updater,
                              val totalSeconds: Double,
-                             val numberOfParamBroadcasts: Int,
+                             val paramBroadcastPeriodMs: Int,
                              val miniBatchFraction: Double) extends Logging {
   var eta_0: Double = 1.0
   var maxIterations: Int = Integer.MAX_VALUE
@@ -140,8 +141,8 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
     val db = new DeltaBroadcaster(subproblem.comm,
                                   w0,
                                   scheduler,
-                                  numberOfParamBroadcasts,
-      (totalSeconds*1000.0/numberOfParamBroadcasts).toLong)
+                                  totalSeconds,
+                                  paramBroadcastPeriodMs)
 
     db.scheduleThis()
 
@@ -204,7 +205,7 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 //          dualVar += (w - w_consensus)
 //        }
 
-        dualVar += (w - w_consensus) * (rho / numberOfParamBroadcasts.toDouble)
+        dualVar += (w - w_consensus) * (rho / paramBroadcastPeriodMs.toDouble)
 
         val dualResidual = rho * norm(w_consensus - w_consensus_old, 2)
         val primalResidual = (lastHeardVectors.values.iterator.map(x => norm(x - w_consensus,2)).sum) /
@@ -244,7 +245,7 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Optimizer with Logging {
   var localSubProblems: RDD[AsyncSubProblem] = null
   var totalSeconds = 10
-  var numberOfParamBroadcasts = 10
+  var paramBroadcastPeriodMs = 100
   var miniBatchFraction: Double = 0.1
 
   var regParam = 0.001
@@ -289,7 +290,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
     // TODO: average properly
     val avg = localSubProblems.map {
       p =>
-        val solver = new AsyncSGDLocalOptimizer(gradient, updater, totalSeconds, numberOfParamBroadcasts, miniBatchFraction)
+        val solver = new AsyncSGDLocalOptimizer(gradient, updater, totalSeconds, paramBroadcastPeriodMs, miniBatchFraction)
         solver(p, w_0, w_avg, dual_var, rho, regParam)
     }.reduce(_ + _)/localSubProblems.count().toDouble
 
