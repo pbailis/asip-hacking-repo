@@ -75,7 +75,8 @@ def runTest(algorithm, cmd):
                 "roc": float(line[5]),
                 "training_loss": float(line[6]),
                 "reg_penalty": float(line[7]),
-                "model": line[8],
+                "total_loss": line[8],
+                "model": line[9],
                 "line": line
             }
             results.append(record)
