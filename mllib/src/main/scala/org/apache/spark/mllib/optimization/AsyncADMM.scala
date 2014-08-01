@@ -96,7 +96,7 @@ class DeltaBroadcaster(val comm: WorkerCommunication,
                         var broadcastPeriodMs: Int) extends Runnable with Logging {
   var prev_w = w
   @volatile var done = false
-  @volatile var broadcastsRemaining: Int = Math.round(totalSeconds/(broadcastPeriodMs/1000.)).toInt
+  @volatile var broadcastsRemaining: Int = Math.round(totalSeconds/(broadcastPeriodMs/1000.0)).toInt
 
   @Override def run = {
     logInfo(s"Broadcasting at a rate of $broadcastPeriodMs; $broadcastsRemaining remaining")
