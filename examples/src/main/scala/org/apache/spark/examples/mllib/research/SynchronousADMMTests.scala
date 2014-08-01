@@ -1,10 +1,9 @@
 package org.apache.spark.examples.mllib.research
 
-import java.io.{FileOutputStream, PrintWriter}
 import java.util.concurrent.TimeUnit
 
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
+import org.apache.spark.mllib.classification.{SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.optimization.{L1Updater, SquaredL2Updater, Updater}
@@ -123,7 +122,8 @@ object DataLoaders {
         val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
         negCloud.values(dim - 1) = 1
 
-        val random = new Random()
+        // Seed the generator with the partition index
+        val random = new Random(idx)
 
         val ret = new Array[LabeledPoint](pointsPerPartition)
         val isPartitionPlus = idx % 2 == 1
@@ -154,7 +154,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, LR, SVMADMM, SVMADMMAsync = Value
+    val SVM, SVMADMM, SVMADMMAsync = Value
   }
 
   object RegType extends Enumeration {
@@ -169,7 +169,7 @@ object SynchronousADMMTests {
                      input: String = null,
                      numIterations: Int = 100,
                      stepSize: Double = 1.0,
-                     algorithm: Algorithm = LR,
+                     algorithm: Algorithm = SVM,
                      regType: RegType = L2,
                      regParam: Double = 0.1,
 
@@ -262,7 +262,7 @@ object SynchronousADMMTests {
           |
           | bin/spark-submit --class org.apache.spark.examples.mllib.BinaryClassification \
           |  examples/target/scala-*/spark-examples-*.jar \
-          |  --algorithm LR --regType L2 --regParam 1.0 \
+          |  --algorithm SVM --regType L2 --regParam 1.0 \
           |  data/mllib/sample_binary_classification_data.txt
         """.stripMargin)
     }
@@ -303,37 +303,37 @@ object SynchronousADMMTests {
 
 
 
-    val splits = examples.randomSplit(Array(0.8, 0.2))
-    val training = splits(0).cache()
-    val test = splits(1).cache()
+//    val splits = examples.randomSplit(Array(0.8, 0.2))
+//    val training = splits(0).cache()
+//    val test = splits(1).cache()
+    val training = examples
 
-    {
-      val fos = new FileOutputStream("train.tsv")
-      val pw = new PrintWriter(fos)
-      training.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
-      pw.flush()
-      pw.close()
-    }
-    {
-      val fos = new FileOutputStream("test.tsv")
-      val pw = new PrintWriter(fos)
-      test.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
-      pw.flush()
-      pw.close()
-    }
+//    {
+//      val fos = new FileOutputStream("train.tsv")
+//      val pw = new PrintWriter(fos)
+//      training.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
+//      pw.flush()
+//      pw.close()
+//    }
+//    {
+//      val fos = new FileOutputStream("test.tsv")
+//      val pw = new PrintWriter(fos)
+//      test.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
+//      pw.flush()
+//      pw.close()
+//    }
 
 
-    training.repartition(params.numPartitions)
-    test.repartition(params.numPartitions)
+    training.repartition(params.numPartitions).cache()
+    //test.repartition(params.numPartitions)
 
     val numTraining = training.count()
-    val numTest = test.count()
+    //    val numTest = test.count()
 
-    println(s"Loaded data! Training: $numTraining, test: $numTest.")
+    println(s"Loaded data! Number of training examples: $numTraining")
+    println(s"Number of partitions: ${training.partitions.length}")
 
-    println(s"defaultparallelism: ${sc.defaultParallelism} minpart: ${sc.defaultMinPartitions}")
-
-    examples.unpersist(blocking = false)
+    // examples.unpersist(blocking = false)
 
     val updater = params.regType match {
       case L1 => new L1Updater()
@@ -341,7 +341,6 @@ object SynchronousADMMTests {
     }
 
     println("Starting test!")
-
 
     var it_st = params.sweepIterationStart
     var it_end = params.sweepIterationEnd
@@ -362,13 +361,14 @@ object SynchronousADMMTests {
       val totalTimeNs = System.nanoTime() - startTime
       val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-      val prediction = model.predict(test.map(_.features))
-      val predictionAndLabel = prediction.zip(test.map(_.label))
+      val prediction = model.predict(training.map(_.features))
+      val predictionAndLabel = prediction.zip(training.map(_.label))
 
       val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
       val trainingLoss = model.loss(training)
       val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
+
 
       println(s"Iterations = ${i}")
       println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
@@ -376,7 +376,13 @@ object SynchronousADMMTests {
       println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
       println(s"Total time ${totalTimeMs}ms")
 
-      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()} ${trainingLoss} ${regularizationPenalty} ${trainingLoss + regularizationPenalty} ${model.weights}")
+      val summary =
+        s"RESULT: ${params.algorithm}\t${i}\t${totalTimeMs}\t${metrics.areaUnderPR()}\t${metrics.areaUnderROC()}" +
+        s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
+        s"\t${model.weights.toArray.mkString(",")}"
+
+      println(summary)
+
     }
 
     sc.stop()
@@ -389,14 +395,14 @@ object SynchronousADMMTests {
     println(s"Running algorithm ${params.algorithm} $iterations iterations")
 
     params.algorithm match {
-      case LR =>
-        val algorithm = new LogisticRegressionWithSGD()
-        algorithm.optimizer
-          .setNumIterations(iterations)
-          .setStepSize(params.stepSize)
-          .setUpdater(updater)
-          .setRegParam(params.regParam)
-        algorithm.run(training).clearThreshold()
+//      case LR =>
+//        val algorithm = new LogisticRegressionWithSGD()
+//        algorithm.optimizer
+//          .setNumIterations(iterations)
+//          .setStepSize(params.stepSize)
+//          .setUpdater(updater)
+//          .setRegParam(params.regParam)
+//        algorithm.run(training).clearThreshold()
       case SVM =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer

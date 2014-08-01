@@ -1,14 +1,14 @@
 
 from os import system
 
-ALGORITHMS = ["LR", "SVM", "SVMADMM", "SVMADMMAsync"]
+ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 
-class Result:
-    def __init__(self, algorithm, runtime_ms, area_under_pr, training_loss):
-        self.algorithm = algorithm
-        self.runtime_ms = runtime_ms
-        self.area_under_pr = area_under_pr
-        self.training_loss = training_loss
+# class Result:
+#     def __init__(self, algorithm, runtime_ms, area_under_pr, training_loss):
+#         self.algorithm = algorithm
+#         self.runtime_ms = runtime_ms
+#         self.area_under_pr = area_under_pr
+#         self.training_loss = training_loss
 
 def describe_point_cloud(pointsPerPartition = 10000,
                          partitionSkew = 0,
@@ -62,14 +62,23 @@ def runTest(algorithm, cmd):
     system("eval '%s' > /tmp/run.out 2>&1" % (cmd))
 
     results = []
-
+    # s"RESULT: ${params.algorithm} \t ${i} \t ${totalTimeMs} \t ${metrics.areaUnderPR()} \t ${metrics.areaUnderROC()} " +
+    # s"\t ${trainingLoss} \t  ${regularizationPenalty} \t ${trainingLoss + regularizationPenalty} \t ${model.weights}"
     for line in open("/tmp/run.out"):
         if line.find("RESULT") != -1:
             line = line.split()
-            runtime_ms = int(line[2])
-            area_under_pr = float(line[3])
-            training_loss = float(line[4])
-            results.append(Result(algorithm, runtime_ms, area_under_pr, training_loss))
+            record = {
+                "algorithm": algorithm,
+                "iterations": int(line[2]),
+                "runtime_ms": int(line[3]),
+                "pr": float(line[4]),
+                "roc": float(line[5]),
+                "training_loss": float(line[6]),
+                "reg_penalty": float(line[7]),
+                "model": line[8],
+                "line": line
+            }
+            results.append(record)
 
     return results
 
@@ -77,5 +86,5 @@ for algorithm in ALGORITHMS:
     results = []
     results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud()))
     for r in results:
-        print r.algorithm, r.runtime_ms, r.area_under_pr
+        print r
     
