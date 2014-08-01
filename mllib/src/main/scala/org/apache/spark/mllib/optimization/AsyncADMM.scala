@@ -1,25 +1,22 @@
 package org.apache.spark.mllib.optimization
 
-import breeze.linalg._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.linalg.Vectors
-import akka.actor._
-import org.apache.spark.Logging
-import org.apache.spark.deploy.worker.Worker
-import scala.language.postfixOps
 import java.util.UUID
-import java.util
+import java.util.concurrent._
 
+import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import scala.concurrent.duration._
-import scala.concurrent.Await
-import scala.collection.mutable
-import org.apache.spark.mllib.linalg.Vector
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import org.apache.spark.Logging
+import org.apache.spark.deploy.worker.Worker
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.optimization.InternalMessages.VectorUpdateMessage
-import java.util.concurrent._
-import java.util.concurrent.TimeUnit
+import org.apache.spark.rdd.RDD
+
+import scala.collection.mutable
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
 
@@ -122,7 +119,7 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
                              val totalSeconds: Double,
                              val numberOfParamBroadcasts: Int,
                              val miniBatchFraction: Double) extends Logging {
-  var eta_0: Double = 0.1
+  var eta_0: Double = 1.0
   var maxIterations: Int = Integer.MAX_VALUE
   var epsilon: Double = 0.001
 
@@ -153,20 +150,21 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
     val dim = subproblem.data(0)._2.size
     val miniBatchSize = math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
     val rnd = new java.util.Random()
-
     var residual = 1.0
     var w = w0.copy
     var grad = BV.zeros[Double](dim)
     var t = 0
     while(!db.done) {
-      for (innerIter <- 0 to 100) {
+
+      residual = 1.0
+      while(residual > 0.001) {
         grad *= 0.0 // Clear the gradient sum
         var b = 0
         while (b < miniBatchSize) {
           val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
           val (label, features) = subproblem.data(ind)
           gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
-            b += 1
+          b += 1
         }
         // Normalize the gradient to the batch size
         grad /= miniBatchSize.toDouble
@@ -182,20 +180,8 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
         // Compute residual.  This is a decaying residual definition.
         // residual = (eta_t * norm(grad, 2.0) + residual) / 2.0
         residual = norm(w - wOld, 2.0)
-        if((t % 10) == 0) {
-          logInfo(s"Residual: $residual ")
-        }
         t += 1
       }
-
-      // Check the local prediction error:
-      val propCorrect =
-        subproblem.data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-          .reduce(_ + _).toDouble / nExamples.toDouble
-      logInfo(s"t = $t and residual = $residual")
-      logInfo(s"Local prop correct: $propCorrect")
-      val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect"
-      logInfo(stats)
 
       // process any inbound deltas that arrived during the last minibatch
       var changed = false
@@ -206,15 +192,31 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
         changed = true
       }
 
+
       if(changed) {
-        w_consensus = lastHeardVectors.values.reduce(_ + _)/lastHeardVectors.size.toDouble
-        println(s"(w_consesnsus, w_local): ${w_consensus},   ${w},  ${dualVar}")
-        dualVar += w - w_consensus
-        t = 0
+        lastHeardVectors(subproblem.comm.selfID) = w
+
+        val w_consensus_old = w_consensus
+        w_consensus = lastHeardVectors.values.reduce(_ + _) / lastHeardVectors.size.toDouble
+
+//        if (norm(w_consensus_old - w_consensus, 2) < 0.01) {
+//          dualVar += (w - w_consensus)
+//        }
+        dualVar += (w - w_consensus) * (1.0 / numberOfParamBroadcasts.toDouble)
+
+//        val propCorrectConsensu =
+//              subproblem.data.iterator.map { case (y,x) => if (x.toBreeze.dot(w_consensus) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
+//              .reduce(_ + _).toDouble / nExamples.toDouble
+//        val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrectConsensu"
+//        println(s"(w_consesnsus, w_local): $stats,\n \t ${w_consensus},   ${w},    ${dualVar}")
+//        println("----------")
+//        lastHeardVectors.values.foreach(v => println(s"\t $v"))
       }
 
+      t = 0
+
       // make sure our outbound sender is up to date!
-      db.w = w
+      db.w = w.copy
     }
 
     w
@@ -227,7 +229,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
   var numberOfParamBroadcasts = 10
   var miniBatchFraction: Double = 0.1
 
-  var regParam = 1.0
+  var regParam = 0.001
 
   def setup(input: RDD[(Double, Vector)]) = {
     localSubProblems = input.mapPartitions {

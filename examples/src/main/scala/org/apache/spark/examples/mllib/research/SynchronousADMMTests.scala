@@ -3,30 +3,16 @@ package org.apache.spark.examples.mllib.research
 import java.io.{FileOutputStream, PrintWriter}
 import java.util.concurrent.TimeUnit
 
-import org.apache.log4j.{Level, Logger}
-
-import org.apache.spark.mllib.linalg.{SparseVector, DenseVector, Vector}
-
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithADMM, SVMWithSGD}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.optimization.{L1Updater, SquaredL2Updater, Updater}
-
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
-
-
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.classification.{SVMWithAsyncADMM, SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.mllib.optimization.{Updater, SquaredL2Updater, L1Updater}
-import java.util.concurrent.TimeUnit
-
 
 import scala.util.Random
 
@@ -436,7 +422,7 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.numberOfParamBroadcasts = 10*iterations
+        algorithm.numberOfParamBroadcasts = 10 * iterations
         algorithm.totalSeconds = iterations
         algorithm.setup()
         algorithm.run(training).clearThreshold()
