@@ -86,17 +86,20 @@ def runTest(algorithm, cmd):
 
     return results
 
+
+
+results = []
+
 for algorithm in ALGORITHMS:
-    results = []
     results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud()))
 
-    # Pickel the output
-    output = open('experiment.pkl', 'wb')
-    pickle.dump(results, output)
-    output.close()
+# Pickel the output
+output = open('experiment.pkl', 'wb')
+pickle.dump(results, output)
+output.close()
 
-    # display the results
-    print results[0].keys()
-    for r in results:
-        print [r[k] for k in r if k is not "line"]
+# display the results
+print results[0].keys()
+for r in results:
+    print [r[k] for k in r if k is not "line"]
     
