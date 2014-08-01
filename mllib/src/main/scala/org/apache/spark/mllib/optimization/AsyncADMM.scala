@@ -127,10 +127,11 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 
   def apply(subproblem: AsyncSubProblem,
             w0: BV[Double], init_w_consensus: BV[Double], dualVar: BV[Double],
-            rho: Double, regParam: Double): BV[Double] = {
+            rho0: Double, regParam: Double): BV[Double] = {
 
     val lastHeardVectors = new mutable.HashMap[Int, BV[Double]]()
     var w_consensus = init_w_consensus
+    var rho = rho0
 
     for(i <- subproblem.comm.others.keySet) {
       lastHeardVectors.put(i, w0)
@@ -169,8 +170,8 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
         // Normalize the gradient to the batch size
         grad /= miniBatchSize.toDouble
         // Add the lagrangian + augmenting term.
-        // grad += rho * (dualVar + w - w_avg)
-        axpy(rho, dualVar + w - w_consensus, grad)
+        grad += dualVar + (w - w_consensus) * rho
+        // axpy(rho, dualVar + w - w_consensus, grad)
         // Set the learning rate
         val eta_t = eta_0 / (t.toDouble + 1.0)
         // w = w + eta_t * point_gradient
@@ -202,13 +203,30 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 //        if (norm(w_consensus_old - w_consensus, 2) < 0.01) {
 //          dualVar += (w - w_consensus)
 //        }
-        dualVar += (w - w_consensus) * (1.0 / numberOfParamBroadcasts.toDouble)
 
-//        val propCorrectConsensu =
-//              subproblem.data.iterator.map { case (y,x) => if (x.toBreeze.dot(w_consensus) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-//              .reduce(_ + _).toDouble / nExamples.toDouble
-//        val stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrectConsensu"
-//        println(s"(w_consesnsus, w_local): $stats,\n \t ${w_consensus},   ${w},    ${dualVar}")
+        dualVar += (w - w_consensus) * (rho / numberOfParamBroadcasts.toDouble)
+
+        val dualResidual = rho * norm(w_consensus - w_consensus_old, 2)
+        val primalResidual = (lastHeardVectors.values.iterator.map(x => norm(x - w_consensus,2)).sum) /
+          lastHeardVectors.size.toDouble
+        // Rho upate from Boyd text
+        if (rho == 0.0) {
+          rho = 1.0
+        } else if (primalResidual > 10.0 * dualResidual) {
+          rho = 2.0 * rho
+          println(s"Increasing rho: $rho")
+        } else if (dualResidual > 10.0 * primalResidual) {
+          rho = rho / 2.0
+          println(s"Decreasing rho: $rho")
+        }
+
+
+        val propCorrectConsensu =
+              subproblem.data.iterator.map { case (y,x) => if (x.toBreeze.dot(w_consensus) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
+              .reduce(_ + _).toDouble / nExamples.toDouble
+        val stats = s"STATS: t = $t, primalResid = $primalResidual, dualResidual = $dualResidual,  accuracy = $propCorrectConsensu"
+        println(s"$rho  $stats")
+        //println(s"(w_consesnsus, w_local): $stats,\n \t ${w_consensus},   ${w},    ${dualVar}")
 //        println("----------")
 //        lastHeardVectors.values.foreach(v => println(s"\t $v"))
       }
@@ -262,7 +280,7 @@ class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Op
     // TODO: run setup code outside of this loop
     val subProblems = setup(rawData)
 
-    var rho  = 4.0
+    var rho  = 1.0
     val dim = rawData.map(block => block._2.size).first()
     var w_0 = BV.zeros[Double](dim)
     var w_avg = w_0.copy
