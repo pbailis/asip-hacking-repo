@@ -387,7 +387,7 @@ object SynchronousADMMTests {
         algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.numberOfParamBroadcasts = 10*iterations
+        algorithm.numberOfParamBroadcasts = 100*iterations
         algorithm.totalSeconds = iterations
         algorithm.setup()
         algorithm.run(training).clearThreshold()
