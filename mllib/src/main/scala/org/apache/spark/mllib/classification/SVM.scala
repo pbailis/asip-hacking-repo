@@ -154,7 +154,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   var epsilon: Double = 1.0e-5
   var updater: Updater = new SquaredL2Updater()
   var totalSeconds = 10
-  var numberOfParamBroadcasts = 10
+  var paramBroadcastPeriodMs = 100
   var regParam: Double = 1.0
   var miniBatchFraction: Double = 0.1
 
@@ -163,7 +163,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
 
   def setup() {
     optimizer.totalSeconds = totalSeconds
-    optimizer.numberOfParamBroadcasts = numberOfParamBroadcasts
+    optimizer.paramBroadcastPeriodMs = paramBroadcastPeriodMs
     optimizer.regParam = regParam
     optimizer.miniBatchFraction = miniBatchFraction
   }
