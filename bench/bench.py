@@ -1,5 +1,8 @@
 
 from os import system
+import pickle
+
+
 
 ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 
@@ -86,6 +89,14 @@ def runTest(algorithm, cmd):
 for algorithm in ALGORITHMS:
     results = []
     results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud()))
+
+    # Pickel the output
+    output = open('experiment.pkl', 'wb')
+    pickle.dump(results, output)
+    output.close()
+
+    # display the results
+    print results[0].keys()
     for r in results:
-        print r
+        print [r[k] for k in r if k is not "line"]
     
