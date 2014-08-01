@@ -374,7 +374,7 @@ object SynchronousADMMTests {
       println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
       println(s"Total time ${totalTimeMs}ms")
 
-      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()} ${model.weights}")
+      println(s"RESULT: ${i} $totalTimeMs ${metrics.areaUnderPR()} ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty} ${model.weights}")
     }
 
     sc.stop()
