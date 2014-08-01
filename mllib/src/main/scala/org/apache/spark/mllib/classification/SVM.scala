@@ -77,7 +77,7 @@ class SVMModel private[mllib] (
     val LabeledPoint(y, x) = point
     val wdotx = weightMatrix.toBreeze.dot(x.toBreeze) + intercept
     val svmLabel = 2 * y - 1.0
-    math.max(0.0, 1 - svmLabel * wdotx)
+    math.max(0.0, 1.0 - svmLabel * wdotx)
   }
 }
 
