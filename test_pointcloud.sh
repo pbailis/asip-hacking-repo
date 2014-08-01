@@ -3,19 +3,34 @@
 itStart=1
 itEnd=32
 itStep=2
-regParam=0.01
+regParam=0.001
 
 
 # cd ~/spark;
-export MASTER="local[4]"
+# export MASTER="local[4]"
+
+cd ~/spark; 
+
+sbt/sbt assembly; 
+cd ~; 
+spark-ec2/copy-dir spark; 
+cd spark; 
+sbin/stop-all.sh; 
+
+sleep 5; 
+
+sbin/start-all.sh
+
 ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests \
     examples/target/scala-*/spark-examples-*.jar \
-    --algorithm SVMADMM --regType L2 --regParam 0.01 \
+    --algorithm SVMADMMAsync \
+    --regType L2 \
+    --regParam $regParam \
     --format cloud \
     --numPartitions 20 \
     --pointCloudPointsPerPartition 100 \
     --pointCloudPartitionSkew 0 \
-    --pointCloudLabelNoise 0 \
+    --pointCloudLabelNoise 0.0 \
     --pointCloudDimension 3 \
     --sweepIterationStart 50 \
     --sweepIterationEnd  50 \
@@ -23,4 +38,4 @@ export MASTER="local[4]"
     --localStats true \
     --ADMMLocalepsilon 1e-3 \
     --ADMMepsilon 1e-5 \
-
+    2>&1 | grep -i "ADMM"

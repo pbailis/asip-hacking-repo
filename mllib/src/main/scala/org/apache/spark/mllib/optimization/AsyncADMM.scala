@@ -102,8 +102,7 @@ class DeltaBroadcaster(val comm: WorkerCommunication,
 
   @Override def run = {
     logInfo(s"Broadcasting at a rate of $broadcastPeriodMs; $broadcastsRemaining remaining")
-    comm.broadcastDeltaUpdate(prev_w - w)
-    prev_w = w
+    comm.broadcastDeltaUpdate(w)
 
     broadcastsRemaining -= 1
     if(broadcastsRemaining > 0) {
@@ -160,32 +159,34 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
     var grad = BV.zeros[Double](dim)
     var t = 0
     while(!db.done) {
-      grad *= 0.0 // Clear the gradient sum
-      var b = 0
-      while (b < miniBatchSize) {
-        val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-        val (label, features) = subproblem.data(ind)
-        gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
-        b += 1
+      for (innerIter <- 0 to 100) {
+        grad *= 0.0 // Clear the gradient sum
+        var b = 0
+        while (b < miniBatchSize) {
+          val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+          val (label, features) = subproblem.data(ind)
+          gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
+            b += 1
+        }
+        // Normalize the gradient to the batch size
+        grad /= miniBatchSize.toDouble
+        // Add the lagrangian + augmenting term.
+        // grad += rho * (dualVar + w - w_avg)
+        axpy(rho, dualVar + w - w_consensus, grad)
+        // Set the learning rate
+        val eta_t = eta_0 / (t.toDouble + 1.0)
+        // w = w + eta_t * point_gradient
+        // axpy(-eta_t, grad, w)
+        val wOld = w.copy
+        w = updater.compute(Vectors.fromBreeze(w), Vectors.fromBreeze(grad), eta_t, 1, regParam)._1.toBreeze
+        // Compute residual.  This is a decaying residual definition.
+        // residual = (eta_t * norm(grad, 2.0) + residual) / 2.0
+        residual = norm(w - wOld, 2.0)
+        if((t % 10) == 0) {
+          logInfo(s"Residual: $residual ")
+        }
+        t += 1
       }
-      // Normalize the gradient to the batch size
-      grad /= miniBatchSize.toDouble
-      // Add the lagrangian + augmenting term.
-      // grad += rho * (dualVar + w - w_avg)
-      axpy(rho, dualVar + w - w_consensus, grad)
-      // Set the learning rate
-      val eta_t = eta_0 / (t.toDouble + 1.0)
-      // w = w + eta_t * point_gradient
-      // axpy(-eta_t, grad, w)
-      val wOld = w.copy
-      w = updater.compute(Vectors.fromBreeze(w), Vectors.fromBreeze(grad), eta_t, 1, regParam)._1.toBreeze
-      // Compute residual.  This is a decaying residual definition.
-      // residual = (eta_t * norm(grad, 2.0) + residual) / 2.0
-      residual = norm(w - wOld, 2.0)
-      if((t % 10) == 0) {
-        logInfo(s"Residual: $residual ")
-      }
-      t += 1
 
       // Check the local prediction error:
       val propCorrect =
@@ -207,6 +208,7 @@ class AsyncSGDLocalOptimizer(val gradient: Gradient,
 
       if(changed) {
         w_consensus = lastHeardVectors.values.reduce(_ + _)/lastHeardVectors.size.toDouble
+        println(s"(w_consesnsus, w_local): ${w_consensus},   ${w},  ${dualVar}")
         dualVar += w - w_consensus
         t = 0
       }
