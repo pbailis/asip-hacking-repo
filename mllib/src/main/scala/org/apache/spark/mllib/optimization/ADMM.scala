@@ -93,8 +93,9 @@ class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends Lo
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
       // Add the lagrangian + augmenting term.
-      // grad += rho * (dualVar + w - w_avg)
-      axpy(rho, dualVar + w - w_consensus, grad)
+      // grad += dual_var + rho * (w - w_avg)
+      grad += dualVar + (w - w_consensus) * rho
+      //axpy(rho, w - w_consensus, grad)
       // Set the learning rate
       val eta_t = eta_0 / (t.toDouble + 1.0)
       // w = w + eta_t * point_gradient
@@ -176,7 +177,7 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
       val tmp = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
         dataIterator.zip(modelIterator).map { case (data, (w_old, dualVar_old)) =>
           // Update the lagrangian Multiplier by taking a gradient step
-          val dualVar = dualVar_old + (w_old - w_avg)
+          val dualVar = dualVar_old + (w_old - w_avg) * rho
           val (w, loss, stats) = optimizer(numPartitions, data, w_old, w_avg, dualVar, rho, localReg)
           (w, dualVar, loss, stats)
         }
@@ -202,7 +203,7 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
       // primalResidual = sum( ||w_i - w_avg||_2^2 )
       primalResidual = wAndDualVar.map { case (w, _) => Math.pow(norm(w - new_w_avg, 2.0),2) }
         .reduce(_ + _) / numPartitions.toDouble
-      dualResidual = Math.pow(norm(new_w_avg - w_avg, 2.0), 2)
+      dualResidual = rho * Math.pow(norm(new_w_avg - w_avg, 2.0), 2)
 
       // Rho upate from Boyd text
       if (rho == 0.0) {
