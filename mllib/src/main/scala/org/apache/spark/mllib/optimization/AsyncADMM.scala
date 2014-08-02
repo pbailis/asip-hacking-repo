@@ -18,7 +18,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
+//
+//case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
 
 // fuck actors
 class WorkerCommunicationHack {
@@ -28,7 +29,8 @@ class WorkerCommunicationHack {
 object InternalMessages {
   class WakeupMsg
   class PingPong
-  class VectorUpdateMessage(val delta: BV[Double], val sender: Int)
+  class VectorUpdateMessage(val sender: Int,
+                            val primalVar: BV[Double], val dualVar: BV[Double], val nExamples: Int)
 }
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
@@ -81,219 +83,193 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     }
   }
 
-  def broadcastDeltaUpdate(delta: BV[Double]) {
-    val msg = new InternalMessages.VectorUpdateMessage(delta, selfID)
+  def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double], nExamples: Int) {
+    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)
     for (other <- others.values) {
       other ! msg
     }
   }
 }
 
-class DeltaBroadcaster(val comm: WorkerCommunication,
-                        var w: BV[Double],
-                        val scheduler: ScheduledExecutorService,
-                        val totalSeconds: Double,
-                        var broadcastPeriodMs: Int) extends Runnable with Logging {
-  var prev_w = w
+
+
+class AsyncADMMWorker(subProblemId: Int,
+                      val nSubProblems: Int,
+                      data: Array[(Double, BV[Double])],
+                      primalVar0: BV[Double],
+                      gradient: FastGradient,
+                      val consensus: ConsensusFunction,
+                      val regParam: Double,
+                      eta_0: Double,
+                      epsilon: Double,
+                      maxIterations: Int,
+                      miniBatchSize: Int,
+                      val comm: WorkerCommunication,
+                      val broadcastDelayMS: Int)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
+    gradient = gradient, eta_0 = eta_0, epsilon = epsilon, maxIterations = maxIterations,
+    miniBatchSize = miniBatchSize)
+  with Logging {
+
+
   @volatile var done = false
-  @volatile var broadcastsRemaining: Int = Math.round(totalSeconds/(broadcastPeriodMs/1000.0)).toInt
 
-  @Override def run = {
-    logInfo(s"Broadcasting at a rate of $broadcastPeriodMs; $broadcastsRemaining remaining")
-    comm.broadcastDeltaUpdate(w)
+  var primalConsensus = primalVar0.copy
+  var rho = 1.0
 
-    broadcastsRemaining -= 1
-    if(broadcastsRemaining > 0) {
-      scheduleThis()
-    } else {
-      done = true
+  val broadcastThread = new Thread {
+    override def run {
+      while (!done) {
+        comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
+        Thread.sleep(broadcastDelayMS)
+      }
     }
   }
 
-  def scheduleThis() {
-    scheduler.schedule(this, broadcastPeriodMs, TimeUnit.MILLISECONDS)
+
+  def mainLoop(runTimeMS: Int = 1000) = {
+    println(s"maxIterations1: $maxIterations")
+
+    done = false
+    // Launch a thread to send the messages in the background
+    broadcastThread.start()
+
+    // Intialize global view of primalVars
+    val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
+
+    val startTime = System.currentTimeMillis()
+    // Loop until done
+    while (!done) {
+      println(s"${comm.selfID}: starting primal")
+      // Run the primal update
+      primalUpdate(primalConsensus, rho)
+      println(s"${comm.selfID}: finishing primal")
+
+      // Collect latest variables from everyone
+      allVars.put(comm.selfID, (primalVar, dualVar, data.length))
+      var tiq = comm.inputQueue.poll()
+      val receivedMsgs = tiq != null
+      while (tiq != null) {
+        allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
+        tiq = comm.inputQueue.poll()
+      }
+
+      // Compute primal and dual averages
+      var (primalAvg, dualAvg) = allVars.values.iterator.map {
+        case (primal, dual, nExamples) => (primal * nExamples.toDouble, dual * nExamples.toDouble)
+      }.reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+      val nTotalExamples = allVars.values.iterator.map {
+        case (primal, dual, nExamples) => nExamples
+      }.sum
+      primalAvg /= nTotalExamples.toDouble
+      dualAvg /= nTotalExamples.toDouble
+
+      // Recompute the consensus variable
+      val primalConsensusOld = primalConsensus.copy
+      primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
+
+      // Compute the residuals
+      val primalResidual = allVars.values.iterator.map {
+        case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
+      }.sum / nTotalExamples.toDouble
+      val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
+
+      // Rho upate from Boyd text
+      if (rho == 0.0) {
+        rho = 1.0
+      } else if (primalResidual > 10.0 * dualResidual) {
+        rho = 2.0 * rho
+        println(s"Increasing rho: $rho")
+      } else if (dualResidual > 10.0 * primalResidual) {
+        rho = rho / 2.0
+        println(s"Decreasing rho: $rho")
+      }
+
+      // Run the dual update
+      dualUpdate(primalConsensus, rho)
+
+      // Check to see if we are done
+      val elapsedTime = System.currentTimeMillis() - startTime
+      done = elapsedTime > runTimeMS
+      println(s"elapsed time: $elapsedTime, $runTimeMS, $done")
+    }
+    // Run the primal update
+    primalUpdate(primalConsensus, 4.0)
+
+    // Return the primal consensus value
+    primalConsensus
   }
+
 }
 
-class AsyncSGDLocalOptimizer(val gradient: Gradient,
-                             val updater: Updater,
-                             val totalSeconds: Double,
-                             val paramBroadcastPeriodMs: Int,
-                             val miniBatchFraction: Double) extends Logging {
-  var eta_0: Double = 1.0
-  var maxIterations: Int = Integer.MAX_VALUE
-  var epsilon: Double = 0.001
 
-  val scheduler = Executors.newScheduledThreadPool(1)
+class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
 
-  def apply(subproblem: AsyncSubProblem,
-            w0: BV[Double], init_w_consensus: BV[Double], dualVar: BV[Double],
-            rho0: Double, regParam: Double): BV[Double] = {
-
-    val lastHeardVectors = new mutable.HashMap[Int, BV[Double]]()
-    var w_consensus = init_w_consensus
-    var rho = rho0
-
-    for(i <- subproblem.comm.others.keySet) {
-      lastHeardVectors.put(i, w0)
-    }
-
-    val db = new DeltaBroadcaster(subproblem.comm,
-                                  w0,
-                                  scheduler,
-                                  totalSeconds,
-                                  paramBroadcastPeriodMs)
-
-    db.scheduleThis()
-
-    val transverseIteratorQueue = subproblem.comm.inputQueue
-
-    val nExamples = subproblem.data.length
-    val dim = subproblem.data(0)._2.size
-    val miniBatchSize = math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
-    val rnd = new java.util.Random()
-    var residual = 1.0
-    var w = w0.copy
-    var grad = BV.zeros[Double](dim)
-    var t = 0
-    while(!db.done) {
-
-      residual = 1.0
-      while(residual > 0.001) {
-        grad *= 0.0 // Clear the gradient sum
-        var b = 0
-        while (b < miniBatchSize) {
-          val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-          val (label, features) = subproblem.data(ind)
-          gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
-          b += 1
-        }
-        // Normalize the gradient to the batch size
-        grad /= miniBatchSize.toDouble
-        // Add the lagrangian + augmenting term.
-        grad += dualVar + (w - w_consensus) * rho
-        // axpy(rho, dualVar + w - w_consensus, grad)
-        // Set the learning rate
-        val eta_t = eta_0 / (t.toDouble + 1.0)
-        // w = w + eta_t * point_gradient
-        // axpy(-eta_t, grad, w)
-        val wOld = w.copy
-        w = updater.compute(Vectors.fromBreeze(w), Vectors.fromBreeze(grad), eta_t, 1, regParam)._1.toBreeze
-        // Compute residual.  This is a decaying residual definition.
-        // residual = (eta_t * norm(grad, 2.0) + residual) / 2.0
-        residual = norm(w - wOld, 2.0)
-        t += 1
-      }
-
-      // process any inbound deltas that arrived during the last minibatch
-      var changed = false
-      var tiq = transverseIteratorQueue.poll()
-      while(tiq != null) {
-        lastHeardVectors(tiq.sender) = tiq.delta
-        tiq = transverseIteratorQueue.poll()
-        changed = true
-      }
-
-
-      if(changed) {
-        lastHeardVectors(subproblem.comm.selfID) = w
-
-        val w_consensus_old = w_consensus
-        w_consensus = lastHeardVectors.values.reduce(_ + _) / lastHeardVectors.size.toDouble
-
-//        if (norm(w_consensus_old - w_consensus, 2) < 0.01) {
-//          dualVar += (w - w_consensus)
-//        }
-
-        dualVar += (w - w_consensus) * (rho / paramBroadcastPeriodMs.toDouble)
-
-        val dualResidual = rho * norm(w_consensus - w_consensus_old, 2)
-        val primalResidual = (lastHeardVectors.values.iterator.map(x => norm(x - w_consensus,2)).sum) /
-          lastHeardVectors.size.toDouble
-        // Rho upate from Boyd text
-        if (rho == 0.0) {
-          rho = 1.0
-        } else if (primalResidual > 10.0 * dualResidual) {
-          rho = 2.0 * rho
-          println(s"Increasing rho: $rho")
-        } else if (dualResidual > 10.0 * primalResidual) {
-          rho = rho / 2.0
-          println(s"Decreasing rho: $rho")
-        }
-
-
-        val propCorrectConsensu =
-              subproblem.data.iterator.map { case (y,x) => if (x.toBreeze.dot(w_consensus) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-              .reduce(_ + _).toDouble / nExamples.toDouble
-        val stats = s"STATS: t = $t, primalResid = $primalResidual, dualResidual = $dualResidual,  accuracy = $propCorrectConsensu"
-        println(s"$rho  $stats")
-        //println(s"(w_consesnsus, w_local): $stats,\n \t ${w_consensus},   ${w},    ${dualVar}")
-//        println("----------")
-//        lastHeardVectors.values.foreach(v => println(s"\t $v"))
-      }
-
-      t = 0
-
-      // make sure our outbound sender is up to date!
-      db.w = w.copy
-    }
-
-    w
-  }
-}
-
-class AsyncADMMwithSGD(val gradient: Gradient, val updater: Updater)  extends Optimizer with Logging {
-  var localSubProblems: RDD[AsyncSubProblem] = null
-  var totalSeconds = 10
+  var runtimeMS: Int = 5000
   var paramBroadcastPeriodMs = 100
-  var miniBatchFraction: Double = 0.1
+  var regParam: Double = 1.0
+  var epsilon: Double = 1.0e-5
+  var eta_0: Double = 1.0
+  var localEpsilon: Double = 0.001
+  var localMaxIterations: Int = Integer.MAX_VALUE
+  var miniBatchSize: Int = 10
+  var displayLocalStats: Boolean = true
+  var broadcastDelayMS: Int = 100
 
-  var regParam = 0.001
+  @transient var workers : RDD[AsyncADMMWorker] = null
 
-  def setup(input: RDD[(Double, Vector)]) = {
-    localSubProblems = input.mapPartitions {
-      iter =>
-        val workerName = UUID.randomUUID().toString
-        val address = Worker.HACKakkaHost+workerName
-        val hack = new WorkerCommunicationHack()
-        logInfo(s"local address is $address")
-        val aref= Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
-        implicit val timeout = Timeout(15 seconds)
+  def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
+    val nSubProblems = input.partitions.length
 
-        val f = aref ? new InternalMessages.WakeupMsg
-        Await.result(f, timeout.duration).asInstanceOf[String]
+    workers = input.mapPartitionsWithIndex { (ind, iter) =>
+      val data: Array[(Double, BV[Double])] =
+        iter.map { case (label, features) => (label, features.toBreeze)}.toArray
+      val workerName = UUID.randomUUID().toString
+      val address = Worker.HACKakkaHost+workerName
+      val hack = new WorkerCommunicationHack()
+      logInfo(s"local address is $address")
+      val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
+      implicit val timeout = Timeout(15 seconds)
 
-        Iterator(new AsyncSubProblem(iter.toArray, hack.ref))
-    }.cache()
+      val f = aref ? new InternalMessages.WakeupMsg
+      Await.result(f, timeout.duration).asInstanceOf[String]
 
-    val addresses = localSubProblems.map { w => w.comm.address }.collect()
+      val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
+        primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
+        eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
+        miniBatchSize = miniBatchSize, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
 
-    localSubProblems.foreach {
-      w => w.comm.connectToOthers(addresses)
+      Iterator(worker)
+     }.cache()
+
+    // collect the addresses
+    val addresses = workers.map { w => w.comm.address }.collect()
+
+    // Establish connections to all other workers
+    workers.foreach { w =>
+      w.comm.connectToOthers(addresses)
     }
 
-    localSubProblems.foreach {
-      w => w.comm.sendPingPongs()
-    }
+    // Ping Pong?  Just because?
+    workers.foreach { w => w.comm.sendPingPongs() }
   }
 
-  override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    // TODO: run setup code outside of this loop
-    val subProblems = setup(rawData)
-
-    var rho  = 1.0
-    val dim = rawData.map(block => block._2.size).first()
-    var w_0 = BV.zeros[Double](dim)
-    var w_avg = w_0.copy
-    var dual_var = w_0.copy
-
-    // TODO: average properly
-    val avg = localSubProblems.map {
-      p =>
-        val solver = new AsyncSGDLocalOptimizer(gradient, updater, totalSeconds, paramBroadcastPeriodMs, miniBatchFraction)
-        solver(p, w_0, w_avg, dual_var, rho, regParam)
-    }.reduce(_ + _)/localSubProblems.count().toDouble
-
-    Vectors.fromBreeze(avg)
+  def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
+    // Initialize the cluster
+    setup(input, primal0.toBreeze)
+    // Run all the workers
+    workers.foreach( w => w.mainLoop(runtimeMS) )
+    // compute the final consensus value synchronously
+    val nExamples = workers.map(w=>w.data.length).reduce(_+_)
+    // Collect the primal and dual averages
+    var (primalAvg, dualAvg) = workers.map {
+      w => (w.primalVar * w.data.length.toDouble, w.dualVar * w.data.length.toDouble)
+    }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
+    primalAvg /= nExamples.toDouble
+    dualAvg /= nExamples.toDouble
+    val rhoFinal = 4.0
+    val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
+    Vectors.fromBreeze(finalW)
   }
 }
+

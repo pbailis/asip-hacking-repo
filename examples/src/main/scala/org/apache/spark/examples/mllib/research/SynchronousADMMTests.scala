@@ -423,11 +423,11 @@ object SynchronousADMMTests {
         algorithm.run(training).clearThreshold()
       case SVMADMMAsync =>
         val algorithm = new SVMWithAsyncADMM()
-        algorithm.updater = updater
+        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.paramBroadcastPeriodMs = 100
-        algorithm.totalSeconds = iterations
+        algorithm.broadcastDelayMS = 100
+        algorithm.runtimeMS = iterations * 1000
         algorithm.setup()
         algorithm.run(training).clearThreshold()
     }
