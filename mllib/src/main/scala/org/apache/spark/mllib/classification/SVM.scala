@@ -76,7 +76,7 @@ class SVMModel private[mllib] (
       intercept: Double) = {
     val LabeledPoint(y, x) = point
     val wdotx = weightMatrix.toBreeze.dot(x.toBreeze) + intercept
-    val svmLabel = 2 * y - 1.0
+    val svmLabel = 2.0 * y - 1.0
     math.max(0.0, 1.0 - svmLabel * wdotx)
   }
 }
@@ -120,28 +120,25 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   var maxGlobalIterations: Int = Int.MaxValue
   var maxLocalIterations: Int = Int.MaxValue
   var regParam: Double = 1.0
-  var miniBatchFraction: Double = 2.0
+  var miniBatchSize: Int = 100
   var localEpsilon: Double = 1.0e-5
   var epsilon: Double = 1.0e-5
-  var updater: Updater = new SquaredL2Updater()
   var collectLocalStats: Boolean = true
 
+  val gradient = new FastHingeGradient()
+  val consensus = new L2ConsensusFunction()
 
-  private val gradient = new HingeGradient()
-  private val localSolver = new SGDLocalOptimizer(gradient, updater)
-
-  override val optimizer = new ADMM(localSolver)
+  override val optimizer = new ADMM(gradient, consensus)
 
   def setup() {
-    localSolver.eta_0 = stepSize
-    localSolver.maxIterations = maxLocalIterations
-    localSolver.epsilon = epsilon
-    localSolver.miniBatchFraction = miniBatchFraction
-    localSolver.collectStats = collectLocalStats
-    optimizer.displayLocalStats = collectLocalStats
     optimizer.numIterations = maxGlobalIterations
     optimizer.regParam = regParam
     optimizer.epsilon = localEpsilon
+    optimizer.miniBatchSize = miniBatchSize
+    optimizer.localMaxIterations = maxLocalIterations
+    optimizer.localEpsilon = localEpsilon
+    optimizer.eta_0 = stepSize
+    optimizer.displayLocalStats = collectLocalStats
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
