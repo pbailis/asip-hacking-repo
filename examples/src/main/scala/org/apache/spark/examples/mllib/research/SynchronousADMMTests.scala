@@ -416,7 +416,6 @@ object SynchronousADMMTests {
         val algorithm = new SVMWithADMM()
         algorithm.maxGlobalIterations = iterations
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
         algorithm.localEpsilon = params.ADMMLocalepsilon

@@ -6,139 +6,105 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
-/**
- * AN ADMM Local Solver is used to solve the optimization problem within each partition.
- */
-@DeveloperApi
-trait LocalOptimizer extends Serializable {
-  def apply(nSubProblems: Int, data: Array[(Double, Vector)],
-            w: BV[Double], w_consensus: BV[Double], dualVar: BV[Double],
-            rho: Double, regParam: Double): (BV[Double], Double, String)
+
+trait FastGradient extends Serializable {
+  def apply(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double])
+}
+
+class FastHingeGradient extends FastGradient {
+  override def apply(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]) {
+    val yscaled = 2.0 * y - 1.0
+    val wdotx = w.dot(x)
+    if (yscaled * wdotx < 1.0) {
+      axpy(-yscaled, x, cumGrad)
+    }
+  }
+}
+
+trait ConsensusFunction extends Serializable {
+  def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double]
 }
 
 
+/*
+0 & = \nabla_z \left( \lambda ||z||_2^2 + \sum_{i=1}^N \left( \mu_i^T (x_i - z) +  \frac{\rho}{2} ||x_i - z||_2^2 \right)  \right) \\
+0 & = \lambda z - \sum_{i=1}^N \left(\mu_i + \rho (x_i - z) \right)  \\
+0 & =\lambda z - N \bar{u} - \rho N \bar{x} + \rho N z    \\
+0 & = z (\lambda + \rho N) -  N (\bar{u} + \rho \bar{x} )  \\
+z & = \frac{ N}{\lambda + \rho N} (\bar{u} + \rho \bar{x})
+*/
 
-
-    //@DeveloperApi
-//class GradientDescentLocalOptimizer(val gradient: Gradient,
-//                                    val eta_0: Double = 1.0,
-//                                    val maxIterations: Int = Integer.MAX_VALUE,
-//                                    val epsilon: Double = 0.001) extends LocalOptimizer {
-//  def apply(data: Array[(Double, Vector)], w0: BV[Double], w_avg: BV[Double], dualVar: BV[Double],
-//            rho: Double): BV[Double] = {
-//    var t = 0
-//    var residual = Double.MaxValue
-//    val w = w0.copy
-//    val nExamples = data.length
-//    while(t < maxIterations || residual > epsilon) {
-//      // Compute the total gradient (and loss)
-//      val (gradientSum, lossSum) =
-//        data.foldLeft((w * 0.0, 0.0)) { (c, v) =>
-//          val (gradSum, lossSum) = c
-//          val (label, features) = v
-//          val loss = gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(gradSum))
-//          (gradSum, lossSum + loss)
-//        }
-//      // compute the gradient of the full lagrangian
-//      val gradL = (gradientSum / nExamples.toDouble) + dualVar + (w - w_avg) * rho
-//      // Set the learning rate
-//      val eta_t = eta_0 / (t + 1)
-//      // w = w + eta_t * point_gradient
-//      axpy(-eta_t, gradL, w)
-//      // Compute residual
-//      residual = eta_t * norm(gradL, 2.0)
-//      t += 1
-//    }
-//    // Check the local prediction error:
-//    val propCorrect =
-//      data.map { case (y,x) => if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) 1 else 0 }
-//        .reduce(_ + _).toDouble / nExamples.toDouble
-//    println(s"Local prop correct: $propCorrect")
-//    println(s"Local iterations: ${t}")
-//    // Return the final weight vector
-//    w
-//  }
-//}
+class L2ConsensusFunction extends ConsensusFunction {
+  override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
+    (primalAvg * rho + dualAvg) * (nSolvers.toDouble / (regParam + nSolvers * rho))
+  }
+}
 
 @DeveloperApi
-class SGDLocalOptimizer(val gradient: Gradient, val updater: Updater) extends LocalOptimizer with Logging {
-  var collectStats: Boolean = true
-  var eta_0: Double = 1.0
-  var maxIterations: Int = Integer.MAX_VALUE
-  var epsilon: Double = 0.001
-  var miniBatchFraction: Double = 0.1
+class SGDLocalOptimizer(val subProblemId: Int,
+                        val data: Array[(Double, BV[Double])],
+                        var primalVar: BV[Double],
+                        val gradient: FastGradient,
+                        val eta_0: Double,
+                        val epsilon: Double,
+                        val maxIterations: Int,
+                        val miniBatchSize: Int
+                        ) extends Serializable with Logging {
 
-  def apply(nSubProblems: Int, data: Array[(Double, Vector)],
-            w0: BV[Double], w_consensus: BV[Double], dualVar: BV[Double],
-            rho: Double, regParam: Double): (BV[Double], Double, String) = {
-    val nExamples = data.length
-    val dim = data(0)._2.size
-    val miniBatchSize = math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
-    val rnd = new java.util.Random()
+  val nExamples = data.length
+  val dim = data(0)._2.size
+  val rnd = new java.util.Random(subProblemId)
 
-    var residual = 1.0
-    var w = w0.copy
-    var grad = BV.zeros[Double](dim)
+  var residual: Double = Double.MaxValue
+
+  var grad = BV.zeros[Double](dim)
+
+  var dualVar = BV.zeros[Double](dim)
+
+  def dualUpdate(primalConsensus: BV[Double], rho: Double) {
+    // Do the dual update
+    dualVar += (primalVar - primalConsensus) * rho
+  }
+
+  def primalUpdate(primalConsensus: BV[Double], rho: Double) {
     var t = 0
-    println(s"Dual Var: $dualVar \t $w0")
+    residual = Double.MaxValue
     while(t < maxIterations && residual > epsilon) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
         val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-        val (label, features) = data(ind)
-        gradient.compute(features, label, Vectors.fromBreeze(w), Vectors.fromBreeze(grad))
+        gradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
-      // Add the lagrangian + augmenting term.
-      // grad += dual_var + rho * (w - w_avg)
-      grad += dualVar + (w - w_consensus) * rho
-      //axpy(rho, w - w_consensus, grad)
+      // Add the lagrangian
+      grad += dualVar
+      // Add the augmenting term
+      axpy(rho, primalVar - primalConsensus, grad)
       // Set the learning rate
       val eta_t = eta_0 / (t.toDouble + 1.0)
-      // w = w + eta_t * point_gradient
-      // axpy(-eta_t, grad, w)
-      val wOld = w.copy
-      // The updater adds the regularization
-      w = updater.compute(Vectors.fromBreeze(w), Vectors.fromBreeze(grad), eta_t, 1, regParam)._1.toBreeze
+      // Do the gradient update
+      axpy(-eta_t, grad, primalVar)
       // Compute residual.
-      residual = norm(w - wOld, 2.0)
+      residual = eta_t * norm(grad, 2.0)
       t += 1
     }
-    var stats = ""
-    var loss = 0.0
-    if (collectStats) {
-      // Compute the total gradient and total loss and proportion of correct examples locally
-      grad *= 0.0
-      var i = 0
-      var correct = 0
-      val vectorW = Vectors.fromBreeze(w)
-      while (i < nExamples) {
-        val (y, x) = data(i)
-        if (x.toBreeze.dot(w) * (y * 2.0 - 1.0) > 0.0) correct += 1
-        loss += gradient.compute(x, y, vectorW, Vectors.fromBreeze(grad))
-        i += 1
-      }
-      val propCorrect = correct / nExamples.toDouble
-      val gradientNorm = norm(grad, 2.0)
-//      logInfo(s"t = $t and residual = $residual")
-//      logInfo(s"Local prop correct: $propCorrect")
-      stats = s"STATS: t = $t, residual = $residual, accuracy = $propCorrect, " +
-        s"gradientNorm = $gradientNorm, loss = $loss"
-    }
-    // Return the final weight vector
-    (w, loss, stats)
   }
 }
 
 
-class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
+
+class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
 
   var numIterations: Int = 100
   var regParam: Double = 1.0
   var epsilon: Double = 1.0e-5
+  var eta_0: Double = 1.0
+  var localEpsilon: Double = 0.001
+  var localMaxIterations: Int = Integer.MAX_VALUE
+  var miniBatchSize: Int = 10  // math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
   var displayLocalStats: Boolean = true
 
   /**
@@ -146,64 +112,57 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
    */
   override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
 
-    val blockData: RDD[Array[(Double, Vector)]] = rawData.mapPartitions(iter => Iterator(iter.toArray)).cache()
-    val dim = blockData.map(block => block(0)._2.size).first()
-    val nExamples = blockData.map(block => block.length).reduce(_+_)
-    val numPartitions = blockData.partitions.length
-    val localReg = regParam / numPartitions.toDouble 
+    val primal0 = initialWeights.toBreeze
+
+    val solvers: RDD[SGDLocalOptimizer] = {
+      rawData.mapPartitionsWithIndex { (ind, iter) =>
+        val data: Array[(Double, BV[Double])] = iter.map { case (label, features) => (label, features.toBreeze)}.toArray
+        val solver = new SGDLocalOptimizer(ind, data, primal0.copy, gradient,
+          eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations, miniBatchSize = miniBatchSize)
+        Iterator(solver)
+      }.cache()
+    }
+
+    val nDim = initialWeights.size
+    val nExamples: Int = solvers.map(s => s.data.length).reduce(_+_)
+    val nSolvers = solvers.partitions.length
+
+
     println(s"nExamples: $nExamples")
-    println(s"dim: $dim")
-    println(s"number of solver $numPartitions")
+    println(s"dim: $nDim")
+    println(s"number of solver $nSolvers")
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
     var iteration = 0
     var rho  = 0.0
 
-    // Make a zero vector
-    var wAndDualVar = blockData.map{ block =>
-      val dim = block(0)._2.size
-      (BV.zeros[Double](dim), BV.zeros[Double](dim))
-    }
-    var w_avg = BV.zeros[Double](dim)
+    var primalConsensus = initialWeights.toBreeze.copy
 
     println(s"ADMM numIterations: $numIterations")
-    // Maybe a local reference to avoid closure capture.
-    val optimizer = localOptimizer
     while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) ) {
       println("========================================================")
       println(s"Starting iteration $iteration.")
-      // Compute w and new dualVar
-      val tmp = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
-        dataIterator.zip(modelIterator).map { case (data, (w_old, dualVar_old)) =>
-          // Update the lagrangian Multiplier by taking a gradient step
-          val dualVar = dualVar_old + (w_old - w_avg) * rho
-          val (w, loss, stats) = optimizer(numPartitions, data, w_old, w_avg, dualVar, rho, localReg)
-          (w, dualVar, loss, stats)
-        }
-      }.cache()
-      wAndDualVar = tmp.map { case (w, dualVar, loss, stats) => (w, dualVar) }
-
-      // Compute new w_avg
-      val new_w_avg = blockData.zipPartitions(wAndDualVar) { (dataIterator, modelIterator) =>
-        dataIterator.zip(modelIterator).map { case (data, (w, _)) => w * data.length.toDouble }
-      }.reduce(_ + _) / nExamples.toDouble
-
-      if (displayLocalStats) {
-        val lossAndStats = tmp.map { case (w, dualVar, loss, stats) => (loss, stats) } .collect()
-        lossAndStats.foreach { case (loss, stats) => println(s"Iter: $iteration \t $stats") }
-        val totalLoss = lossAndStats.view.map { case (loss, stats) => loss }.sum +
-          regParam * math.pow(norm(new_w_avg, 2), 2)
-        println(s"Total Loss: $totalLoss")
+      solvers.foreach{ solver =>
+        // Do a dual update
+        solver.dualUpdate(primalConsensus, rho)
+        // Do a primal update
+        solver.primalUpdate(primalConsensus, rho)
       }
 
-      //println(s"new w_avg (min, max) :(${new_w_avg.toArray.min}, ${new_w_avg.toArray.max})")
-      println(s"New W_avg: $new_w_avg")
-      // Update the residuals
-      // primalResidual = sum( ||w_i - w_avg||_2^2 )
-      primalResidual = wAndDualVar.map { case (w, _) => Math.pow(norm(w - new_w_avg, 2.0),2) }
-        .reduce(_ + _) / numPartitions.toDouble
-      dualResidual = rho * Math.pow(norm(new_w_avg - w_avg, 2.0), 2)
+      // Compute the primal and dual averages
+      var (primalAvg, dualAvg) = solvers.map( s => (s.primalVar * s.data.length.toDouble, s.dualVar * s.data.length.toDouble) )
+        .reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
+      primalAvg /= nExamples.toDouble
+      dualAvg /= nExamples.toDouble
+
+      // Recompute the consensus variable
+      val primalConsensusOld = primalConsensus.copy
+      primalConsensus = consensus(primalAvg, dualAvg, nSolvers, rho, regParam)
+
+      // Compute the residuals
+      primalResidual = solvers.map(s => norm(s.primalVar - primalConsensus, 2) * s.data.length).reduce(_+_) / nExamples.toDouble
+      dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
       // Rho upate from Boyd text
       if (rho == 0.0) {
@@ -216,146 +175,16 @@ class ADMM(var localOptimizer: LocalOptimizer) extends Optimizer with Logging {
         println(s"Decreasing rho: $rho")
       }
 
-      w_avg = new_w_avg
       println(s"Iteration: $iteration")
       println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
 
       iteration += 1
     }
 
-    println(s"${w_avg.toArray.mkString(",")}")
+    println(s"${primalConsensus.toArray.mkString(",")}")
 
-    Vectors.fromBreeze(w_avg)
+    Vectors.fromBreeze(primalConsensus)
   }
 
 }
 
-
-//@DeveloperApi
-//trait ConsensusRegularizer extends Serializable {
-//  def getUpdater: Updater
-//
-//  def apply(w_avg: BV[Double], dualVar: BV[Double],
-//            rho: Double, regParam: Double, nData: Int): BV[Double]
-//}
-//
-//
-//@DeveloperApi
-//class AvgConsensuRegularizer extends ConsensusRegularizer {
-//  override def getUpdater: Updater = new SimpleUpdater()
-//
-//  override def apply(w_avg: BV[Double], dualVar: BV[Double],
-//                     rho: Double, regParam: Double, nData: Int): BV[Double] = {
-//    w_avg
-//  }
-//}
-//
-//
-//@DeveloperApi
-//class L2ConsensusRegularizer extends ConsensusRegularizer {
-//  override def getUpdater: Updater = new SquaredL2Updater()
-//
-//  override def apply(w_avg: BV[Double], dualVar: BV[Double],
-//                     rho: Double, regParam: Double, nData: Int): BV[Double] = {
-//    (w_avg + dualVar) * (rho / ((1.0 / regParam) + nData.toDouble * rho))
-//  }
-//}
-//
-//@DeveloperApi
-//class L1ConsensusRegularizer extends ConsensusRegularizer {
-//  override def getUpdater: Updater = new L1Updater()
-//
-//  override def apply(w_avg: BV[Double], dualVar: BV[Double],
-//                     rho: Double, regParam: Double, nData: Int): BV[Double] = {
-//    (w_avg + dualVar) * (rho / ((1.0 / regParam) + nData.toDouble * rho))
-//  }
-//}
-
-
-//class ADMMConsensusRegularizer(var localOptimizer: LocalOptimizer,
-//           var consensusUpdater: ConsensusRegularizer) extends Optimizer with Logging {
-//  var numIterations: Int = 100
-//  var regParam: Double = 1.0
-//  var epsilon: Double = 1.0e-5
-//
-//  /**
-//   * Solve the provided convex optimization problem.
-//   */
-//  override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-//
-//    val blockData: RDD[Array[(Double, Vector)]] = rawData.mapPartitions(iter => Iterator(iter.toArray)).cache()
-//    val dim = blockData.map(block => block(0)._2.size).first()
-//    val nExamples = blockData.map(block => block.length).reduce(_+_)
-//    val numPartitions = blockData.partitions.length
-//    val localReg = 0.5 / numPartitions.toDouble * regParam
-//    val globalReg = 0.5 * regParam
-//    println(s"nExamples: $nExamples")
-//    println(s"dim: $dim")
-//    println(s"number of solver $numPartitions")
-//
-//
-//    var primalResidual = Double.MaxValue
-//    var dualResidual = Double.MaxValue
-//    var iteration = 0
-//    var rho  = 0.0
-//
-//
-//    // Make a zero vector
-//    var wAnddualVar = blockData.map{ block =>
-//      val dim = block(0)._2.size
-//      (BV.zeros[Double](dim), BV.zeros[Double](dim))
-//    }
-//    var w_avg = BV.zeros[Double](dim)
-//
-//    val optimizer = localOptimizer
-//    while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) ) {
-//      println(s"Starting iteration $iteration.")
-//      // Compute w and new dualVar
-//      wAnddualVar = blockData.zipPartitions(wAnddualVar) { (dataIterator, modelIterator) =>
-//        dataIterator.zip(modelIterator).map { case (data, (w_old, dualVar_old)) =>
-//          // compute the new consenus variable value
-//          val w_consensus = consensusUpdater(w_avg, dualVar_old, rho, globalReg, nExamples)
-//          // Update the lagrangian Multiplier by taking a gradient step
-//          val dualVar = dualVar_old + (w_old - w_consensus)
-//          val w = optimizer(numPartitions, data, w_old, w_consensus, dualVar, rho, localReg)
-//          (w, dualVar)
-//        }
-//      }.cache()
-//
-//      // Compute new w_avg
-//      val new_w_avg = blockData.zipPartitions(wAnddualVar) { (dataIterator, modelIterator) =>
-//        dataIterator.zip(modelIterator).map { case (data, (w, _)) => w * data.length.toDouble }
-//      }.reduce(_ + _) / nExamples.toDouble
-//      println(s"new w_avg: $w_avg")
-//
-//
-//      // Update the residuals
-//      // primalResidual = sum( ||w_i - w_avg||_2^2 )
-//      primalResidual = wAnddualVar.map { case (w, _) => Math.pow(norm(w - new_w_avg, 2.0),2) }.reduce(_ + _) /
-//        numPartitions.toDouble
-//      dualResidual = rho * Math.pow(norm(new_w_avg - w_avg, 2.0), 2)
-//
-//      // Rho upate from Boyd text
-//      if (rho == 0.0) {
-//        rho = epsilon
-//      } else if (primalResidual > 10.0 * dualResidual) {
-//        rho = 2.0 * rho
-//        println(s"Increasing rho: $rho")
-//      } else if (dualResidual > 10.0 * primalResidual) {
-//        rho = rho / 2.0
-//        println(s"Decreasing rho: $rho")
-//      }
-//
-//      w_avg = new_w_avg
-//
-//      println(s"Iteration: $iteration")
-//      println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
-//
-//      iteration += 1
-//    }
-//
-//    Vectors.fromBreeze(w_avg)
-//  }
-//
-//}
-//

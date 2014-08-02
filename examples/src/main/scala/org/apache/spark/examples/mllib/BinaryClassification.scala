@@ -146,7 +146,6 @@ object BinaryClassification {
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         algorithm.maxGlobalIterations = params.numIterations
-        algorithm.updater = updater
         algorithm.regParam = params.regParam
         algorithm.run(training).clearThreshold()
     }
