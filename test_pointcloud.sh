@@ -40,7 +40,5 @@ export MASTER="local[4]"
     --sweepIterationStep 10 \
     --localStats true \
     --ADMMLocalepsilon 1e-3 \
-    --ADMMmaxLocalIterations 100 \
-    --ADMMepsilon 1e-5 \
-
+    --ADMMepsilon 1e-5
    # 2>&1 | grep -i "ADMM"
