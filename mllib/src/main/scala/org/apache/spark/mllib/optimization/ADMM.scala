@@ -114,14 +114,13 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
     val primal0 = initialWeights.toBreeze
 
-    val solvers: RDD[SGDLocalOptimizer] = {
+    val solvers: RDD[SGDLocalOptimizer] =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
         val data: Array[(Double, BV[Double])] = iter.map { case (label, features) => (label, features.toBreeze)}.toArray
         val solver = new SGDLocalOptimizer(ind, data, primal0.copy, gradient,
           eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations, miniBatchSize = miniBatchSize)
         Iterator(solver)
       }.cache()
-    }
 
     val nDim = initialWeights.size
     val nExamples: Int = solvers.map(s => s.data.length).reduce(_+_)
@@ -143,15 +142,14 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) ) {
       println("========================================================")
       println(s"Starting iteration $iteration.")
-      solvers.foreach{ solver =>
+      var (primalAvg, dualAvg) = solvers.map{ solver =>
         // Do a dual update
         solver.dualUpdate(primalConsensus, rho)
         // Do a primal update
         solver.primalUpdate(primalConsensus, rho)
-      }
-
-      // Compute the primal and dual averages
-      var (primalAvg, dualAvg) = solvers.map( s => (s.primalVar * s.data.length.toDouble, s.dualVar * s.data.length.toDouble) )
+        // Return the scaled primal and dual values
+        (solver.primalVar * solver.data.length.toDouble, solver.dualVar * solver.data.length.toDouble)
+        }
         .reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
       primalAvg /= nExamples.toDouble
       dualAvg /= nExamples.toDouble
