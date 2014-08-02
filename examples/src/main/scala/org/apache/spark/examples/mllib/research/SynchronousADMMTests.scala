@@ -4,7 +4,6 @@ import java.util.concurrent.TimeUnit
 
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification.{SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.optimization.{L1Updater, SquaredL2Updater, Updater}
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -359,23 +358,23 @@ object SynchronousADMMTests {
       val totalTimeNs = System.nanoTime() - startTime
       val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-      val prediction = model.predict(training.map(_.features))
-      val predictionAndLabel = prediction.zip(training.map(_.label))
-
-      val metrics = new BinaryClassificationMetrics(predictionAndLabel)
+      val trainingError = training.map{ point =>
+        val p = model.predict(point.features)
+        val y = 2.0 * point.label - 1.0
+        if (y * p <= 0.0) 1.0 else 0.0
+      }.reduce(_ + _) / training.count.toDouble
 
       val trainingLoss = model.loss(training)
       val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
 
 
       println(s"Iterations = ${i}")
-      println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
-      println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
+      println(s"Training error = ${trainingError}.")
       println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
       println(s"Total time ${totalTimeMs}ms")
 
       val summary =
-        s"RESULT: ${params.algorithm}\t${i}\t${totalTimeMs}\t${metrics.areaUnderPR()}\t${metrics.areaUnderROC()}" +
+        s"RESULT: ${params.algorithm}\t${i}\t${totalTimeMs}\t${trainingError}" +
         s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
         s"\t${model.weights.toArray.mkString(",")}"
 

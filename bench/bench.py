@@ -74,12 +74,11 @@ def runTest(algorithm, cmd):
                 "algorithm": algorithm,
                 "iterations": int(line[2]),
                 "runtime_ms": int(line[3]),
-                "pr": float(line[4]),
-                "roc": float(line[5]),
-                "training_loss": float(line[6]),
-                "reg_penalty": float(line[7]),
-                "total_loss": line[8],
-                "model": line[9],
+                "training_error": float(line[4]),
+                "training_loss": float(line[5]),
+                "reg_penalty": float(line[6]),
+                "total_loss": line[7],
+                "model": line[8],
                 "line": line
             }
             results.append(record)
