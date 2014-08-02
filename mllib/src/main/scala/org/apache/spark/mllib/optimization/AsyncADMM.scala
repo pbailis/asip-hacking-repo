@@ -115,7 +115,7 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var done = false
 
   var primalConsensus = primalVar0.copy
-  var rho = 1.0
+  var rho = 4.0
 
   val broadcastThread = new Thread {
     override def run {
@@ -128,8 +128,6 @@ class AsyncADMMWorker(subProblemId: Int,
 
 
   def mainLoop(runTimeMS: Int = 1000) = {
-    println(s"maxIterations1: $maxIterations")
-
     done = false
     // Launch a thread to send the messages in the background
     broadcastThread.start()
@@ -140,10 +138,10 @@ class AsyncADMMWorker(subProblemId: Int,
     val startTime = System.currentTimeMillis()
     // Loop until done
     while (!done) {
-      println(s"${comm.selfID}: starting primal")
+      // Reset the primal var
+      primalVar = primalConsensus.copy
       // Run the primal update
       primalUpdate(primalConsensus, rho)
-      println(s"${comm.selfID}: finishing primal")
 
       // Collect latest variables from everyone
       allVars.put(comm.selfID, (primalVar, dualVar, data.length))
@@ -164,6 +162,11 @@ class AsyncADMMWorker(subProblemId: Int,
       primalAvg /= nTotalExamples.toDouble
       dualAvg /= nTotalExamples.toDouble
 
+//      if (comm.selfID == 0) {
+//        println(s"$primalVar \t \t $dualVar")
+//        println(s"\t $primalAvg \t $dualAvg ")
+//      }
+
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
@@ -174,16 +177,17 @@ class AsyncADMMWorker(subProblemId: Int,
       }.sum / nTotalExamples.toDouble
       val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
-      // Rho upate from Boyd text
-      if (rho == 0.0) {
-        rho = 1.0
-      } else if (primalResidual > 10.0 * dualResidual) {
-        rho = 2.0 * rho
-        println(s"Increasing rho: $rho")
-      } else if (dualResidual > 10.0 * primalResidual) {
-        rho = rho / 2.0
-        println(s"Decreasing rho: $rho")
-      }
+//      // Rho update from Boyd text
+//      if (rho == 0.0) {
+//        rho = 1.0
+//      } else if (primalResidual > 10.0 * dualResidual) {
+//        rho = 2.0 * rho
+//        println(s"Increasing rho: $rho")
+//      } else if (dualResidual > 10.0 * primalResidual) {
+//        rho = rho / 2.0
+//        println(s"Decreasing rho: $rho")
+//      }
+
 
       // Run the dual update
       dualUpdate(primalConsensus, rho)
@@ -191,10 +195,9 @@ class AsyncADMMWorker(subProblemId: Int,
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
       done = elapsedTime > runTimeMS
-      println(s"elapsed time: $elapsedTime, $runTimeMS, $done")
     }
     // Run the primal update
-    primalUpdate(primalConsensus, 4.0)
+    primalUpdate(primalConsensus, rho)
 
     // Return the primal consensus value
     primalConsensus
