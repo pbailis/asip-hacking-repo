@@ -148,21 +148,32 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
 }
 
 class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-  var epsilon: Double = 1.0e-5
-  var updater: Updater = new SquaredL2Updater()
-  var totalSeconds = 10
-  var paramBroadcastPeriodMs = 100
+  var stepSize: Double = 1.0
+  var maxGlobalIterations: Int = Int.MaxValue
+  var maxLocalIterations: Int = Int.MaxValue
   var regParam: Double = 1.0
-  var miniBatchFraction: Double = 0.1
+  var miniBatchSize: Int = 100
+  var localEpsilon: Double = 1.0e-5
+  var epsilon: Double = 1.0e-5
+  var collectLocalStats: Boolean = true
+  var runtimeMS = 10000
+  var broadcastDelayMS = 100
 
-  private val gradient = new HingeGradient()
-  override val optimizer = new AsyncADMMwithSGD(gradient, updater)
+  val gradient = new FastHingeGradient()
+  val consensus = new L2ConsensusFunction()
+
+  override val optimizer = new AsyncADMMwithSGD(gradient, consensus)
 
   def setup() {
-    optimizer.totalSeconds = totalSeconds
-    optimizer.paramBroadcastPeriodMs = paramBroadcastPeriodMs
+    optimizer.runtimeMS = runtimeMS
     optimizer.regParam = regParam
-    optimizer.miniBatchFraction = miniBatchFraction
+    optimizer.epsilon = localEpsilon
+    optimizer.miniBatchSize = miniBatchSize
+    optimizer.localMaxIterations = maxLocalIterations
+    optimizer.localEpsilon = localEpsilon
+    optimizer.eta_0 = stepSize
+    optimizer.displayLocalStats = collectLocalStats
+    optimizer.broadcastDelayMS = broadcastDelayMS
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
