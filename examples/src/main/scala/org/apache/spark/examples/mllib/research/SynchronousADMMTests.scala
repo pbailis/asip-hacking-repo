@@ -91,9 +91,7 @@ object DataLoaders {
         }
 
         LabeledPoint(label, new SparseVector(numNonZero, featureIndexes, featureValues))
-    }.cache()
-    data.count
-    println(s"THIS MANY PLUSES SUCKA ${data.filter(x => x.label == 1).count / data.count.toDouble}")
+    }
     data
   }
 
@@ -123,11 +121,9 @@ object DataLoaders {
 
         // Seed the generator with the partition index
         val random = new Random(idx)
-
-        val ret = new Array[LabeledPoint](pointsPerPartition)
         val isPartitionPlus = idx % 2 == 1
 
-        for (pt <- 0 until pointsPerPartition) {
+        (0 until pointsPerPartition).iterator.map { pt =>
           val isPointPlus = if (random.nextDouble() < partitionSkew) isPartitionPlus else !isPartitionPlus
           val trueLabel: Double = if (isPointPlus) 1.0 else 0.0
 
@@ -142,9 +138,8 @@ object DataLoaders {
 
           val chosenLabel = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
 
-          ret(pt) = new LabeledPoint(chosenLabel, chosenPoint)
+          new LabeledPoint(chosenLabel, chosenPoint)
         }
-        ret.iterator
       }
     }
   }
@@ -281,11 +276,11 @@ object SynchronousADMMTests {
     println("Starting to load data...")
 
     val examples = if (params.format == "lisbsvm") {
-      MLUtils.loadLibSVMFile(sc, params.input).cache()
+      MLUtils.loadLibSVMFile(sc, params.input)
     } else if (params.format == "bismarck") {
-      DataLoaders.loadBismark(sc, params.input).cache()
+      DataLoaders.loadBismark(sc, params.input)
     } else if (params.format == "flights") {
-      DataLoaders.loadFlights(sc, params.input, params).cache()
+      DataLoaders.loadFlights(sc, params.input, params)
     } else if (params.format == "cloud") {
       DataLoaders.generatePairCloud(sc,
         params.pointCloudDimension,
@@ -293,7 +288,7 @@ object SynchronousADMMTests {
         params.pointCloudSize,
         params.pointCloudPartitionSkew,
         params.numPartitions,
-        params.pointCloudPointsPerPartition).cache()
+        params.pointCloudPointsPerPartition)
     } else {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
