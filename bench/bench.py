@@ -27,9 +27,9 @@ def make_run_cmd(runtimeMS,
                  miscStr = ""):
     return "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh;" \
            "./bin/spark-submit " \
-           "--driver-memory 52g" \
-           "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests" \
-           " examples/target/scala-*/spark-examples-*.jar " \
+           "--driver-memory 52g " \
+           "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
+           "examples/target/scala-*/spark-examples-*.jar " \
            "--algorithm %s " \
            "--regType %s " \
            "--regParam %f " \
