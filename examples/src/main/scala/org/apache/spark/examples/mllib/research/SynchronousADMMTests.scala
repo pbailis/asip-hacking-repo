@@ -18,8 +18,8 @@ import scala.util.Random
 
 
 object DataLoaders {
-  def loadBismark(sc: SparkContext, filename: String): RDD[LabeledPoint] = {
-    val data = sc.textFile(filename)
+  def loadBismark(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+    val data = sc.textFile(filename, params.numPartitions)
       .filter(s => !s.isEmpty && s(0) == '{')
       .map(s => s.split('\t'))
       .map {
@@ -278,7 +278,7 @@ object SynchronousADMMTests {
     val examples = if (params.format == "lisbsvm") {
       MLUtils.loadLibSVMFile(sc, params.input)
     } else if (params.format == "bismarck") {
-      DataLoaders.loadBismark(sc, params.input)
+      DataLoaders.loadBismark(sc, params.input, params)
     } else if (params.format == "flights") {
       DataLoaders.loadFlights(sc, params.input, params)
     } else if (params.format == "cloud") {
@@ -316,7 +316,7 @@ object SynchronousADMMTests {
 //    }
 
 
-    training.repartition(params.numPartitions).cache()
+    training.cache()
     //test.repartition(params.numPartitions)
 
     val numTraining = training.count()
