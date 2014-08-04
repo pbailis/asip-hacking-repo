@@ -80,7 +80,7 @@ def runTest(algorithm, cmd, dim, skew):
 results = []
 for runtime in range(1, 50, 5):
     for dim in [2, 10, 50, 100]:
-        for skew in [0.0, 0.01, 0.1, 0.2, 0.5]:
+        for skew in [0.0, 0.01, 0.1, 0.25, 0.5]:
             for algorithm in ALGORITHMS:
                 dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
                 results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
