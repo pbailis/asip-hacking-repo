@@ -33,7 +33,6 @@ def make_run_cmd(runtimeMS,
                  regType="L2",
                  regParam=0.0001,
                  numPartitions = 40,
-
                  miscStr = ""):
     return "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh;" \
            "./bin/spark-submit " \
@@ -87,8 +86,7 @@ results = []
 
 for runtime in range(5, 50, 5):
     for algorithm in ALGORITHMS:
-        results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud(),
-                                                   iterationStart = runtime, iterationEnd = runtime,
+        results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", describe_point_cloud(),
                                                    miscStr="--ADMMmaxLocalIterations 500"))
         # Pickel the output
         output = open('experiment.pkl', 'wb')
