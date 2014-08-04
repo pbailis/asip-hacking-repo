@@ -78,7 +78,7 @@ def runTest(algorithm, cmd, dim, skew):
 
 
 results = []
-for runtime in range(5, 50, 5):
+for runtime in range(1, 50, 5):
     for dim in [2, 10, 50, 100]:
         for skew in [0.0, 0.01, 0.1, 0.2, 0.5]:
             for algorithm in ALGORITHMS:
