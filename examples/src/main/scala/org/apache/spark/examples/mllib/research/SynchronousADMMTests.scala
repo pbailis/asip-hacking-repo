@@ -167,7 +167,7 @@ object SynchronousADMMTests {
                      regType: RegType = L2,
                      regParam: Double = 0.1,
                      ADMMepsilon: Double = 1.0e-5,
-                     ADMMLocalepsilon: Double = 1.0e-5,
+                     ADMMLocalepsilon: Double = 1.0e-3,
                      ADMMmaxLocalIterations: Int = Int.MaxValue,
                      localStats: Boolean = false,
                      format: String = "libsvm",
@@ -348,7 +348,7 @@ object SynchronousADMMTests {
     for (i <- it_st to it_end by it_step) {
       val startTime = System.nanoTime()
 
-      val model = runTest(training, updater, params, i)
+      val (model, actualIters) = runTest(training, updater, params, i)
 
       val totalTimeNs = System.nanoTime() - startTime
       val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
@@ -369,7 +369,7 @@ object SynchronousADMMTests {
       println(s"Total time ${totalTimeMs}ms")
 
       val summary =
-        s"RESULT: ${params.algorithm}\t${i}\t${totalTimeMs}\t${trainingError}" +
+        s"RESULT: ${params.algorithm}\t${actualIters}\t${totalTimeMs}\t${trainingError}" +
         s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
         s"\t${model.weights.toArray.mkString(",")}"
 
@@ -405,17 +405,19 @@ object SynchronousADMMTests {
         val model = algorithm.run(training).clearThreshold()
         println(model.weights.toArray.mkString(","))
         println(model.intercept)
-        model
+        (model, iterations)
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
-        algorithm.maxGlobalIterations = iterations
+        //        algorithm.maxGlobalIterations = iterations
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
         algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.collectLocalStats = params.localStats
+        algorithm.runtimeMS = iterations * 1000
         algorithm.setup()
-        algorithm.run(training).clearThreshold()
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.iteration)
       case SVMADMMAsync =>
         val algorithm = new SVMWithAsyncADMM()
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
@@ -424,7 +426,8 @@ object SynchronousADMMTests {
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = iterations * 1000
         algorithm.setup()
-        algorithm.run(training).clearThreshold()
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.commStages)
     }
   }
 }

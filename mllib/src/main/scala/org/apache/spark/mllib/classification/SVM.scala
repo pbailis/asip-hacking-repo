@@ -124,6 +124,7 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   var localEpsilon: Double = 1.0e-5
   var epsilon: Double = 1.0e-5
   var collectLocalStats: Boolean = true
+  var runtimeMS = 10000
 
   val gradient = new FastHingeGradient()
   val consensus = new L2ConsensusFunction()
@@ -131,6 +132,7 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   override val optimizer = new ADMM(gradient, consensus)
 
   def setup() {
+    optimizer.runtimeMS = runtimeMS
     optimizer.numIterations = maxGlobalIterations
     optimizer.regParam = regParam
     optimizer.epsilon = localEpsilon

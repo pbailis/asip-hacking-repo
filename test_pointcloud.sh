@@ -26,7 +26,7 @@ export SPARK_PREPEND_CLASSES=true
 export MASTER="local[4]"
 ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests \
     examples/target/scala-*/spark-examples-*.jar \
-    --algorithm SVMADMMAsync \
+    --algorithm SVMADMM \
     --regType L2 \
     --regParam $regParam \
     --format cloud \

@@ -106,6 +106,9 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
   var localMaxIterations: Int = Integer.MAX_VALUE
   var miniBatchSize: Int = 10  // math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
   var displayLocalStats: Boolean = true
+  var runtimeMS: Int =  Integer.MAX_VALUE
+
+  var iteration = 0
 
   /**
    * Solve the provided convex optimization problem.
@@ -133,13 +136,16 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
-    var iteration = 0
+
     var rho  = 0.0
 
     var primalConsensus = initialWeights.toBreeze.copy
 
+    val starttime = System.currentTimeMillis()
+    iteration = 0
     println(s"ADMM numIterations: $numIterations")
-    while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) ) {
+    while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) &&
+      (System.currentTimeMillis() - starttime) < runtimeMS ) {
       println("========================================================")
       println(s"Starting iteration $iteration.")
       var (primalAvg, dualAvg) = solvers.map{ solver =>

@@ -117,10 +117,12 @@ class AsyncADMMWorker(subProblemId: Int,
   var primalConsensus = primalVar0.copy
   var rho = 4.0
 
+  var commStages = 0
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
+        commStages += 1
         Thread.sleep(broadcastDelayMS)
       }
     }
@@ -218,7 +220,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunct
   var miniBatchSize: Int = 10
   var displayLocalStats: Boolean = true
   var broadcastDelayMS: Int = 100
-
+  var commStages: Int = 0
   @transient var workers : RDD[AsyncADMMWorker] = null
 
   def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
@@ -272,6 +274,8 @@ class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunct
     dualAvg /= nExamples.toDouble
     val rhoFinal = 4.0
     val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
+    commStages = workers.map {w => w.commStages }.reduce(_+_)
+
     Vectors.fromBreeze(finalW)
   }
 }
