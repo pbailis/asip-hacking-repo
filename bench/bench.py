@@ -13,10 +13,10 @@ ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 #         self.area_under_pr = area_under_pr
 #         self.training_loss = training_loss
 
-def describe_point_cloud(pointsPerPartition = 10000,
-                         partitionSkew = 0,
-                         labelNoise = 0.,
-                         dimension = 3):
+def describe_point_cloud(pointsPerPartition = 1000000,
+                         partitionSkew = 0.01,
+                         labelNoise = 0.2,
+                         dimension = 100):
     return   "--pointCloudPointsPerPartition %d " \
              "--pointCloudPartitionSkew %f " \
              "--pointCloudLabelNoise %f " \
@@ -33,7 +33,7 @@ def make_run_cmd(algorithm,
                  regParam=0.0001,
                  numPartitions = 40,
                  iterationStart = 1,
-                 iterationEnd = 12,
+                 iterationEnd = 50,
                  iterationStep = 2,
                  miscStr = ""):
     return "cd ~/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh;" \
@@ -79,7 +79,8 @@ def runTest(algorithm, cmd):
                 "reg_penalty": float(line[6]),
                 "total_loss": line[7],
                 "model": line[8],
-                "line": line
+                "line": line,
+                "command": cmd
             }
             results.append(record)
 
@@ -91,11 +92,10 @@ results = []
 
 for algorithm in ALGORITHMS:
     results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud()))
-
-# Pickel the output
-output = open('experiment.pkl', 'wb')
-pickle.dump(results, output)
-output.close()
+    # Pickel the output
+    output = open('experiment.pkl', 'wb')
+    pickle.dump(results, output)
+    output.close()
 
 # display the results
 print results[0].keys()
