@@ -84,7 +84,7 @@ for runtime in range(1, 50, 5):
             for algorithm in ALGORITHMS:
                 dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
                 results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
-                                                       miscStr="--ADMMmaxLocalIterations 500"), dim, skew)
+                                                       miscStr="--ADMMmaxLocalIterations 1000"), dim, skew)
                 # Pickel the output
                 output = open('experiment.pkl', 'wb')
                 pickle.dump(results, output)
