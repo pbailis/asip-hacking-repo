@@ -86,24 +86,6 @@ abstract class GeneralizedLinearModel(val weights: Vector, val intercept: Double
     sum
   }
 
-
-  /**
-   * Predict values for the given data set using the model trained.
-   *
-   * @param testData RDD representing data points to be predicted
-   * @return RDD[Double] where each entry contains the corresponding prediction
-   */
-  def loss(testData: RDD[LabeledPoint]): Double = {
-    // A small optimization to avoid serializing the entire model. Only the weightsMatrix
-    // and intercept is needed.
-    val localWeights = weights
-    val localIntercept = intercept
-
-    val (count, sum) = testData.map(v => (1, pointLoss(v, localWeights, localIntercept)))
-      .reduce((a,b) => (a._1 + b._1, a._2 + b._2))
-    sum
-  }
-
   /**
    * Predict values for a single data point using the model trained.
    *
@@ -166,15 +148,6 @@ abstract class GeneralizedLinearAlgorithm[M <: GeneralizedLinearModel]
     run(input, initialWeights)
   }
 
-  /** Prepends one to the input vector. */
-  def prependOne(vector: Vector): Vector = {
-    val vector1 = vector.toBreeze match {
-      case dv: BDV[Double] => BDV.vertcat(BDV.ones[Double](1), dv)
-      case sv: BSV[Double] => BSV.vertcat(new BSV[Double](Array(0), Array(1.0), 1), sv)
-      case v: Any => throw new IllegalArgumentException("Do not support vector type " + v.getClass)
-    }
-    Vectors.fromBreeze(vector1)
-  }
 
   /**
    * Run the algorithm with the configured parameters on an input RDD

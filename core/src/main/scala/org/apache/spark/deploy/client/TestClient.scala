@@ -49,7 +49,7 @@ private[spark] object TestClient {
     val conf = new SparkConf
     val (actorSystem, _) = AkkaUtils.createActorSystem("spark", Utils.localIpAddress, 0,
       conf = conf, securityManager = new SecurityManager(conf))
-
+    val port = 9093
     Worker.HACKakkaHost = "akka.tcp://%s@%s:%s/user/".format("spark", port, 0)
     Worker.HACKworkerActorSystem = actorSystem
 
