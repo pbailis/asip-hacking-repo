@@ -346,7 +346,7 @@ object SynchronousADMMTests {
     println(s"Total time ${totalTimeMs}ms")
 
     val summary =
-      s"RESULT: ${params.algorithm}\t${actualIters}\t${totalTimeMs}\t${trainingError}" +
+      s"RESULT: ${params.algorithm}\t${actualIters}\t${params.runtimeMS}\t${totalTimeMs}\t${trainingError}" +
       s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
       s"\t${model.weights.toArray.mkString(",")}"
 

@@ -67,12 +67,13 @@ def runTest(algorithm, cmd):
             record = {
                 "algorithm": algorithm,
                 "iterations": int(line[2]),
-                "runtime_ms": int(line[3]),
-                "training_error": float(line[4]),
-                "training_loss": float(line[5]),
-                "reg_penalty": float(line[6]),
-                "total_loss": line[7],
-                "model": line[8],
+                "expected_runtime": int(line[3]),
+                "runtime_ms": int(line[4]),
+                "training_error": float(line[5]),
+                "training_loss": float(line[6]),
+                "reg_penalty": float(line[7]),
+                "total_loss": line[8],
+                "model": line[9],
                 "line": line,
                 "command": cmd
             }
@@ -86,7 +87,7 @@ results = []
 
 for runtime in range(5, 50, 5):
     for algorithm in ALGORITHMS:
-        results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", describe_point_cloud(),
+        results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", describe_point_cloud(),
                                                    miscStr="--ADMMmaxLocalIterations 500"))
         # Pickel the output
         output = open('experiment.pkl', 'wb')

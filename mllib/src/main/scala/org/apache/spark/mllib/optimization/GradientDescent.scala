@@ -36,7 +36,7 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
   extends Optimizer with Logging {
 
   private var stepSize: Double = 1.0
-  private var numIterations: Int = 100
+  private var numIterations: Int = Int.MaxValue
   private var regParam: Double = 0.0
   private var miniBatchFraction: Double = 1.0
   private var runtimeMS: Int = Int.MaxValue
