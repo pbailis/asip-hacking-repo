@@ -143,7 +143,7 @@ abstract class GeneralizedLinearAlgorithm[M <: GeneralizedLinearModel]
    * RDD of LabeledPoint entries.
    */
   def run(input: RDD[LabeledPoint]): M = {
-    val numFeatures: Int = input.first().features.size
+    val numFeatures: Int = input.take(1)(0).features.size
     val initialWeights = Vectors.dense(new Array[Double](numFeatures))
     run(input, initialWeights)
   }

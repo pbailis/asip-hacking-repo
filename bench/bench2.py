@@ -4,7 +4,7 @@ import pickle
 
 ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 
-def describe_point_cloud(pointsPerPartition = 10000000,
+def describe_point_cloud(pointsPerPartition = 100000,
                          partitionSkew = 0.00,
                          labelNoise = 0.2,
                          dimension = 100):
@@ -27,7 +27,6 @@ def make_run_cmd(runtimeMS,
                  miscStr = ""):
     return "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh;" \
            "./bin/spark-submit " \
-           "--driver-memory 52g" \
            "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests" \
            " examples/target/scala-*/spark-examples-*.jar " \
            "--algorithm %s " \
@@ -76,19 +75,18 @@ def runTest(algorithm, cmd, dim, skew):
     return results
 
 
+MASTER = "ec2-54-202-185-65.us-west-2.compute.amazonaws.com:9000"
 
 results = []
 for runtime in range(5, 50, 5):
-    for dim in [2, 10, 50, 100]:
-        for skew in [0.0, 0.01, 0.1, 0.2, 0.5]:
-            for algorithm in ALGORITHMS:
-                dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
-                results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
-                                                       miscStr="--ADMMmaxLocalIterations 500"), dim, skew)
-                # Pickel the output
-                output = open('experiment.pkl', 'wb')
-                pickle.dump(results, output)
-                output.close()
+    for algorithm in ALGORITHMS:
+        dataset = "--format bismarck --input hdfs://" + master + ""
+        results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
+                                                   miscStr="--ADMMmaxLocalIterations 500"), dim, skew)
+        # Pickel the output
+        output = open('experiment.pkl', 'wb')
+        pickle.dump(results, output)
+        output.close()
 
 # display the results
 print results[0].keys()

@@ -10,9 +10,9 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-import scopt.OptionParser
-
 import scala.util.Random
+
+import scopt.OptionParser
 
 
 
@@ -112,37 +112,36 @@ object DataLoaders {
                         partitionSkew: Double,
                         numPartitions: Int,
                         pointsPerPartition: Int): RDD[LabeledPoint] = {
-    sc.parallelize(1 to numPartitions, numPartitions).flatMap {
-      idx =>
-        val plusCloud = new DenseVector(Array.fill[Double](dim)(0.0))
-        plusCloud.values(dim - 1) = 1
-        val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
-        negCloud.values(dim - 1) = 1
+    sc.parallelize(1 to numPartitions, numPartitions).flatMap { idx =>
+      val plusCloud = new DenseVector(Array.fill[Double](dim)(0.0))
+      plusCloud.values(dim - 1) = 1
+      val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
+      negCloud.values(dim - 1) = 1
 
-        // Seed the generator with the partition index
-        val random = new Random(idx)
-        val isPartitionPlus = idx % 2 == 1
+      // Seed the generator with the partition index
+      val random = new Random(idx)
+      val isPartitionPlus = idx % 2 == 1
 
-        (0 until pointsPerPartition).iterator.map { pt =>
-          val isPointPlus = if (random.nextDouble() < partitionSkew) isPartitionPlus else !isPartitionPlus
-          val trueLabel: Double = if (isPointPlus) 1.0 else 0.0
+      (0 until pointsPerPartition).iterator.map { pt =>
+        val isPointPlus = if (random.nextDouble() < partitionSkew) isPartitionPlus else !isPartitionPlus
+        val trueLabel: Double = if (isPointPlus) 1.0 else 0.0
 
-          val pointCenter = if (isPointPlus) plusCloud else negCloud
+        val pointCenter = if (isPointPlus) plusCloud else negCloud
 
-          // calculate the actual point in the cloud
-          val chosenPoint = new DenseVector(new Array[Double](dim))
-          for (d <- 0 until dim - 1) {
-            chosenPoint.values(d) = pointCenter.values(d) + random.nextGaussian() * cloudSize
-          }
-          chosenPoint.values(dim - 1) = 1.0
-
-          val chosenLabel = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
-
-          new LabeledPoint(chosenLabel, chosenPoint)
+        // calculate the actual point in the cloud
+        val chosenPoint = new DenseVector(new Array[Double](dim))
+        for (d <- 0 until dim - 1) {
+          chosenPoint.values(d) = pointCenter.values(d) + random.nextGaussian() * cloudSize
         }
+        chosenPoint.values(dim - 1) = 1.0
+
+        val chosenLabel = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
+
+        new LabeledPoint(chosenLabel, chosenPoint)
       }
     }
   }
+}
 
 object SynchronousADMMTests {
 
@@ -166,7 +165,7 @@ object SynchronousADMMTests {
                      algorithm: Algorithm = SVM,
                      regType: RegType = L2,
                      regParam: Double = 0.1,
-                     ADMMepsilon: Double = 1.0e-5,
+                     ADMMepsilon: Double = 1.0e-8,
                      ADMMLocalepsilon: Double = 1.0e-3,
                      ADMMmaxLocalIterations: Int = Int.MaxValue,
                      localStats: Boolean = false,
@@ -282,28 +281,10 @@ object SynchronousADMMTests {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
 
-
-
 //    val splits = examples.randomSplit(Array(0.8, 0.2))
 //    val training = splits(0).cache()
 //    val test = splits(1).cache()
     val training = examples
-
-//    {
-//      val fos = new FileOutputStream("train.tsv")
-//      val pw = new PrintWriter(fos)
-//      training.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
-//      pw.flush()
-//      pw.close()
-//    }
-//    {
-//      val fos = new FileOutputStream("test.tsv")
-//      val pw = new PrintWriter(fos)
-//      test.collect().foreach(pt => pw.println(s"${pt.label}\t${pt.features.toArray.mkString("\t")}"))
-//      pw.flush()
-//      pw.close()
-//    }
-
 
     training.cache()
     //test.repartition(params.numPartitions)
