@@ -13,8 +13,8 @@ ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 #         self.area_under_pr = area_under_pr
 #         self.training_loss = training_loss
 
-def describe_point_cloud(pointsPerPartition = 200000,
-                         partitionSkew = 0.01,
+def describe_point_cloud(pointsPerPartition = 100000,
+                         partitionSkew = 0.00,
                          labelNoise = 0.2,
                          dimension = 100):
     return   "--pointCloudPointsPerPartition %d " \
@@ -26,15 +26,14 @@ def describe_point_cloud(pointsPerPartition = 200000,
               labelNoise,
               dimension)
 
-def make_run_cmd(algorithm,
+def make_run_cmd(runtimeMS,
+                 algorithm,
                  datasetConfigName,
                  datasetConfigStr,
                  regType="L2",
                  regParam=0.0001,
                  numPartitions = 40,
-                 iterationStart = 1,
-                 iterationEnd = 50,
-                 iterationStep = 2,
+
                  miscStr = ""):
     return "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh;" \
            "./bin/spark-submit " \
@@ -45,18 +44,14 @@ def make_run_cmd(algorithm,
            "--regParam %f " \
            "--format %s " \
            "--numPartitions %d " \
-           "--sweepIterationStart %d " \
-           "--sweepIterationEnd %d " \
-           " --sweepIterationStep %d " \
+           "--runtimeMS %d" \
            " %s %s " % \
             (algorithm,
              regType,
              regParam,
              datasetConfigName,
              numPartitions,
-             iterationStart,
-             iterationEnd,
-             iterationStep,
+             runtimeMS,
              datasetConfigStr,
              miscStr)
 
