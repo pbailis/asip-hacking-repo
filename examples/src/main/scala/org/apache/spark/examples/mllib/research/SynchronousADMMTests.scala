@@ -161,7 +161,7 @@ object SynchronousADMMTests {
 
   case class Params(
                      input: String = null,
-                     numIterations: Int = 100,
+                     runtimeMS: Int = 10000,
                      stepSize: Double = 1.0,
                      algorithm: Algorithm = SVM,
                      regType: RegType = L2,
@@ -172,9 +172,6 @@ object SynchronousADMMTests {
                      localStats: Boolean = false,
                      format: String = "libsvm",
                      numPartitions: Int = 128,
-                     sweepIterationStart: Int = -1,
-                     sweepIterationEnd: Int = -1,
-                     sweepIterationStep: Int = -1,
                      pointCloudDimension: Int = 10,
                      pointCloudLabelNoise: Double = .2,
                      pointCloudPartitionSkew: Double = 0,
@@ -188,17 +185,9 @@ object SynchronousADMMTests {
       head("BinaryClassification: an example app for binary classification.")
 
       // run a one-off test
-      opt[Int]("numIterations")
-        .text("number of iterations")
-        .action((x, c) => c.copy(numIterations = x))
-
-      // run a set of iterations
-      opt[Int]("sweepIterationStart")
-        .action((x, c) => c.copy(sweepIterationStart = x))
-      opt[Int]("sweepIterationEnd")
-        .action((x, c) => c.copy(sweepIterationEnd = x))
-      opt[Int]("sweepIterationStep")
-        .action((x, c) => c.copy(sweepIterationStep = x))
+      opt[Int]("runtimeMS")
+        .text("runtime in miliseconds")
+        .action((x, c) => c.copy(runtimeMS = x))
 
       opt[Double]("stepSize")
         .text(s"initial step size, default: ${defaultParams.stepSize}")
@@ -334,57 +323,43 @@ object SynchronousADMMTests {
 
     println("Starting test!")
 
-    var it_st = params.sweepIterationStart
-    var it_end = params.sweepIterationEnd
-    var it_step = params.sweepIterationStep
+    val startTime = System.nanoTime()
 
-    // this is terrible, but it's perhaps more of a venial sin
-    if (it_st == -1) {
-      it_st = params.numIterations
-      it_end = it_st + 1
-      it_step = 10
-    }
+    val (model, actualIters) = runTest(training, updater, params)
 
-    for (i <- it_st to it_end by it_step) {
-      val startTime = System.nanoTime()
+    val totalTimeNs = System.nanoTime() - startTime
+    val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-      val (model, actualIters) = runTest(training, updater, params, i)
+    val trainingError = training.map{ point =>
+      val p = model.predict(point.features)
+      val y = 2.0 * point.label - 1.0
+      if (y * p <= 0.0) 1.0 else 0.0
+    }.reduce(_ + _) / training.count.toDouble
 
-      val totalTimeNs = System.nanoTime() - startTime
-      val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
-
-      val trainingError = training.map{ point =>
-        val p = model.predict(point.features)
-        val y = 2.0 * point.label - 1.0
-        if (y * p <= 0.0) 1.0 else 0.0
-      }.reduce(_ + _) / training.count.toDouble
-
-      val trainingLoss = model.loss(training)
-      val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
+    val trainingLoss = model.loss(training)
+    val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
 
 
-      println(s"Iterations = ${i}")
-      println(s"Training error = ${trainingError}.")
-      println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
-      println(s"Total time ${totalTimeMs}ms")
+    println(s"desiredRuntime = ${params.runtimeMS}")
+    println(s"Training error = ${trainingError}.")
+    println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
+    println(s"Total time ${totalTimeMs}ms")
 
-      val summary =
-        s"RESULT: ${params.algorithm}\t${actualIters}\t${totalTimeMs}\t${trainingError}" +
-        s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
-        s"\t${model.weights.toArray.mkString(",")}"
+    val summary =
+      s"RESULT: ${params.algorithm}\t${actualIters}\t${totalTimeMs}\t${trainingError}" +
+      s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
+      s"\t${model.weights.toArray.mkString(",")}"
 
-      println(summary)
+    println(summary)
 
-    }
 
     sc.stop()
   }
 
   def runTest(training: RDD[LabeledPoint],
               updater: Updater,
-              params: Params,
-              iterations: Int) = {
-    println(s"Running algorithm ${params.algorithm} $iterations iterations")
+              params: Params) = {
+    println(s"Running algorithm ${params.algorithm} for ${params.runtimeMS} MS")
 
     params.algorithm match {
 //      case LR =>
@@ -398,14 +373,14 @@ object SynchronousADMMTests {
       case SVM =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
-          .setNumIterations(iterations)
+          .setRuntime(params.runtimeMS)
           .setStepSize(params.stepSize)
           .setUpdater(updater)
           .setRegParam(params.regParam)
         val model = algorithm.run(training).clearThreshold()
         println(model.weights.toArray.mkString(","))
         println(model.intercept)
-        (model, iterations)
+        (model, algorithm.optimizer.getLastIterations())
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         //        algorithm.maxGlobalIterations = iterations
@@ -414,7 +389,7 @@ object SynchronousADMMTests {
         algorithm.epsilon = params.ADMMepsilon
         algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.collectLocalStats = params.localStats
-        algorithm.runtimeMS = iterations * 1000
+        algorithm.runtimeMS = params.runtimeMS
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.iteration)
@@ -424,7 +399,7 @@ object SynchronousADMMTests {
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = 100
-        algorithm.runtimeMS = iterations * 1000
+        algorithm.runtimeMS = params.runtimeMS
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages)

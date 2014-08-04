@@ -94,7 +94,7 @@ for runtime in range(5, 50, 5):
     for algorithm in ALGORITHMS:
         results += runTest(algorithm, make_run_cmd(algorithm, "cloud", describe_point_cloud(),
                                                    iterationStart = runtime, iterationEnd = runtime,
-                                                   miscStr="--ADMMmaxLocalIterations=500"))
+                                                   miscStr="--ADMMmaxLocalIterations 500"))
         # Pickel the output
         output = open('experiment.pkl', 'wb')
         pickle.dump(results, output)

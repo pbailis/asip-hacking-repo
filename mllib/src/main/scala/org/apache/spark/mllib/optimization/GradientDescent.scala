@@ -39,6 +39,9 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
   private var numIterations: Int = 100
   private var regParam: Double = 0.0
   private var miniBatchFraction: Double = 1.0
+  private var runtimeMS: Int = Int.MaxValue
+  private var lastIterations: Int = 0
+
 
   /**
    * Set the initial step size of SGD for the first step. Default 1.0.
@@ -65,6 +68,14 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
    */
   def setNumIterations(iters: Int): this.type = {
     this.numIterations = iters
+    this
+  }
+
+  /**
+   * Set the runtime for SGD.
+   */
+  def setRuntime(runtimeMS: Int): this.type = {
+    this.runtimeMS = runtimeMS
     this
   }
 
@@ -96,6 +107,8 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
     this
   }
 
+  def getLastIterations(): Int = lastIterations
+
   /**
    * :: DeveloperApi ::
    * Runs gradient descent on the given training data.
@@ -105,15 +118,17 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
    */
   @DeveloperApi
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    val (weights, _) = GradientDescent.runMiniBatchSGD(
+    val (weights, _, actualIters) = GradientDescent.runMiniBatchSGD(
       data,
       gradient,
       updater,
       stepSize,
       numIterations,
+      runtimeMS,
       regParam,
       miniBatchFraction,
       initialWeights)
+    lastIterations = actualIters
     weights
   }
 
@@ -153,9 +168,10 @@ object GradientDescent extends Logging {
       updater: Updater,
       stepSize: Double,
       numIterations: Int,
+      runtimeMS: Int,
       regParam: Double,
       miniBatchFraction: Double,
-      initialWeights: Vector): (Vector, Array[Double]) = {
+      initialWeights: Vector): (Vector, Array[Double], Int) = {
 
     val stochasticLossHistory = new ArrayBuffer[Double](numIterations)
 
@@ -166,7 +182,7 @@ object GradientDescent extends Logging {
     if (numExamples == 0) {
 
       logInfo("GradientDescent.runMiniBatchSGD returning initial weights, no data found")
-      return (initialWeights, stochasticLossHistory.toArray)
+      return (initialWeights, stochasticLossHistory.toArray, 0)
 
     }
 
@@ -181,7 +197,10 @@ object GradientDescent extends Logging {
     var regVal = updater.compute(
       weights, Vectors.dense(new Array[Double](weights.size)), 0, 1, regParam)._2
 
-    for (i <- 1 to numIterations) {
+
+    var i = 0
+    val startTime = System.currentTimeMillis()
+    while (i < numIterations && (System.currentTimeMillis() - startTime) < runtimeMS) {
       val bcWeights = data.context.broadcast(weights)
       // Sample a subset (fraction miniBatchFraction) of the total data
       // compute and sum up the subgradients on this subset (this is one map-reduce)
@@ -204,12 +223,13 @@ object GradientDescent extends Logging {
         weights, Vectors.fromBreeze(gradientSum / miniBatchSize), stepSize, i, regParam)
       weights = update._1
       regVal = update._2
+      i += 1
     }
 
     logInfo("GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
       stochasticLossHistory.takeRight(10).mkString(", ")))
 
-    (weights, stochasticLossHistory.toArray)
+    (weights, stochasticLossHistory.toArray, i)
 
   }
 }
