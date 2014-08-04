@@ -54,7 +54,7 @@ def make_run_cmd(runtimeMS,
              datasetConfigStr,
              miscStr)
 
-def runTest(algorithm, cmd):
+def runTest(algorithm, cmd, dim, skew):
     print cmd
     system("eval '%s' > /tmp/run.out 2>&1" % (cmd))
 
@@ -75,6 +75,8 @@ def runTest(algorithm, cmd):
                 "total_loss": line[8],
                 "model": line[9],
                 "line": line,
+                "dim": dim,
+                "skew": skew,
                 "command": cmd
             }
             results.append(record)
@@ -84,15 +86,17 @@ def runTest(algorithm, cmd):
 
 
 results = []
-
 for runtime in range(5, 50, 5):
-    for algorithm in ALGORITHMS:
-        results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", describe_point_cloud(),
-                                                   miscStr="--ADMMmaxLocalIterations 500"))
-        # Pickel the output
-        output = open('experiment.pkl', 'wb')
-        pickle.dump(results, output)
-        output.close()
+    for dim in [3, 5, 10, 50, 100]:
+        for skew in [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]:
+            for algorithm in ALGORITHMS:
+                dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
+                results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
+                                                       miscStr="--ADMMmaxLocalIterations 500"), dim, skew)
+                # Pickel the output
+                output = open('experiment.pkl', 'wb')
+                pickle.dump(results, output)
+                output.close()
 
 # display the results
 print results[0].keys()
