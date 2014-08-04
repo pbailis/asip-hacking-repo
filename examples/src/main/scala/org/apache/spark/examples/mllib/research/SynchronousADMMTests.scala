@@ -373,6 +373,7 @@ object SynchronousADMMTests {
       case SVM =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
+          .setNumIterations(100000)
           .setRuntime(params.runtimeMS)
           .setStepSize(params.stepSize)
           .setUpdater(updater)

@@ -198,7 +198,7 @@ object GradientDescent extends Logging {
       weights, Vectors.dense(new Array[Double](weights.size)), 0, 1, regParam)._2
 
 
-    var i = 0
+    var i = 1
     val startTime = System.currentTimeMillis()
     while (i < numIterations && (System.currentTimeMillis() - startTime) < runtimeMS) {
       val bcWeights = data.context.broadcast(weights)
@@ -213,7 +213,6 @@ object GradientDescent extends Logging {
           combOp = (c1, c2) => (c1, c2) match { case ((grad1, loss1), (grad2, loss2)) =>
             (grad1 += grad2, loss1 + loss2)
           })
-
       /**
        * NOTE(Xinghao): lossSum is computed using the weights from the previous iteration
        * and regVal is the regularization value computed in the previous iteration as well.
