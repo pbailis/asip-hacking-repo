@@ -208,7 +208,7 @@ class AsyncADMMWorker(subProblemId: Int,
 }
 
 
-class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
 
   var runtimeMS: Int = 5000
   var paramBroadcastPeriodMs = 100

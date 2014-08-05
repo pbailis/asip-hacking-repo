@@ -1,11 +1,12 @@
 package org.apache.spark.mllib.optimization
 
+import java.util.concurrent.TimeUnit
+
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
-import java.util.concurrent.TimeUnit
 
 
 trait FastGradient extends Serializable {
@@ -21,6 +22,17 @@ class FastHingeGradient extends FastGradient {
     }
   }
 }
+
+
+class FastLogisticGradient extends FastGradient {
+  override def apply(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) {
+    val wdotx = w.dot(x)
+    val margin = -1.0 * wdotx
+    val gradientMultiplier = (1.0 / (1.0 + math.exp(margin))) - label
+    axpy(gradientMultiplier, x, cumGrad)
+  }
+}
+
 
 trait ConsensusFunction extends Serializable {
   def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double]
@@ -40,6 +52,33 @@ class L2ConsensusFunction extends ConsensusFunction {
     (primalAvg * rho + dualAvg) * (nSolvers.toDouble / (regParam + nSolvers * rho))
   }
 }
+
+
+class L1ConsensusFunction extends ConsensusFunction {
+  def softThreshold(alpha: Double, x: BV[Double]): BV[Double] = {
+    val ret = BV.zeros[Double](x.size)
+    var i = 0
+    while (i < x.size) {
+      if(x(i) < alpha) {
+        ret(i) = x(i) + alpha
+      } else if (x(i) > alpha) {
+        ret(i) = x(i) - alpha
+      }
+      i +=1
+    }
+    ret
+  }
+
+  override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
+    if (rho == 0.0) {
+      softThreshold(regParam, primalAvg)
+    } else {
+      // Joey: rederive this equation:
+      softThreshold(regParam / nSolvers.toDouble, primalAvg * rho + dualAvg)
+    }
+  }
+}
+
 
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,

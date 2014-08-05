@@ -68,6 +68,19 @@ class LogisticRegressionModel (
       case None => score
     }
   }
+
+  override protected def pointLoss(point: LabeledPoint, weightMatrix: Vector, intercept: Double): Double = {
+    val brzData = point.features.toBreeze
+    val brzWeights = weightMatrix.toBreeze
+    val margin: Double = -1.0 * brzWeights.dot(brzData) - intercept
+    val loss =
+      if (point.label > 0) {
+        math.log1p(math.exp(margin)) // log1p is log(1+p) but more accurate for small p
+      } else {
+        math.log1p(math.exp(margin)) - margin
+      }
+    loss
+  }
 }
 
 /**
@@ -98,7 +111,88 @@ class LogisticRegressionWithSGD private (
   override protected def createModel(weights: Vector, intercept: Double) = {
     new LogisticRegressionModel(weights, intercept)
   }
+
 }
+
+
+
+
+
+/**
+ * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
+ * NOTE: Labels used in SVM should be {0, 1}.
+ */
+class LRWithADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+  var stepSize: Double = 1.0
+  var maxGlobalIterations: Int = Int.MaxValue
+  var maxLocalIterations: Int = Int.MaxValue
+  var regParam: Double = 1.0
+  var miniBatchSize: Int = 100
+  var localEpsilon: Double = 1.0e-5
+  var epsilon: Double = 1.0e-5
+  var collectLocalStats: Boolean = true
+  var runtimeMS = 10000
+
+  val gradient = new FastLogisticGradient()
+  var consensus: ConsensusFunction = new L2ConsensusFunction()
+
+  override val optimizer: ADMM = new ADMM(gradient, consensus)
+
+  def setup() {
+    optimizer.consensus = consensus
+    optimizer.runtimeMS = runtimeMS
+    optimizer.numIterations = maxGlobalIterations
+    optimizer.regParam = regParam
+    optimizer.epsilon = localEpsilon
+    optimizer.miniBatchSize = miniBatchSize
+    optimizer.localMaxIterations = maxLocalIterations
+    optimizer.localEpsilon = localEpsilon
+    optimizer.eta_0 = stepSize
+    optimizer.displayLocalStats = collectLocalStats
+  }
+
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
+class LRWithAsyncADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+  var stepSize: Double = 1.0
+  var maxGlobalIterations: Int = Int.MaxValue
+  var maxLocalIterations: Int = Int.MaxValue
+  var regParam: Double = 1.0
+  var miniBatchSize: Int = 100
+  var localEpsilon: Double = 1.0e-5
+  var epsilon: Double = 1.0e-5
+  var collectLocalStats: Boolean = true
+  var runtimeMS = 10000
+  var broadcastDelayMS = 100
+
+  val gradient = new FastLogisticGradient()
+  var consensus: ConsensusFunction = new L2ConsensusFunction()
+
+  override val optimizer = new AsyncADMMwithSGD(gradient, consensus)
+
+  def setup() {
+    optimizer.consensus = consensus
+    optimizer.runtimeMS = runtimeMS
+    optimizer.regParam = regParam
+    optimizer.epsilon = localEpsilon
+    optimizer.miniBatchSize = miniBatchSize
+    optimizer.localMaxIterations = maxLocalIterations
+    optimizer.localEpsilon = localEpsilon
+    optimizer.eta_0 = stepSize
+    optimizer.displayLocalStats = collectLocalStats
+    optimizer.broadcastDelayMS = broadcastDelayMS
+  }
+
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
 
 /**
  * Top-level methods for calling Logistic Regression.

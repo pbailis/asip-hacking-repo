@@ -127,11 +127,12 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   var runtimeMS = 10000
 
   val gradient = new FastHingeGradient()
-  val consensus = new L2ConsensusFunction()
+  var consensus: ConsensusFunction = new L2ConsensusFunction()
 
-  override val optimizer = new ADMM(gradient, consensus)
+  override val optimizer: ADMM = new ADMM(gradient, consensus)
 
   def setup() {
+    optimizer.consensus = consensus
     optimizer.runtimeMS = runtimeMS
     optimizer.numIterations = maxGlobalIterations
     optimizer.regParam = regParam
@@ -162,11 +163,12 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   var broadcastDelayMS = 100
 
   val gradient = new FastHingeGradient()
-  val consensus = new L2ConsensusFunction()
+  var consensus: ConsensusFunction = new L2ConsensusFunction()
 
   override val optimizer = new AsyncADMMwithSGD(gradient, consensus)
 
   def setup() {
+    optimizer.consensus = consensus
     optimizer.runtimeMS = runtimeMS
     optimizer.regParam = regParam
     optimizer.epsilon = localEpsilon

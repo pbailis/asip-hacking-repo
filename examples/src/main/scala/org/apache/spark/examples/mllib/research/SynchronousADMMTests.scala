@@ -3,16 +3,16 @@ package org.apache.spark.examples.mllib.research
 import java.util.concurrent.TimeUnit
 
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
-import org.apache.spark.mllib.classification.{SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, LRWithADMM, LRWithAsyncADMM, SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
-import org.apache.spark.mllib.optimization.{L1Updater, SquaredL2Updater, Updater}
-import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.optimization.{L1ConsensusFunction, L2ConsensusFunction, L1Updater, SquaredL2Updater}
+import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-import scala.util.Random
-
 import scopt.OptionParser
+
+import scala.util.Random
 
 
 
@@ -147,7 +147,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, SVMADMM, SVMADMMAsync = Value
+    val SVM, SVMADMM, SVMADMMAsync, LR, LRADMM, LRADMMAsync = Value
   }
 
   object RegType extends Enumeration {
@@ -295,16 +295,10 @@ object SynchronousADMMTests {
     println(s"Loaded data! Number of training examples: $numTraining")
     println(s"Number of partitions: ${training.partitions.length}")
 
-    // examples.unpersist(blocking = false)
-
-    val updater = params.regType match {
-      case L1 => new L1Updater()
-      case L2 => new SquaredL2Updater()
-    }
 
     println("Starting test!")
 
-    val (model, actualIters, totalTimeMs) = runTest(training, updater, params)
+    val (model, actualIters, totalTimeMs) = runTest(training, params)
 
     val trainingError = training.map{ point =>
       val p = model.predict(point.features)
@@ -332,20 +326,31 @@ object SynchronousADMMTests {
     sc.stop()
   }
 
-  def runTest(training: RDD[LabeledPoint],
-              updater: Updater,
-              params: Params) = {
+  def runTest(training: RDD[LabeledPoint], params: Params):
+  (GeneralizedLinearModel, Int, Long) = {
     println(s"Running algorithm ${params.algorithm} for ${params.runtimeMS} MS")
 
+    val updater = params.regType match {
+      case L1 => new L1Updater()
+      case L2 => new SquaredL2Updater()
+    }
+
+    val consensusFun = params.regType match {
+      case L1 => new L1ConsensusFunction()
+      case L2 => new L2ConsensusFunction()
+    }
+
     params.algorithm match {
-//      case LR =>
-//        val algorithm = new LogisticRegressionWithSGD()
-//        algorithm.optimizer
-//          .setNumIterations(iterations)
-//          .setStepSize(params.stepSize)
-//          .setUpdater(updater)
-//          .setRegParam(params.regParam)
-//        algorithm.run(training).clearThreshold()
+      case LR =>
+        val algorithm = new LogisticRegressionWithSGD()
+        algorithm.optimizer
+          .setNumIterations(100000)
+          .setRuntime(params.runtimeMS)
+          .setStepSize(params.stepSize)
+          .setUpdater(updater)
+          .setRegParam(params.regParam)
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.getLastIterations(), algorithm.optimizer.totalTimeMs)
       case SVM =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
@@ -361,6 +366,7 @@ object SynchronousADMMTests {
         (model, algorithm.optimizer.getLastIterations(), algorithm.optimizer.totalTimeMs)
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
+        algorithm.consensus = consensusFun
         //        algorithm.maxGlobalIterations = iterations
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
@@ -374,15 +380,41 @@ object SynchronousADMMTests {
         (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
       case SVMADMMAsync =>
         val algorithm = new SVMWithAsyncADMM()
+        algorithm.consensus = consensusFun
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
         algorithm.setup()
-        val startTime = System.nanoTime()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+      case LRADMM =>
+        val algorithm = new LRWithADMM()
+        algorithm.consensus = consensusFun
+        //        algorithm.maxGlobalIterations = iterations
+        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
+        algorithm.regParam = params.regParam
+        algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
+        algorithm.collectLocalStats = params.localStats
+        algorithm.runtimeMS = params.runtimeMS
+        algorithm.setup()
+        val startTime = System.nanoTime()
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
+      case LRADMMAsync =>
+        val algorithm = new LRWithAsyncADMM()
+        algorithm.consensus = consensusFun
+        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
+        algorithm.regParam = params.regParam
+        algorithm.epsilon = params.ADMMepsilon
+        algorithm.broadcastDelayMS = 100
+        algorithm.runtimeMS = params.runtimeMS
+        algorithm.setup()
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+
     }
   }
 }
