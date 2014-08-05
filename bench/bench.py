@@ -91,7 +91,7 @@ for runtime in [5000, 20000]:#5000, 20000]:#1000, 4000, 10*1000]:
         else:
             maxLocalIterations = 2000
         results += runTest(algorithm, make_run_cmd(runtime, algorithm, "bismarck", dataset,
-                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.00001" % (maxLocalIterations)))
+                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.00001 --ADMMrho 0.000001" % (maxLocalIterations)))
                 # Pickel the output
         output = open('experiment.pkl', 'wb')
         pickle.dump(results, output)
