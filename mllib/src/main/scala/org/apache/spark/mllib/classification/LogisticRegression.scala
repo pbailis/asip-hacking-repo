@@ -132,6 +132,7 @@ class LRWithADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel] wit
   var epsilon: Double = 1.0e-5
   var collectLocalStats: Boolean = true
   var runtimeMS = 10000
+  var rho: Double = 1.0
 
   val gradient = new FastLogisticGradient()
   var consensus: ConsensusFunction = new L2ConsensusFunction()
@@ -149,6 +150,7 @@ class LRWithADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel] wit
     optimizer.localEpsilon = localEpsilon
     optimizer.eta_0 = stepSize
     optimizer.displayLocalStats = collectLocalStats
+    optimizer.rho = rho
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
@@ -168,6 +170,7 @@ class LRWithAsyncADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel
   var collectLocalStats: Boolean = true
   var runtimeMS = 10000
   var broadcastDelayMS = 100
+  var rho: Double = 1.0
 
   val gradient = new FastLogisticGradient()
   var consensus: ConsensusFunction = new L2ConsensusFunction()
@@ -185,6 +188,7 @@ class LRWithAsyncADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel
     optimizer.eta_0 = stepSize
     optimizer.displayLocalStats = collectLocalStats
     optimizer.broadcastDelayMS = broadcastDelayMS
+    optimizer.rho = rho
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)

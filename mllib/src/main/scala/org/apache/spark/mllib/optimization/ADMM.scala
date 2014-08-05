@@ -154,6 +154,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
   var miniBatchSize: Int = 10  // math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
   var displayLocalStats: Boolean = true
   var runtimeMS: Int =  Integer.MAX_VALUE
+  var rho: Double = 1.0
 
   var iteration = 0
 
@@ -191,8 +192,6 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
-
-    var rho  = 4.0
 
     var primalConsensus = initialWeights.toBreeze.copy
 

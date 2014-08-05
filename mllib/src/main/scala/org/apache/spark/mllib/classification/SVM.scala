@@ -125,6 +125,7 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   var epsilon: Double = 1.0e-5
   var collectLocalStats: Boolean = true
   var runtimeMS = 10000
+  var rho: Double = 1.0
 
   val gradient = new FastHingeGradient()
   var consensus: ConsensusFunction = new L2ConsensusFunction()
@@ -142,6 +143,7 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
     optimizer.localEpsilon = localEpsilon
     optimizer.eta_0 = stepSize
     optimizer.displayLocalStats = collectLocalStats
+    optimizer.rho = rho
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)
@@ -161,6 +163,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   var collectLocalStats: Boolean = true
   var runtimeMS = 10000
   var broadcastDelayMS = 100
+  var rho: Double = 1.0
 
   val gradient = new FastHingeGradient()
   var consensus: ConsensusFunction = new L2ConsensusFunction()
@@ -178,6 +181,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
     optimizer.eta_0 = stepSize
     optimizer.displayLocalStats = collectLocalStats
     optimizer.broadcastDelayMS = broadcastDelayMS
+    optimizer.rho = rho
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)

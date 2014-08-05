@@ -175,7 +175,8 @@ object SynchronousADMMTests {
                      pointCloudLabelNoise: Double = .2,
                      pointCloudPartitionSkew: Double = 0,
                      pointCloudPointsPerPartition: Int = 10000,
-                     pointCloudSize: Double = 1.0)
+                     pointCloudSize: Double = 1.0,
+                     rho: Double = 1.0)
 
   def main(args: Array[String]) {
     val defaultParams = Params()
@@ -221,6 +222,8 @@ object SynchronousADMMTests {
       opt[String]("input")
         .text("input paths to labeled examples in LIBSVM format")
         .action((x, c) => c.copy(input = x))
+      opt[Double]("ADMMrho")
+        .action((x, c) => c.copy(rho = x))
       opt[String]("format")
         .text("File format")
         .action((x, c) => c.copy(format = x))
@@ -374,6 +377,7 @@ object SynchronousADMMTests {
         algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.collectLocalStats = params.localStats
         algorithm.runtimeMS = params.runtimeMS
+        algorithm.rho = params.rho
         algorithm.setup()
         val startTime = System.nanoTime()
         val model = algorithm.run(training).clearThreshold()
@@ -386,6 +390,7 @@ object SynchronousADMMTests {
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
+        algorithm.rho = params.rho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
@@ -411,6 +416,7 @@ object SynchronousADMMTests {
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
+        algorithm.rho = params.rho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)

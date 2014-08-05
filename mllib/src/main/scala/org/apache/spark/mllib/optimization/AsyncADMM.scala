@@ -104,6 +104,7 @@ class AsyncADMMWorker(subProblemId: Int,
                       epsilon: Double,
                       maxIterations: Int,
                       miniBatchSize: Int,
+                      rho: Double,
                       val comm: WorkerCommunication,
                       val broadcastDelayMS: Int)
   extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
@@ -115,7 +116,6 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var done = false
 
   var primalConsensus = primalVar0.copy
-  var rho = 4.0
 
   var commStages = 0
   val broadcastThread = new Thread {
@@ -221,6 +221,8 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
   var displayLocalStats: Boolean = true
   var broadcastDelayMS: Int = 100
   var commStages: Int = 0
+  var rho: Double = 1.0
+
   @transient var workers : RDD[AsyncADMMWorker] = null
 
   def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
@@ -242,7 +244,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
       val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
         primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
         eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
-        miniBatchSize = miniBatchSize, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
+        miniBatchSize = miniBatchSize, rho = rho, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
 
       Iterator(worker)
      }.cache()
@@ -278,7 +280,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
     }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
     primalAvg /= nExamples.toDouble
     dualAvg /= nExamples.toDouble
-    val rhoFinal = 4.0
+    val rhoFinal = rho
     val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
     commStages = workers.map {w => w.commStages }.reduce(_+_)
 
