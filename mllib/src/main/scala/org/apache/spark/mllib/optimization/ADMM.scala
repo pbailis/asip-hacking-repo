@@ -111,7 +111,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
     residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
     var currentTime = startTime
-    while(t < maxIterations && residual > epsilon && (currentTime - startTime) > remainingTimeMS) {
+    while(t < maxIterations && residual > epsilon && (currentTime - startTime) < remainingTimeMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
