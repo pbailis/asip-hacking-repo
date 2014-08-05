@@ -304,7 +304,7 @@ object SynchronousADMMTests {
 
     println("Starting test!")
 
-    val (model, actualIters, startTime) = runTest(training, updater, params)
+    val (model, actualIters, startTime: Long) = runTest(training, updater, params)
 
     val totalTimeNs = System.nanoTime() - startTime
     val totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
@@ -361,7 +361,7 @@ object SynchronousADMMTests {
         val model = algorithm.run(training).clearThreshold()
         println(model.weights.toArray.mkString(","))
         println(model.intercept, startTime)
-        (model, algorithm.optimizer.getLastIterations())
+        (model, algorithm.optimizer.getLastIterations(), startTime)
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         //        algorithm.maxGlobalIterations = iterations
