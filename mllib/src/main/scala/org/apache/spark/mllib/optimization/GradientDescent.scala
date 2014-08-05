@@ -18,6 +18,7 @@
 package org.apache.spark.mllib.optimization
 
 import scala.collection.mutable.ArrayBuffer
+import java.util.concurrent.TimeUnit
 
 import breeze.linalg.{DenseVector => BDV}
 
@@ -109,6 +110,8 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
 
   def getLastIterations(): Int = lastIterations
 
+  var totalTimeMs: Long = 0
+    
   /**
    * :: DeveloperApi ::
    * Runs gradient descent on the given training data.
@@ -118,6 +121,8 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
    */
   @DeveloperApi
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
+    
+    val startTimeNs = System.nanoTime()
     val (weights, _, actualIters) = GradientDescent.runMiniBatchSGD(
       data,
       gradient,
@@ -129,6 +134,8 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
       miniBatchFraction,
       initialWeights)
     lastIterations = actualIters
+    val totalTimeNs = System.nanoTime() - startTimeNs
+    totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
     weights
   }
 

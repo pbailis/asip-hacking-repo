@@ -5,6 +5,7 @@ import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
+import java.util.concurrent.TimeUnit
 
 
 trait FastGradient extends Serializable {
@@ -110,20 +111,28 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
   var iteration = 0
 
-  /**
-   * Solve the provided convex optimization problem.
-   */
-  override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
+  var solvers: RDD[SGDLocalOptimizer] = null
 
+  def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
     val primal0 = initialWeights.toBreeze
-
-    val solvers: RDD[SGDLocalOptimizer] =
+    solvers =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
         val data: Array[(Double, BV[Double])] = iter.map { case (label, features) => (label, features.toBreeze)}.toArray
         val solver = new SGDLocalOptimizer(ind, data, primal0.copy, gradient,
           eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations, miniBatchSize = miniBatchSize)
         Iterator(solver)
       }.cache()
+      solvers.count
+  }
+
+  var totalTimeMs: Long = -1
+  /**
+   * Solve the provided convex optimization problem.
+   */
+  override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
+    
+    setup(rawData, initialWeights)
+
 
     val nDim = initialWeights.size
     val nExamples: Int = solvers.map(s => s.data.length).reduce(_+_)
@@ -142,6 +151,9 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     var primalConsensus = initialWeights.toBreeze.copy
 
     val starttime = System.currentTimeMillis()
+
+    val startTimeNs = System.nanoTime()
+
     iteration = 0
     println(s"ADMM numIterations: $numIterations")
     while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) &&
@@ -184,6 +196,11 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
       iteration += 1
     }
+
+
+    val totalTimeNs = System.nanoTime() - startTimeNs
+    totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
+    
 
     println(s"${primalConsensus.toArray.mkString(",")}")
 

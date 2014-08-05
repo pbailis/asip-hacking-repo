@@ -259,9 +259,15 @@ class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunct
     workers.foreach { w => w.comm.sendPingPongs() }
   }
 
+  var totalTimeMs: Long = -1
+
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
     // Initialize the cluster
     setup(input, primal0.toBreeze)
+
+    
+    val startTimeNs = System.nanoTime()
+
     // Run all the workers
     workers.foreach( w => w.mainLoop(runtimeMS) )
     // compute the final consensus value synchronously
@@ -275,6 +281,9 @@ class AsyncADMMwithSGD(val gradient: FastGradient, val consensus: ConsensusFunct
     val rhoFinal = 4.0
     val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
     commStages = workers.map {w => w.commStages }.reduce(_+_)
+
+    val totalTimeNs = System.nanoTime() - startTimeNs
+    totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
     Vectors.fromBreeze(finalW)
   }

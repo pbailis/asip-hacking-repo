@@ -4,7 +4,7 @@ import pickle
 
 ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
 
-def describe_point_cloud(pointsPerPartition = 10000000,
+def describe_point_cloud(pointsPerPartition = 2000000,
                          partitionSkew = 0.00,
                          labelNoise = 0.2,
                          dimension = 100):
@@ -78,17 +78,30 @@ def runTest(algorithm, cmd, dim, skew):
 
 
 results = []
-for runtime in range(1, 50, 5):
-    for dim in [2, 10, 50, 100]:
-        for skew in [0.0, 0.01, 0.1, 0.25, 0.5]:
+for runtime in [1000, 4000, 10*1000]:
+    for dim in [10]:
+        for skew in [0.0, 0.1]:
             for algorithm in ALGORITHMS:
                 dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
-                results += runTest(algorithm, make_run_cmd(runtime * 1000, algorithm, "cloud", dataset,
+                results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", dataset,
                                                        miscStr="--ADMMmaxLocalIterations 1000"), dim, skew)
                 # Pickel the output
                 output = open('experiment.pkl', 'wb')
                 pickle.dump(results, output)
                 output.close()
+
+for runtime in [1000, 4000, 10*1000]:
+    for dim in [2, 100]:
+        for skew in [0.0]:
+            for algorithm in ALGORITHMS:
+                dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
+                results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", dataset,
+                                                       miscStr="--ADMMmaxLocalIterations 1000"), dim, skew)
+                # Pickel the output
+                output = open('experiment.pkl', 'wb')
+                pickle.dump(results, output)
+                output.close()
+
 
 # display the results
 print results[0].keys()
