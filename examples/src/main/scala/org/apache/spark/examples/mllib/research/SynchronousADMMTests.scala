@@ -177,7 +177,8 @@ object SynchronousADMMTests {
                      pointCloudPartitionSkew: Double = 0,
                      pointCloudPointsPerPartition: Int = 10000,
                      pointCloudSize: Double = 1.0,
-                     rho: Double = 1.0)
+                     rho: Double = 1.0,
+                     broadcastDelayMs: Int = 100)
 
   def main(args: Array[String]) {
     val defaultParams = Params()
@@ -234,6 +235,8 @@ object SynchronousADMMTests {
         .action((x, c) => c.copy(ADMMepsilon = x))
       opt[Double]("ADMMLocalepsilon")
         .action((x, c) => c.copy(ADMMLocalepsilon = x))
+      opt[Int]("broadcastDelayMs")
+        .action((x, c) => c.copy(broadcastDelayMs = x))
 
       opt[Int]("ADMMmaxLocalIterations")
         .action((x, c) => c.copy(ADMMmaxLocalIterations = x))
@@ -389,7 +392,7 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.broadcastDelayMS = 100
+        algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
         algorithm.setup()
@@ -401,7 +404,7 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
-        algorithm.broadcastDelayMS = 100
+        algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
         algorithm.setup()
