@@ -3,7 +3,7 @@ package org.apache.spark.examples.mllib.research
 import java.util.concurrent.TimeUnit
 
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, LRWithADMM, LRWithAsyncADMM, SVMWithADMM, SVMWithAsyncADMM, SVMWithSGD}
+import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.optimization.{L1ConsensusFunction, L2ConsensusFunction, L1Updater, SquaredL2Updater}
 import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
@@ -13,8 +13,9 @@ import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
 import scala.util.Random
-
-
+import scopt.OptionParser
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 
 
 object DataLoaders {
@@ -147,7 +148,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, SVMADMM, SVMADMMAsync, LR, LRADMM, LRADMMAsync = Value
+    val SVM, SVMADMM, SVMADMMAsync, LR, LRADMM, LRADMMAsync, HOGWILDSVM = Value
   }
 
   object RegType extends Enumeration {
@@ -394,6 +395,19 @@ object SynchronousADMMTests {
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+      case HOGWILDSVM =>
+        val algorithm = new SVMWithHOGWILD()
+        algorithm.consensus = consensusFun
+        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
+        algorithm.regParam = params.regParam
+        algorithm.epsilon = params.ADMMepsilon
+        algorithm.broadcastDelayMS = 100
+        algorithm.runtimeMS = params.runtimeMS
+        algorithm.rho = params.rho
+        algorithm.setup()
+        val model = algorithm.run(training).clearThreshold()
+        (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+
       case LRADMM =>
         val algorithm = new LRWithADMM()
         algorithm.consensus = consensusFun

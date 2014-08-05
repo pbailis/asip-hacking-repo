@@ -190,6 +190,45 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   }
 }
 
+class SVMWithHOGWILD extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
+  var stepSize: Double = 1.0
+  var maxGlobalIterations: Int = Int.MaxValue
+  var maxLocalIterations: Int = Int.MaxValue
+  var regParam: Double = 1.0
+  var miniBatchSize: Int = 100
+  var localEpsilon: Double = 1.0e-5
+  var epsilon: Double = 1.0e-5
+  var collectLocalStats: Boolean = true
+  var runtimeMS = 10000
+  var broadcastDelayMS = 100
+  var rho: Double = 1.0
+
+  val gradient = new FastHingeGradient()
+  var consensus: ConsensusFunction = new L2ConsensusFunction()
+
+  override val optimizer = new HOGWILDSGD(gradient, consensus)
+
+  def setup() {
+    optimizer.consensus = consensus
+    optimizer.runtimeMS = runtimeMS
+    optimizer.regParam = regParam
+    optimizer.epsilon = localEpsilon
+    optimizer.miniBatchSize = miniBatchSize
+    optimizer.localMaxIterations = maxLocalIterations
+    optimizer.localEpsilon = localEpsilon
+    optimizer.eta_0 = stepSize
+    optimizer.displayLocalStats = collectLocalStats
+    optimizer.broadcastDelayMS = broadcastDelayMS
+    optimizer.rho = rho
+  }
+
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new SVMModel(weights, intercept)
+  }
+}
+
+
 
 /**
  * Top-level methods for calling SVM. NOTE: Labels used in SVM should be {0, 1}.
