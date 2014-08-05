@@ -1,8 +1,11 @@
 
 from os import system
+from sys import exit
 import pickle
 
 ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
+
+MASTER = "ec2-54-184-179-190.us-west-2.compute.amazonaws.com"
 
 def describe_point_cloud(pointsPerPartition = 2000000,
                          partitionSkew = 0.00,
@@ -16,6 +19,10 @@ def describe_point_cloud(pointsPerPartition = 2000000,
               partitionSkew,
               labelNoise,
               dimension)
+
+def describe_forest(master):
+    return " --input hdfs://"+master+":9000/user/root/bismarck_data/forest* "
+
 
 def make_run_cmd(runtimeMS,
                  algorithm,
@@ -46,7 +53,7 @@ def make_run_cmd(runtimeMS,
              datasetConfigStr,
              miscStr)
 
-def runTest(algorithm, cmd, dim, skew):
+def runTest(algorithm, cmd, dim=-1, skew=-1):
     print cmd
     system("eval '%s' > /tmp/run.out 2>&1" % (cmd))
 
@@ -75,7 +82,22 @@ def runTest(algorithm, cmd, dim, skew):
 
     return results
 
+results = []
+for runtime in [5000, 20000]:#5000, 20000]:#1000, 4000, 10*1000]:
+    for algorithm in ALGORITHMS:
+        dataset = describe_forest(MASTER)
+        if algorithm == "SVMADMM":
+            maxLocalIterations = 1000000000
+        else:
+            maxLocalIterations = 2000
+        results += runTest(algorithm, make_run_cmd(runtime, algorithm, "bismarck", dataset,
+                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.00001" % (maxLocalIterations)))
+                # Pickel the output
+        output = open('experiment.pkl', 'wb')
+        pickle.dump(results, output)
+        output.close()
 
+exit(0)
 
 results = []
 for runtime in [1000, 4000, 10*1000]:

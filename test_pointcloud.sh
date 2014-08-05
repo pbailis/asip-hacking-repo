@@ -23,19 +23,19 @@ export SPARK_PREPEND_CLASSES=true
 #
 #sbin/start-all.sh
 
-export MASTER="local[4]"
+
 ./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests \
     examples/target/scala-*/spark-examples-*.jar \
-    --algorithm SVM \
+    --algorithm SVMADMM \
     --regType L2 \
     --regParam $regParam \
     --format cloud \
-    --numPartitions 4 \
-    --pointCloudPointsPerPartition 100 \
+    --numPartitions 40 \
+    --pointCloudPointsPerPartition 1000000 \
     --pointCloudPartitionSkew 0.0 \
     --pointCloudLabelNoise 0.2 \
     --pointCloudDimension 100 \
-    --runtimeMS 1000 \
+    --runtimeMS 10000 \
     --ADMMmaxLocalIterations 100 \
     --localStats true \
     --ADMMLocalepsilon 1e-3 \
