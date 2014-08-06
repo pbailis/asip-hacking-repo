@@ -266,22 +266,20 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
     // Initialize the cluster
     setup(input, primal0.toBreeze)
 
-    
     val startTimeNs = System.nanoTime()
 
     // Run all the workers
-    workers.foreach( w => w.mainLoop(runtimeMS) )
+    var (primalAvg, dualAvg, nExamples, _commStages) = workers.map{
+      w => w.mainLoop(runtimeMS)
+      (w.primalVar * w.data.length.toDouble, w.dualVar * w.data.length.toDouble, w.data.length, w.commStages)
+    }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2, a._3 + b._3, a._4 + b._4) )
     // compute the final consensus value synchronously
-    val nExamples = workers.map(w=>w.data.length).reduce(_+_)
-    // Collect the primal and dual averages
-    var (primalAvg, dualAvg) = workers.map {
-      w => (w.primalVar * w.data.length.toDouble, w.dualVar * w.data.length.toDouble)
-    }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
     primalAvg /= nExamples.toDouble
     dualAvg /= nExamples.toDouble
     val rhoFinal = rho
     val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
-    commStages = workers.map {w => w.commStages }.reduce(_+_)
+
+    commStages = _commStages
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
