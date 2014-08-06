@@ -207,6 +207,8 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
         Iterator(solver)
       }.cache()
       solvers.count
+
+    rawData.unpersist(true)
   }
 
   var totalTimeMs: Long = -1
