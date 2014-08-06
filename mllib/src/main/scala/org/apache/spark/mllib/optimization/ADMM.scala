@@ -209,6 +209,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       solvers.count
 
     rawData.unpersist(true)
+    solvers.foreach( f => System.gc() )
   }
 
   var totalTimeMs: Long = -1

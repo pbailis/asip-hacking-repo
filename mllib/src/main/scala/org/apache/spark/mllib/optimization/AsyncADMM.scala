@@ -271,6 +271,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
     workers.foreach { w => w.comm.sendPingPongs() }
 
     input.unpersist(true)
+    workers.foreach( f => System.gc() )
   }
 
   var totalTimeMs: Long = -1
