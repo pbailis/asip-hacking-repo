@@ -264,15 +264,15 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
      // Rho upate from Boyd text
-     if (rho == 0.0) {
-       rho = 1.0
-     } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-       rho = 2.0 * rho
-       println(s"Increasing rho: $rho")
-     } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
-       rho = rho / 2.0
-       println(s"Decreasing rho: $rho")
-     }
+//     if (rho == 0.0) {
+//       rho = 1.0
+//     } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+//       rho = 2.0 * rho
+//       println(s"Increasing rho: $rho")
+//     } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
+//       rho = rho / 2.0
+//       println(s"Decreasing rho: $rho")
+//     }
 
       println(s"Iteration: $iteration")
       println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
