@@ -161,7 +161,7 @@ class AsyncADMMWorker(subProblemId: Int,
         var tiq = comm.inputQueue.take()
         while (tiq != null) {
           if (tiq.nExamples == -1) {
-            tiq = null
+            done = true
           } else {
             allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
             tiq = comm.inputQueue.poll()
