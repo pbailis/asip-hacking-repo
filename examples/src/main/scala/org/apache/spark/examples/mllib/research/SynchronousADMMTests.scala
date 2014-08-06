@@ -62,8 +62,8 @@ object DataLoaders {
 
     val data = rawData.map {
       row =>
-        val value_arr = Array.fill(11)(1.0)
-        val idx_arr = new Array[Int](11)
+        val value_arr = Array.fill(12)(1.0)
+        val idx_arr = new Array[Int](12)
 
         var idx_offset = 0
         for(i <- 0 until 7 if i != 5) {
@@ -71,8 +71,6 @@ object DataLoaders {
           idx_arr(idx_offset) = idx_offset
           idx_offset += 1
         }
-
-        // first five features plus 5 more; 10 features
 
         var bitvector_offset = idx_offset
         idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
@@ -93,13 +91,17 @@ object DataLoaders {
 
         idx_arr(idx_offset) = bitvector_offset + destDict(row(labels("Dest")))
         idx_offset += 1
+        bitvector_offset += destDict.size
+
+        // add one for bias term
+        bitvector_offset += 1
 
         val delay = row(labels("ArrDelay"))
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
-        assert(idx_offset == 11)
+        assert(idx_offset == 12)
 
-        LabeledPoint(label, new SparseVector(11, idx_arr, value_arr))
+        LabeledPoint(label, new SparseVector(bitvector_offset, idx_arr, value_arr))
     }
     data
   }
