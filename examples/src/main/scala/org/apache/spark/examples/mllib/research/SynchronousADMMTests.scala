@@ -413,7 +413,6 @@ object SynchronousADMMTests {
         algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
-        algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
@@ -441,6 +440,7 @@ object SynchronousADMMTests {
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
+        algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
