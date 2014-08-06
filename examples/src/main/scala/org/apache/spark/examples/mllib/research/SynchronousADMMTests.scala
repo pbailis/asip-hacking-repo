@@ -16,6 +16,8 @@ import scala.util.Random
 import scopt.OptionParser
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
+import breeze.linalg.SparseVector
+import org.apache.spark.mllib.linalg.SparseVector
 
 
 object DataLoaders {
@@ -62,36 +64,41 @@ object DataLoaders {
 
     val data = rawData.map {
       row =>
-        val firstFiveFeatures = (row.view(0, 5) ++ row.view(6, 7)).map {
-          x =>
-            if (x == "NA") 0.0 else x.toDouble
+        val value_arr = Array.fill(11)(1.0)
+        val idx_arr = new Array[Double](11)
+
+        var idx_offset = 0
+        for(i <- 0 until 7 if i != 5) {
+          value_arr(idx_offset) = if (row(i) == "NA") 0.0 else row(i).toDouble
+          idx_arr(idx_offset) = idx_offset
+          idx_offset += 1
         }
-        val carrierFeatures = makeBinary(row(labels("UniqueCarrier")), carrierDict)
-        val flightFeatures = makeBinary(row(labels("FlightNum")), flightNumDict)
-        val tailNumFeatures = makeBinary(row(labels("TailNum")), tailNumDict)
-        val originFeatures = makeBinary(row(labels("Origin")), originDict)
-        val destFeatures = makeBinary(row(labels("Dest")), destDict)
-        val features: Array[Double] = (firstFiveFeatures ++ carrierFeatures ++ flightFeatures ++
-          tailNumFeatures ++ originFeatures ++ destFeatures).toArray
+
+        // first five features plus 5 more; 10 features
+
+        var bitvector_offset = idx_offset
+        idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
+        idx_offset += 1
+        bitvector_offset += carrierDict.size
+
+        idx_arr(idx_offset) = bitvector_offset + flightNumDict(row(labels("FlightNum")))
+        idx_offset += 1
+        bitvector_offset += flightNumDict.size
+
+        idx_arr(idx_offset) = bitvector_offset + tailNumDict(row(labels("TailNum")))
+        idx_offset += 1
+        bitvector_offset += tailNumDict.size
+
+        idx_arr(idx_offset) = bitvector_offset + originDict(row(labels("Origin")))
+        idx_offset += 1
+        bitvector_offset += originDict.size
+
+        idx_arr(idx_offset) = bitvector_offset + destDict(row(labels("Dest")))
+
         val delay = row(labels("ArrDelay"))
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
-        val numNonZero = features.map( f => if(f > 0) 1 else 0).reduce(_ + _)
-
-        val featureIndexes = new Array[Int](numNonZero)
-        val featureValues = new Array[Double](numNonZero)
-        var currentSparseIndex = 0
-
-        for(i <- 0 until features.size) {
-          val fv = features(i)
-          if(fv > 0) {
-            featureIndexes(currentSparseIndex) = i
-            featureValues(currentSparseIndex) = fv
-            currentSparseIndex += 1
-          }
-        }
-
-        LabeledPoint(label, new SparseVector(numNonZero, featureIndexes, featureValues))
+        LabeledPoint(label, new SparseVector(11, idx_offset, idx_arr))
     }
     data
   }
