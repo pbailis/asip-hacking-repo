@@ -103,7 +103,12 @@ object DataLoaders {
 
         LabeledPoint(label, new SparseVector(bitvector_offset, idx_arr, value_arr))
     }
-    data
+
+    val ret = data.repartition(params.numPartitions)
+    ret.cache().count()
+    rawData.unpersist(true)
+
+    ret
   }
 
   /*
