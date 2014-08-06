@@ -119,7 +119,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def primalUpdate(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
-    lbfgs(primalConsensus, rho, remainingTimeMS)
+    sgd(primalConsensus, rho, remainingTimeMS)
   }
 
   def lbfgs(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
