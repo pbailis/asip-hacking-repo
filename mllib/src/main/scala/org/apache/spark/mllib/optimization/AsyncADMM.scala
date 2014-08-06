@@ -268,10 +268,12 @@ class AsyncADMMWorker(subProblemId: Int,
       //   println(s"Decreasing rho: $rho")
       // }
 
-      // Only do dual updates the primal converges
-      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
-        dualUpdate(lagrangianRho)
-      }
+//      // Only do dual updates the primal converges
+//      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
+//        dualUpdate(lagrangianRho)
+//      }
+
+      dualUpdate(lagrangianRho)
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
