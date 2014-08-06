@@ -96,13 +96,13 @@ def runTest(runtimeMS,
           "--regParam %f " \
           "--format %s " \
           "--numPartitions %d " \
-          "--runtimeMS %d" \
+          "--runtimeMS %d " \
           "--ADMMmaxLocalIterations %d " \
           "--ADMMepsilon %f  " \
           "--ADMMLocalepsilon %f " \
           "--ADMMrho %f " \
           "--ADMMLagrangianrho %f " \
-          "--broadcastDelayMs %d" \
+          "--broadcastDelayMs %d " \
           " %s %s " % \
           (algorithm,
            regType,
@@ -112,11 +112,14 @@ def runTest(runtimeMS,
            runtimeMS,
            ADMMmaxLocalIterations,
            ADMMepsilon,
+           ADMMlocalEpsilon,
            ADMMrho,
            ADMMlagrangianRho,
            broadcastDelay,
            datasetConfigStr,
            miscStr)
+
+    print cmd
 
     system("eval '%s' > /tmp/run.out 2>&1" % (cmd))
 
