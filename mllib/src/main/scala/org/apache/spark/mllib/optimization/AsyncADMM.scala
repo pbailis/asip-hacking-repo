@@ -104,7 +104,7 @@ class AsyncADMMWorker(subProblemId: Int,
                       epsilon: Double,
                       maxIterations: Int,
                       miniBatchSize: Int,
-                      rho: Double,
+                      var rho: Double,
                       val comm: WorkerCommunication,
                       val broadcastDelayMS: Int)
   extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
@@ -137,6 +137,7 @@ class AsyncADMMWorker(subProblemId: Int,
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
 
+    var loopIter = 0
     val startTime = System.currentTimeMillis()
     // Loop until done
     while (!done) {
@@ -164,11 +165,6 @@ class AsyncADMMWorker(subProblemId: Int,
       primalAvg /= nTotalExamples.toDouble
       dualAvg /= nTotalExamples.toDouble
 
-//      if (comm.selfID == 0) {
-//        println(s"$primalVar \t \t $dualVar")
-//        println(s"\t $primalAvg \t $dualAvg ")
-//      }
-
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
@@ -179,20 +175,23 @@ class AsyncADMMWorker(subProblemId: Int,
       }.sum / nTotalExamples.toDouble
       val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
-//      // Rho update from Boyd text
-//      if (rho == 0.0) {
-//        rho = 1.0
-//      } else if (primalResidual > 10.0 * dualResidual) {
-//        rho = 2.0 * rho
-//        println(s"Increasing rho: $rho")
-//      } else if (dualResidual > 10.0 * primalResidual) {
-//        rho = rho / 2.0
-//        println(s"Decreasing rho: $rho")
-//      }
+      // // Rho update from Boyd text
+      // if (rho == 0.0) {
+      //   rho = 1.0
+      // } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+      //   rho = 2.0 * rho
+      //   println(s"Increasing rho: $rho")
+      // } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
+      //   rho = rho / 2.0
+      //   println(s"Decreasing rho: $rho")
+      // }
 
 
-      // Run the dual update
-      dualUpdate(primalConsensus, rho)
+      //if(loopIter % 10 == 0) {
+        // Run the dual update
+        dualUpdate(primalConsensus, rho)
+      //}
+      //loopIter += 1
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime

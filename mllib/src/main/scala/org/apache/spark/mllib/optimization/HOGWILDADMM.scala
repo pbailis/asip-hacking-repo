@@ -136,6 +136,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
     broadcastThread.start()
 
     val startTime = System.currentTimeMillis()
+
+    var t = 0
     // Loop until done
     while (!done) {
       // Reset the primal var
@@ -147,50 +149,39 @@ class HOGWILDSGDWorker(subProblemId: Int,
         tiq = comm.inputQueue.poll()
       }
 
-      var t = 0
+      var iter = 0
       residual = Double.MaxValue
-      val startTime = System.currentTimeMillis()
       var currentTime = startTime
-      while(t < maxIterations && residual > epsilon) {
+      while(iter < 10 && !done) {
         grad *= 0.0 // Clear the gradient sum
         var b = 0
-        while (b < miniBatchSize) {
+        while (b < 1) {
           val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
           gradient(primalVar, data(ind)._2, data(ind)._1, grad)
           b += 1
         }
-        // Normalize the gradient to the batch size
-        grad /= miniBatchSize.toDouble
-        // Add the lagrangian
-        grad += dualVar
-        // Add the augmenting term
-        axpy(rho, primalVar - primalConsensus, grad)
-        
-        grad_delta += grad
-        
         // Set the learning rate
         val eta_t = eta_0 / (t.toDouble + 1.0)
-        // Do the gradient update
-        axpy(-eta_t, grad, primalVar)
+        grad *= eta_t
+
+        grad_delta += grad
+        primalVar += grad
+
         // Compute residual.
-        residual = eta_t * norm(grad, 2.0)
+        //residual = eta_t * norm(grad, 2.0)
 
         if (t % 1000 == 0) {
           currentTime = System.currentTimeMillis()
         }
 
+        iter += 1
         t += 1
       }
-
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
       done = elapsedTime > runTimeMS
     }
-    // Run the primal update
-    primalUpdate(primalConsensus, rho)
-
-    // Return the primal consensus value
-    primalConsensus
+    primalVar
   }
 
 }
@@ -263,19 +254,16 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
     // compute the final consensus value synchronously
     val nExamples = workers.map(w=>w.data.length).reduce(_+_)
     // Collect the primal and dual averages
-    var (primalAvg, dualAvg) = workers.map {
-      w => (w.primalVar * w.data.length.toDouble, w.dualVar * w.data.length.toDouble)
-    }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
+    var primalAvg = 
+      workers.map { w => w.primalVar * w.data.length.toDouble }.reduce( _ + _ )
     primalAvg /= nExamples.toDouble
-    dualAvg /= nExamples.toDouble
-    val rhoFinal = rho
-    val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
+
     commStages = workers.map {w => w.commStages }.reduce(_+_)
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-    Vectors.fromBreeze(finalW)
+    Vectors.fromBreeze(primalAvg)
   }
 }
 
