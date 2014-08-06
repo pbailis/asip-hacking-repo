@@ -21,7 +21,6 @@ import org.apache.spark.annotation.Experimental
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.regression._
-import org.apache.spark.mllib.util.DataValidators
 import org.apache.spark.rdd.RDD
 
 /**
@@ -115,36 +114,9 @@ class SVMWithSGD private (
  * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
  * NOTE: Labels used in SVM should be {0, 1}.
  */
-class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-  var stepSize: Double = 1.0
-  var maxGlobalIterations: Int = Int.MaxValue
-  var maxLocalIterations: Int = Int.MaxValue
-  var regParam: Double = 1.0
-  var miniBatchSize: Int = 100
-  var localEpsilon: Double = 1.0e-5
-  var epsilon: Double = 1.0e-5
-  var collectLocalStats: Boolean = true
-  var runtimeMS = 10000
-  var rho: Double = 1.0
+class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  val gradient = new FastHingeGradient()
-  var consensus: ConsensusFunction = new L2ConsensusFunction()
-
-  override val optimizer: ADMM = new ADMM(gradient, consensus)
-
-  def setup() {
-    optimizer.consensus = consensus
-    optimizer.runtimeMS = runtimeMS
-    optimizer.numIterations = maxGlobalIterations
-    optimizer.regParam = regParam
-    optimizer.epsilon = localEpsilon
-    optimizer.miniBatchSize = miniBatchSize
-    optimizer.localMaxIterations = maxLocalIterations
-    optimizer.localEpsilon = localEpsilon
-    optimizer.eta_0 = stepSize
-    optimizer.displayLocalStats = collectLocalStats
-    optimizer.rho = rho
-  }
+  override val optimizer: ADMM = new ADMM(params, new FastHingeGradient(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
@@ -152,39 +124,9 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
   }
 }
 
-class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-  var stepSize: Double = 1.0
-  var maxGlobalIterations: Int = Int.MaxValue
-  var maxLocalIterations: Int = Int.MaxValue
-  var regParam: Double = 1.0
-  var miniBatchSize: Int = 100
-  var localEpsilon: Double = 1.0e-5
-  var epsilon: Double = 1.0e-5
-  var collectLocalStats: Boolean = true
-  var runtimeMS = 10000
-  var broadcastDelayMS = 100
-  var rho: Double = 1.0
-  var lagrangianRho: Double = 1.0
+class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  val gradient = new FastHingeGradient()
-  var consensus: ConsensusFunction = new L2ConsensusFunction()
-
-  override val optimizer = new AsyncADMMwithSGD(gradient, consensus)
-
-  def setup() {
-    optimizer.consensus = consensus
-    optimizer.runtimeMS = runtimeMS
-    optimizer.regParam = regParam
-    optimizer.epsilon = localEpsilon
-    optimizer.miniBatchSize = miniBatchSize
-    optimizer.localMaxIterations = maxLocalIterations
-    optimizer.localEpsilon = localEpsilon
-    optimizer.eta_0 = stepSize
-    optimizer.displayLocalStats = collectLocalStats
-    optimizer.broadcastDelayMS = broadcastDelayMS
-    optimizer.rho = rho
-    optimizer.lagrangianRho = lagrangianRho
-  }
+  override val optimizer = new AsyncADMM(params, new FastHingeGradient(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
@@ -192,37 +134,9 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
   }
 }
 
-class SVMWithHOGWILD extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-  var stepSize: Double = 1.0
-  var maxGlobalIterations: Int = Int.MaxValue
-  var maxLocalIterations: Int = Int.MaxValue
-  var regParam: Double = 1.0
-  var miniBatchSize: Int = 100
-  var localEpsilon: Double = 1.0e-5
-  var epsilon: Double = 1.0e-5
-  var collectLocalStats: Boolean = true
-  var runtimeMS = 10000
-  var broadcastDelayMS = 100
-  var rho: Double = 1.0
+class SVMWithHOGWILD(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  val gradient = new FastHingeGradient()
-  var consensus: ConsensusFunction = new L2ConsensusFunction()
-
-  override val optimizer = new HOGWILDSGD(gradient, consensus)
-
-  def setup() {
-    optimizer.consensus = consensus
-    optimizer.runtimeMS = runtimeMS
-    optimizer.regParam = regParam
-    optimizer.epsilon = localEpsilon
-    optimizer.miniBatchSize = miniBatchSize
-    optimizer.localMaxIterations = maxLocalIterations
-    optimizer.localEpsilon = localEpsilon
-    optimizer.eta_0 = stepSize
-    optimizer.displayLocalStats = collectLocalStats
-    optimizer.broadcastDelayMS = broadcastDelayMS
-    optimizer.rho = rho
-  }
+  override val optimizer = new HOGWILDSGD(params, new FastHingeGradient(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
