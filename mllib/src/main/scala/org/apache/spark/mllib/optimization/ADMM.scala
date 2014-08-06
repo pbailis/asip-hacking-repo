@@ -3,6 +3,7 @@ package org.apache.spark.mllib.optimization
 import java.util.concurrent.TimeUnit
 
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import breeze.optimize.DiffFunction
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -11,6 +12,7 @@ import org.apache.spark.rdd.RDD
 
 trait FastGradient extends Serializable {
   def apply(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double])
+  def gradAndValue(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = 0.0
 }
 
 class FastHingeGradient extends FastGradient {
@@ -19,6 +21,16 @@ class FastHingeGradient extends FastGradient {
     val wdotx = w.dot(x)
     if (yscaled * wdotx < 1.0) {
       axpy(-yscaled, x, cumGrad)
+    }
+  }
+  override def gradAndValue(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
+    val yscaled = 2.0 * y - 1.0
+    val wdotx = w.dot(x)
+    if (yscaled * wdotx < 1.0) {
+      axpy(-yscaled, x, cumGrad)
+      1.0 - yscaled * wdotx
+    } else {
+      0.0
     }
   }
 }
@@ -107,6 +119,31 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def primalUpdate(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
+    lbfgs(primalConsensus, rho, remainingTimeMS)
+  }
+
+  def lbfgs(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
+    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](maxIterations, 3)
+    val f = new DiffFunction[BDV[Double]] {
+      override def calculate(x: BDV[Double]) = {
+        var obj = 0.0
+        var cumGrad = BDV.zeros[Double](x.length)
+        var i = 0
+        while (i < data.length) {
+          obj += gradient.gradAndValue(x, data(i)._2, data(i)._1, cumGrad)
+          i += 1
+        }
+        cumGrad /= data.length.toDouble
+        cumGrad += dualVar
+        axpy(rho, x - primalConsensus, cumGrad)
+        (obj, cumGrad)
+      }
+    }
+    primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
+  }
+
+
+  def sgd(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
     var t = 0
     residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
