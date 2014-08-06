@@ -3,13 +3,16 @@ from os import system
 from sys import exit
 import pickle
 
-ALGORITHMS = ["SVM", "SVMADMM", "SVMADMMAsync"]
+ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM"]
 
 MASTER = "ec2-54-184-179-190.us-west-2.compute.amazonaws.com"
 
-def describe_point_cloud(pointsPerPartition = 2000000,
+
+RUNTIMES = [1000, 5000, 10000, 20000]
+
+def describe_point_cloud(pointsPerPartition = 500000,
                          partitionSkew = 0.00,
-                         labelNoise = 0.2,
+                         labelNoise = 0.05,
                          dimension = 100):
     return   "--pointCloudPointsPerPartition %d " \
              "--pointCloudPartitionSkew %f " \
@@ -22,6 +25,9 @@ def describe_point_cloud(pointsPerPartition = 2000000,
 
 def describe_forest(master):
     return " --input hdfs://"+master+":9000/user/root/bismarck_data/forest* "
+
+def describe_flights(master, year):
+    return " --input hdfs://"+master+":9000/user/root/flights"+str(year)+".csv"
 
 
 def make_run_cmd(runtimeMS,
@@ -83,46 +89,94 @@ def runTest(algorithm, cmd, dim=-1, skew=-1):
     return results
 
 results = []
-for runtime in [5000, 20000]:#5000, 20000]:#1000, 4000, 10*1000]:
+
+
+
+for runtime in RUNTIMES:
+    for dim in [2, 100]:
+        for skew in [0.0]:
+            for algorithm in ALGORITHMS:
+                if algorithm == "SVMADMM":
+                    maxLocalIterations = 1000000000
+                    broadcastDelay = 1000
+                elif algorithm == "HOGWILDSVM":
+                    maxLocalIterations = 100
+                    broadcastDelay = 5
+                else:
+                    maxLocalIterations = 1000
+                    broadcastDelay = 100
+                dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
+                results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", dataset,
+                                                           miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.000001  --ADMMLocalepsilon 0.000001 --ADMMrho 1.0 --ADMMLagrangianrho 0.5 --broadcastDelayMs %d" % (maxLocalIterations, broadcastDelay)), skew=skew)
+                # Pickel the output
+                output = open('experiment.pkl', 'wb')
+                pickle.dump(results, output)
+                output.close()
+
+for runtime in RUNTIMES:
     for algorithm in ALGORITHMS:
         dataset = describe_forest(MASTER)
         if algorithm == "SVMADMM":
             maxLocalIterations = 1000000000
+            broadcastDelay = 1000
+        elif algorithm == "HOGWILDSVM":
+            maxLocalIterations = 100
+            broadcastDelay = 5
         else:
-            maxLocalIterations = 2000
+            maxLocalIterations = 1000
+            broadcastDelay = 100
         results += runTest(algorithm, make_run_cmd(runtime, algorithm, "bismarck", dataset,
-                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.00001 --ADMMrho 0.000001" % (maxLocalIterations)))
+                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.000001  --ADMMLocalepsilon 0.000001 --ADMMrho 1.0 --ADMMLagrangianrho 0.5 --broadcastDelayMs %d" % (maxLocalIterations, broadcastDelay)), skew=skew)
                 # Pickel the output
         output = open('experiment.pkl', 'wb')
         pickle.dump(results, output)
         output.close()
 
-exit(0)
 
-results = []
-for runtime in [1000, 4000, 10*1000]:
+for runtime in RUNTIMES:
+    for algorithm in ALGORITHMS:
+        dataset = describe_flights(MASTER, 2008)
+        if algorithm == "SVMADMM":
+            maxLocalIterations = 1000000000
+            broadcastDelay = 1000
+        elif algorithm == "HOGWILDSVM":
+            maxLocalIterations = 100
+            broadcastDelay = 5
+        else:
+            maxLocalIterations = 1000
+            broadcastDelay = 100
+        results += runTest(algorithm, make_run_cmd(runtime, algorithm, "bismarck", dataset,
+                                                   miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.000001  --ADMMLocalepsilon 0.000001 --ADMMrho 1.0 --ADMMLagrangianrho 0.5 --broadcastDelayMs %d" % (maxLocalIterations, broadcastDelay)), skew=skew)
+                # Pickel the output
+        output = open('experiment.pkl', 'wb')
+        pickle.dump(results, output)
+        output.close()
+
+
+#exit(0)
+
+#results = []
+for runtime in RUNTIMES:
     for dim in [10]:
         for skew in [0.0, 0.1]:
             for algorithm in ALGORITHMS:
+                if algorithm == "SVMADMM":
+                    maxLocalIterations = 1000000000
+                    broadcastDelay = 1000
+                elif algorithm == "HOGWILDSVM":
+                    maxLocalIterations = 100
+                    broadcastDelay = 5
+                else:
+                    maxLocalIterations = 1000
+                    broadcastDelay = 100
                 dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
                 results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", dataset,
-                                                       miscStr="--ADMMmaxLocalIterations 1000"), dim, skew)
+                                                           miscStr="--ADMMmaxLocalIterations %d --ADMMepsilon 0.000001 --ADMMLocalepsilon 0.000001 --ADMMrho 1.0 --ADMMLagrangianrho 0.5 --broadcastDelayMs %d" % (maxLocalIterations, broadcastDelay)), skew=skew)
                 # Pickel the output
                 output = open('experiment.pkl', 'wb')
                 pickle.dump(results, output)
                 output.close()
 
-for runtime in [1000, 4000, 10*1000]:
-    for dim in [2, 100]:
-        for skew in [0.0]:
-            for algorithm in ALGORITHMS:
-                dataset = describe_point_cloud(partitionSkew=skew, dimension=dim)
-                results += runTest(algorithm, make_run_cmd(runtime, algorithm, "cloud", dataset,
-                                                       miscStr="--ADMMmaxLocalIterations 1000"), dim, skew)
-                # Pickel the output
-                output = open('experiment.pkl', 'wb')
-                pickle.dump(results, output)
-                output.close()
 
 
 # display the results
