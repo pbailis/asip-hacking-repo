@@ -16,8 +16,6 @@ import scala.util.Random
 import scopt.OptionParser
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
-import breeze.linalg.SparseVector
-import org.apache.spark.mllib.linalg.SparseVector
 
 
 object DataLoaders {
@@ -65,7 +63,7 @@ object DataLoaders {
     val data = rawData.map {
       row =>
         val value_arr = Array.fill(11)(1.0)
-        val idx_arr = new Array[Double](11)
+        val idx_arr = new Array[Int](11)
 
         var idx_offset = 0
         for(i <- 0 until 7 if i != 5) {
@@ -94,11 +92,14 @@ object DataLoaders {
         bitvector_offset += originDict.size
 
         idx_arr(idx_offset) = bitvector_offset + destDict(row(labels("Dest")))
+        idx_offset += 1
 
         val delay = row(labels("ArrDelay"))
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
-        LabeledPoint(label, new SparseVector(11, idx_offset, idx_arr))
+        assert(idx_offset == 11)
+
+        LabeledPoint(label, new SparseVector(11, idx_arr, value_arr))
     }
     data
   }
