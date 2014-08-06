@@ -1,12 +1,18 @@
 
 import pickle
 from pylab import *
+from sys import argv
 
 logLoss = True
 
 matplotlib.rcParams['figure.figsize'] = 6, 3#3.5, 1.7
 
-results = pickle.load(open("08_06_14_newrun.pkl"))
+if len(argv) < 2:
+    pickle_filename = "08_06_14_newrun.pkl"
+else:
+    pickle_filename = argv[1]
+
+results = pickle.load(open(pickle_filename))
 
 results = [r for r in results if r['algorithm'] != "HOGWILDSVM"]
 
