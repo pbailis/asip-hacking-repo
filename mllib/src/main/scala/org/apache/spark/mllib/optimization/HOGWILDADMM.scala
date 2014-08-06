@@ -6,7 +6,7 @@ import java.util.concurrent._
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -229,10 +229,16 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
     }.cache()
 
     // collect the addresses
-    val addresses = workers.map { w => w.comm.address }.collect()
+    val addresses = workers.map {
+      if(SetupBlock.initialized) {
+        throw new RuntimeException("Worker was evicted, dying lol!")
+      }
+      w => w.comm.address
+    }.collect()
 
     // Establish connections to all other workers
     workers.foreach { w =>
+      SetupBlock.initialized = true
       w.comm.connectToOthers(addresses)
     }
 

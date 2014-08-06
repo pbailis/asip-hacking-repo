@@ -186,12 +186,10 @@ class AsyncADMMWorker(subProblemId: Int,
       //   println(s"Decreasing rho: $rho")
       // }
 
-
-      //if(loopIter % 10 == 0) {
-        // Run the dual update
+      // Only do dual updates the primal converges
+      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
         dualUpdate(primalConsensus, rho)
-      //}
-      //loopIter += 1
+      }
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
@@ -204,6 +202,10 @@ class AsyncADMMWorker(subProblemId: Int,
     primalConsensus
   }
 
+}
+
+object SetupBlock {
+  var initialized = false
 }
 
 
@@ -249,10 +251,16 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
      }.cache()
 
     // collect the addresses
-    val addresses = workers.map { w => w.comm.address }.collect()
+    val addresses = workers.map {
+      if(SetupBlock.initialized) {
+        throw new RuntimeException("Worker was evicted, dying lol!")
+      }
+      w => w.comm.address
+    }.collect()
 
     // Establish connections to all other workers
     workers.foreach { w =>
+      SetupBlock.initialized = true
       w.comm.connectToOthers(addresses)
     }
 
