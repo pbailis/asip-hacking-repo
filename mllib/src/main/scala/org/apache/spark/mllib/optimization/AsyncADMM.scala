@@ -144,6 +144,9 @@ class AsyncADMMWorker(subProblemId: Int,
           dualUpdate()
         }
       }
+      // Kill the consumer thread
+      val poisonMessage = new InternalMessages.VectorUpdateMessage(-1, null, null, -1)
+      comm.inputQueue.add(poisonMessage)
     }
   }
 
@@ -157,8 +160,12 @@ class AsyncADMMWorker(subProblemId: Int,
         allVars.put(comm.selfID, (primalVar, dualVar, data.length))
         var tiq = comm.inputQueue.take()
         while (tiq != null) {
-          allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
-          tiq = comm.inputQueue.poll()
+          if (tiq.nExamples == -1) {
+            tiq = null
+          } else {
+            allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
+            tiq = comm.inputQueue.poll()
+          }
         }
         // Compute primal and dual averages
         var (primalAvg, dualAvg) = allVars.values.iterator.map {
