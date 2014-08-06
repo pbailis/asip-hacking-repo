@@ -252,7 +252,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
       var (primalAvg, dualAvg) = solvers.map{ solver =>
         // Do a dual update
-        solver.primalConsensus = primalConsensus.copy()
+        solver.primalConsensus = primalConsensus.copy
         solver.rho = rho
         solver.dualUpdate(rho)
         // Do a primal update
