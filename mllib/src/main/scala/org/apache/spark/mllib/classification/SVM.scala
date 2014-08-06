@@ -99,7 +99,7 @@ class SVMWithSGD private (
     .setNumIterations(numIterations)
     .setRegParam(regParam)
     .setMiniBatchFraction(miniBatchFraction)
-  override protected val validators = List(DataValidators.binaryLabelValidator)
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
 
   /**
    * Construct a SVM object with default parameters
@@ -146,7 +146,7 @@ class SVMWithADMM extends GeneralizedLinearAlgorithm[SVMModel] with Serializable
     optimizer.rho = rho
   }
 
-  override protected val validators = List(DataValidators.binaryLabelValidator)
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
     new SVMModel(weights, intercept)
   }
@@ -186,7 +186,7 @@ class SVMWithAsyncADMM extends GeneralizedLinearAlgorithm[SVMModel] with Seriali
     optimizer.lagrangianRho = lagrangianRho
   }
 
-  override protected val validators = List(DataValidators.binaryLabelValidator)
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
     new SVMModel(weights, intercept)
   }
@@ -224,7 +224,7 @@ class SVMWithHOGWILD extends GeneralizedLinearAlgorithm[SVMModel] with Serializa
     optimizer.rho = rho
   }
 
-  override protected val validators = List(DataValidators.binaryLabelValidator)
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
     new SVMModel(weights, intercept)
   }

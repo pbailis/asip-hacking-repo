@@ -121,9 +121,12 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
    */
   @DeveloperApi
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    
+
+    val numExamples = data.count()
+    val miniBatchSize = numExamples * miniBatchFraction
+
     val startTimeNs = System.nanoTime()
-    val (weights, _, actualIters) = GradientDescent.runMiniBatchSGD(
+    val (weights, actualIters) = GradientDescent.runMiniBatchSGD(
       data,
       gradient,
       updater,
@@ -132,6 +135,7 @@ class GradientDescent private[mllib] (private var gradient: Gradient, private va
       runtimeMS,
       regParam,
       miniBatchFraction,
+      miniBatchSize,
       initialWeights)
     lastIterations = actualIters
     val totalTimeNs = System.nanoTime() - startTimeNs
@@ -178,12 +182,12 @@ object GradientDescent extends Logging {
       runtimeMS: Int,
       regParam: Double,
       miniBatchFraction: Double,
-      initialWeights: Vector): (Vector, Array[Double], Int) = {
+      miniBatchSize: Double,
+      initialWeights: Vector): (Vector, Int) = {
 
-    val stochasticLossHistory = new ArrayBuffer[Double](numIterations)
+    val startTime = System.currentTimeMillis()
 
-    val numExamples = data.count()
-    val miniBatchSize = numExamples * miniBatchFraction
+    /*
 
     // if no data, return initial weights to avoid NaNs
     if (numExamples == 0) {
@@ -192,6 +196,7 @@ object GradientDescent extends Logging {
       return (initialWeights, stochasticLossHistory.toArray, 0)
 
     }
+    */
 
     // Initialize weights as a column vector
     var weights = Vectors.dense(initialWeights.toArray)
@@ -206,7 +211,6 @@ object GradientDescent extends Logging {
 
 
     var i = 1
-    val startTime = System.currentTimeMillis()
     while (i < numIterations && (System.currentTimeMillis() - startTime) < runtimeMS) {
       val bcWeights = data.context.broadcast(weights)
       // Sample a subset (fraction miniBatchFraction) of the total data
@@ -224,7 +228,6 @@ object GradientDescent extends Logging {
        * NOTE(Xinghao): lossSum is computed using the weights from the previous iteration
        * and regVal is the regularization value computed in the previous iteration as well.
        */
-      stochasticLossHistory.append(lossSum / miniBatchSize + regVal)
       val update = updater.compute(
         weights, Vectors.fromBreeze(gradientSum / miniBatchSize), stepSize, i, regParam)
       weights = update._1
@@ -232,10 +235,7 @@ object GradientDescent extends Logging {
       i += 1
     }
 
-    logInfo("GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
-      stochasticLossHistory.takeRight(10).mkString(", ")))
-
-    (weights, stochasticLossHistory.toArray, i)
+    (weights,  i)
 
   }
 }
