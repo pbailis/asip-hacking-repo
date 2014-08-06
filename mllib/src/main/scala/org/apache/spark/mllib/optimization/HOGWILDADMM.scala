@@ -113,7 +113,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
 
   @volatile var done = false
 
-  var primalConsensus = primalVar0.copy
+  primalConsensus = primalVar0.copy
   var grad_delta: BV[Double] = BV.zeros(primalVar0.size)
 
 
