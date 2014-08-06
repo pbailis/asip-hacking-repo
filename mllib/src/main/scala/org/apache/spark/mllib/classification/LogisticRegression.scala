@@ -171,6 +171,7 @@ class LRWithAsyncADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel
   var runtimeMS = 10000
   var broadcastDelayMS = 100
   var rho: Double = 1.0
+  var lagrangianRho: Double = 1.0
 
   val gradient = new FastLogisticGradient()
   var consensus: ConsensusFunction = new L2ConsensusFunction()
@@ -189,6 +190,7 @@ class LRWithAsyncADMM extends GeneralizedLinearAlgorithm[LogisticRegressionModel
     optimizer.displayLocalStats = collectLocalStats
     optimizer.broadcastDelayMS = broadcastDelayMS
     optimizer.rho = rho
+    optimizer.lagrangianRho = lagrangianRho
   }
 
   override protected val validators = List(DataValidators.binaryLabelValidator)

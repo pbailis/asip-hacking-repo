@@ -178,6 +178,7 @@ object SynchronousADMMTests {
                      pointCloudPointsPerPartition: Int = 10000,
                      pointCloudSize: Double = 1.0,
                      rho: Double = 1.0,
+                     lagrangianRho: Double = 1.0,
                      broadcastDelayMs: Int = 100)
 
   def main(args: Array[String]) {
@@ -224,8 +225,12 @@ object SynchronousADMMTests {
       opt[String]("input")
         .text("input paths to labeled examples in LIBSVM format")
         .action((x, c) => c.copy(input = x))
+
       opt[Double]("ADMMrho")
         .action((x, c) => c.copy(rho = x))
+
+      opt[Double]("ADMMLagrangianrho")
+        .action((x, c) => c.copy(lagrangianRho = x))
       opt[String]("format")
         .text("File format")
         .action((x, c) => c.copy(format = x))
@@ -394,7 +399,9 @@ object SynchronousADMMTests {
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.rho = params.rho
+        algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
@@ -404,6 +411,7 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
@@ -431,9 +439,11 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
+        algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
         (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
