@@ -170,10 +170,10 @@ class AsyncADMMWorker(subProblemId: Int,
       primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
 
       // Compute the residuals
-      val primalResidual = allVars.values.iterator.map {
-        case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
-      }.sum / nTotalExamples.toDouble
-      val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
+      //val primalResidual = allVars.values.iterator.map {
+      //  case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
+      //}.sum / nTotalExamples.toDouble
+      //val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
       // // Rho update from Boyd text
       // if (rho == 0.0) {
@@ -198,7 +198,7 @@ class AsyncADMMWorker(subProblemId: Int,
       done = elapsedTime > runTimeMS
     }
     // Run the primal update
-    primalUpdate(primalConsensus, rho)
+    ///primalUpdate(primalConsensus, rho)
 
     // Return the primal consensus value
     primalConsensus
