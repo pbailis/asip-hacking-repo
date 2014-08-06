@@ -286,6 +286,7 @@ object SynchronousADMMTests {
 
   def run(params: Params) {
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
+    conf.set("spark.akka.threads", "16")
     val sc = new SparkContext(conf)
 
     println("Starting to load data...")

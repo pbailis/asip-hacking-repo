@@ -62,11 +62,12 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     var i = 0
     //logInfo(s"Connecting to others ${allHosts.mkString(",")} ${allHosts.length}")
     for (host <- allHosts) {
+      // skip self
       if (!host.equals(address)) {
         //logInfo(s"Connecting to $host, $i")
         others.put(i, context.actorSelection(allHosts(i)))
 
-        implicit val timeout = Timeout(15 seconds)
+        implicit val timeout = Timeout(15000 seconds)
         val f = others(i).resolveOne()
         Await.ready(f, Duration.Inf)
         logInfo(s"Connected to ${f.value.get.get}")
@@ -234,7 +235,7 @@ class AsyncADMMWorker(subProblemId: Int,
 //      // Reset the primal var
 //      primalVar = primalConsensus.copy
 
-      // Runt he primal update
+      // Run the primal update
       val timeRemainingMS = runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(timeRemainingMS)
 
@@ -332,7 +333,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
       val hack = new WorkerCommunicationHack()
       logInfo(s"local address is $address")
       val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
-      implicit val timeout = Timeout(15 seconds)
+      implicit val timeout = Timeout(15000 seconds)
 
       val f = aref ? new InternalMessages.WakeupMsg
       Await.result(f, timeout.duration).asInstanceOf[String]
