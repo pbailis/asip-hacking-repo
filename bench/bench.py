@@ -63,11 +63,11 @@ def describe_flights(master, year):
 def runTest(runtimeMS,
             algorithm,
             datasetName,
-            ADMMepsilon = 0.00001,
-            ADMMlocalEpsilon = 0.00001,
+            ADMMepsilon = GLOBAL_ADMMepsilon,
+            ADMMlocalEpsilon = GLOBAL_ADMMlocalEpsilon,
             ADMMmaxLocalIterations = 1000,
-            ADMMrho = 1.0,
-            ADMMlagrangianRho = 0.5,
+            ADMMrho = GLOBAL_ADMMrho,
+            ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
             regParam=0.0001,
             numPartitions = 40,
@@ -185,10 +185,6 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
-                                   ADMMepsilon = GLOBAL_ADMMepsilon,
-                                   ADMMlocalEpsilon = GLOBAL_ADMMlocalEpsilon,
-                                   ADMMrho = GLOBAL_ADMMrho,
-                                   ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
@@ -214,10 +210,6 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
-                                   ADMMepsilon = GLOBAL_ADMMepsilon,
-                                   ADMMlocalEpsilon = GLOBAL_ADMMlocalEpsilon,
-                                   ADMMrho = GLOBAL_ADMMrho,
-                                   ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
@@ -239,10 +231,6 @@ for runtime in RUNTIMES:
         results += runTest(runtime,
                            algorithm,
                            "forest",
-                           ADMMepsilon = GLOBAL_ADMMepsilon,
-                           ADMMlocalEpsilon = GLOBAL_ADMMlocalEpsilon,
-                           ADMMrho = GLOBAL_ADMMrho,
-                           ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
                            broadcastDelay = broadcastDelay)
 
         output = open(PICKLED_OUTPUT, 'wb')
@@ -266,10 +254,6 @@ for runtime in RUNTIMES:
                            algorithm,
                            "flights",
                            flightsYear=2008,
-                           ADMMepsilon = GLOBAL_ADMMepsilon,
-                           ADMMlocalEpsilon = GLOBAL_ADMMlocalEpsilon,
-                           ADMMrho = GLOBAL_ADMMrho,
-                           ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
                            broadcastDelay = broadcastDelay)
 
         output = open(PICKLED_OUTPUT, 'wb')
