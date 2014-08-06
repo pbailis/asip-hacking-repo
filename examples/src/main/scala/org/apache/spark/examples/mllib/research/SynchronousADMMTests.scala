@@ -325,7 +325,7 @@ object SynchronousADMMTests {
 
     println("Starting test!")
 
-    val (model, actualIters, totalTimeMs) = runTest(training, params)
+    val (model, stats) = runTest(training, params)
 
     val trainingError = training.map{ point =>
       val p = model.predict(point.features)
@@ -340,11 +340,12 @@ object SynchronousADMMTests {
     println(s"desiredRuntime = ${params.runtimeMS}")
     println(s"Training error = ${trainingError}.")
     println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
-    println(s"Total time ${totalTimeMs}ms")
+    println(s"Total time ${stats("runtime")}ms")
 
     val summary =
-      s"RESULT: ${params.algorithm}\t${actualIters}\t${params.runtimeMS}\t${totalTimeMs}\t${trainingError}" +
+      s"RESULT: ${params.algorithm}\t${stats("iterations")}\t${params.runtimeMS}\t${stats("runtime")}\t${trainingError}" +
       s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
+      s"\t${stats.toString}" +
       s"\t${model.weights.toArray.mkString(",")}"
 
     println(summary)
@@ -354,7 +355,7 @@ object SynchronousADMMTests {
   }
 
   def runTest(training: RDD[LabeledPoint], params: Params):
-  (GeneralizedLinearModel, Int, Long) = {
+  (GeneralizedLinearModel, Map[String, String]) = {
     println(s"Running algorithm ${params.algorithm} for ${params.runtimeMS} MS")
 
     val updater = params.regType match {
@@ -377,7 +378,12 @@ object SynchronousADMMTests {
           .setUpdater(updater)
           .setRegParam(params.regParam)
         val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.getLastIterations(), algorithm.optimizer.totalTimeMs)
+        val results = 
+          Map(
+            "iterations" -> algorithm.optimizer.getLastIterations().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        (model, results)
       case SVM =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
@@ -388,9 +394,12 @@ object SynchronousADMMTests {
           .setRegParam(params.regParam)
         val startTime = System.nanoTime()
         val model = algorithm.run(training).clearThreshold()
-        println(model.weights.toArray.mkString(","))
-        println(model.intercept, startTime)
-        (model, algorithm.optimizer.getLastIterations(), algorithm.optimizer.totalTimeMs)
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.getLastIterations().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        (model, results)
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         algorithm.consensus = consensusFun
@@ -405,7 +414,13 @@ object SynchronousADMMTests {
         algorithm.setup()
         val startTime = System.nanoTime()
         val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.iteration.toString,
+            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        (model, results )
       case SVMADMMAsync =>
         val algorithm = new SVMWithAsyncADMM()
         algorithm.consensus = consensusFun
@@ -419,7 +434,15 @@ object SynchronousADMMTests {
         algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
+            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+            "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        println(results)
+        (model, results)
       case HOGWILDSVM =>
         val algorithm = new SVMWithHOGWILD()
         algorithm.consensus = consensusFun
@@ -432,36 +455,42 @@ object SynchronousADMMTests {
         algorithm.rho = params.rho
         algorithm.setup()
         val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
+            "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        (model, results)
 
-      case LRADMM =>
-        val algorithm = new LRWithADMM()
-        algorithm.consensus = consensusFun
-        //        algorithm.maxGlobalIterations = iterations
-        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.regParam = params.regParam
-        algorithm.epsilon = params.ADMMepsilon
-        algorithm.localEpsilon = params.ADMMLocalepsilon
-        algorithm.collectLocalStats = params.localStats
-        algorithm.runtimeMS = params.runtimeMS
-        algorithm.setup()
-        val startTime = System.nanoTime()
-        val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
-      case LRADMMAsync =>
-        val algorithm = new LRWithAsyncADMM()
-        algorithm.consensus = consensusFun
-        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.regParam = params.regParam
-        algorithm.epsilon = params.ADMMepsilon
-        algorithm.localEpsilon = params.ADMMLocalepsilon
-        algorithm.broadcastDelayMS = 100
-        algorithm.runtimeMS = params.runtimeMS
-        algorithm.rho = params.rho
-        algorithm.lagrangianRho = params.lagrangianRho
-        algorithm.setup()
-        val model = algorithm.run(training).clearThreshold()
-        (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+      // case LRADMM =>
+      //   val algorithm = new LRWithADMM()
+      //   algorithm.consensus = consensusFun
+      //   //        algorithm.maxGlobalIterations = iterations
+      //   algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
+      //   algorithm.regParam = params.regParam
+      //   algorithm.epsilon = params.ADMMepsilon
+      //   algorithm.localEpsilon = params.ADMMLocalepsilon
+      //   algorithm.collectLocalStats = params.localStats
+      //   algorithm.runtimeMS = params.runtimeMS
+      //   algorithm.setup()
+      //   val startTime = System.nanoTime()
+      //   val model = algorithm.run(training).clearThreshold()
+      //   (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
+      // case LRADMMAsync =>
+      //   val algorithm = new LRWithAsyncADMM()
+      //   algorithm.consensus = consensusFun
+      //   algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
+      //   algorithm.regParam = params.regParam
+      //   algorithm.epsilon = params.ADMMepsilon
+      //   algorithm.localEpsilon = params.ADMMLocalepsilon
+      //   algorithm.broadcastDelayMS = 100
+      //   algorithm.runtimeMS = params.runtimeMS
+      //   algorithm.rho = params.rho
+      //   algorithm.lagrangianRho = params.lagrangianRho
+      //   algorithm.setup()
+      //   val model = algorithm.run(training).clearThreshold()
+      //   (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
 
     }
   }

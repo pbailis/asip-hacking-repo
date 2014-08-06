@@ -92,7 +92,6 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 }
 
 
-
 class AsyncADMMWorker(subProblemId: Int,
                       val nSubProblems: Int,
                       data: Array[(Double, BV[Double])],
@@ -116,13 +115,22 @@ class AsyncADMMWorker(subProblemId: Int,
 
   @volatile var runtimeMS = -1L
   @volatile var startTime = 0L
+  var localIters = 0
+  var msgsSent = 0
 
-  var commStages = 0
+
+
+  override def getStats() = {
+    WorkerStats(primalVar = primalVar, dualVar = dualVar, 
+      msgsSent = msgsSent, localIters = localIters, sgdIters = sgdIters, 
+      dataSize = data.length)
+  }
+
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
-        commStages += 1
+        msgsSent += 1
         Thread.sleep(broadcastDelayMS)
         // Check to see if we are done
         val elapsedTime = System.currentTimeMillis() - startTime
@@ -143,6 +151,7 @@ class AsyncADMMWorker(subProblemId: Int,
         if (norm(primalOld - primalVar, 2) < 0.01) {
           dualUpdate(lagrangianRho)
         }
+        localIters += 1
       }
       // Kill the consumer thread
       val poisonMessage = new InternalMessages.VectorUpdateMessage(-1, null, null, -1)
@@ -278,6 +287,7 @@ class AsyncADMMWorker(subProblemId: Int,
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
       done = elapsedTime > runTimeMS
+      localIters += 1
     }
     // Run the primal update
     ///primalUpdate(primalConsensus, rho)
@@ -305,9 +315,9 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
   var miniBatchSize: Int = 10
   var displayLocalStats: Boolean = true
   var broadcastDelayMS: Int = 100
-  var commStages: Int = 0
   var rho: Double = 1.0
   var lagrangianRho: Double = 1.0
+  var stats: WorkerStats = null
 
   @transient var workers : RDD[AsyncADMMWorker] = null
 
@@ -366,17 +376,12 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
     val startTimeNs = System.nanoTime()
 
     // Run all the workers
-    var (primalAvg, dualAvg, nExamples, _commStages) = workers.map{
+    stats = workers.map{
       w => w.mainLoop(runtimeMS)
-      (w.primalVar * w.data.length.toDouble, w.dualVar * w.data.length.toDouble, w.data.length, w.commStages)
-    }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2, a._3 + b._3, a._4 + b._4) )
-    // compute the final consensus value synchronously
-    primalAvg /= nExamples.toDouble
-    dualAvg /= nExamples.toDouble
+      w.getStats()
+    }.reduce( _ + _ )
     val rhoFinal = rho
-    val finalW = consensus(primalAvg, dualAvg, workers.partitions.length, rhoFinal, regParam)
-
-    commStages = _commStages
+    val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rhoFinal, regParam)
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)

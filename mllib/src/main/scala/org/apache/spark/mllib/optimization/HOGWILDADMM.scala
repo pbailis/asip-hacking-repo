@@ -117,17 +117,27 @@ class HOGWILDSGDWorker(subProblemId: Int,
   var grad_delta: BV[Double] = BV.zeros(primalVar0.size)
 
 
-  var commStages = 0
+  var msgsSent = 0
+  var localIters = 0
+
+  override def getStats() = {
+    WorkerStats(primalVar = primalVar, dualVar = dualVar, 
+      msgsSent = msgsSent, localIters = localIters, 
+      dataSize = data.length)
+  }
+
+
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
         comm.broadcastDeltaUpdate(grad_delta)
-        commStages += 1
+        msgsSent += 1
         grad_delta = BV.zeros(primalVar0.size)
         Thread.sleep(broadcastDelayMS)
       }
     }
   }
+
 
 
   def mainLoop(runTimeMS: Int = 1000) = {
@@ -181,6 +191,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
       val elapsedTime = System.currentTimeMillis() - startTime
       done = elapsedTime > runTimeMS
     }
+    localIters = t
     primalVar
   }
 
@@ -199,7 +210,7 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
   var miniBatchSize: Int = 10
   var displayLocalStats: Boolean = true
   var broadcastDelayMS: Int = 100
-  var commStages: Int = 0
+  var stats: WorkerStats = null
   var rho: Double = 1.0
 
   @transient var workers : RDD[HOGWILDSGDWorker] = null
@@ -260,16 +271,14 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
     // compute the final consensus value synchronously
     val nExamples = workers.map(w=>w.data.length).reduce(_+_)
     // Collect the primal and dual averages
-    var primalAvg = 
-      workers.map { w => w.primalVar * w.data.length.toDouble }.reduce( _ + _ )
-    primalAvg /= nExamples.toDouble
-
-    commStages = workers.map {w => w.commStages }.reduce(_+_)
+    stats = 
+      workers.map { w => w.getStats() }.reduce( _ + _ )
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-    Vectors.fromBreeze(primalAvg)
+
+    Vectors.fromBreeze(stats.primalAvg)
   }
 }
 

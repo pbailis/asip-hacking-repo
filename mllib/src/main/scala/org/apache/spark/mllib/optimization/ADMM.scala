@@ -91,6 +91,68 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
 }
 
+object Interval {
+  def apply(x: Int) = new Interval(x)
+  def apply(x: Double) = new Interval(x)
+}
+class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serializable {
+  def this(x: Double) = this(x, x, x) 
+  def +(other: Interval) = {
+    new Interval(x+other.x, math.min(xMin, other.xMin), math.max(xMax, other.xMax))
+  }
+  def /(d: Double) = new Interval(x / d, xMin, xMax)
+  override def toString() = s"[$xMin, $x, $xMax]"
+}
+
+object WorkerStats {
+  def apply(primalVar: BV[Double], dualVar: BV[Double],
+    msgsSent: Int = 0, 
+    localIters: Int = 0,
+    sgdIters: Int = 0,
+    dataSize: Int = 0) = {
+    new WorkerStats(
+      weightedPrimalVar = primalVar * dataSize.toDouble, 
+      weightedDualVar = dualVar * dataSize.toDouble,
+      msgsSent = Interval(msgsSent), 
+      localIters = Interval(localIters), 
+      sgdIters = Interval(sgdIters), 
+      dataSize = Interval(dataSize), 
+      nWorkers = 1)
+  }
+}
+
+class WorkerStats(
+  val weightedPrimalVar: BV[Double],
+  val weightedDualVar: BV[Double],
+  val msgsSent: Interval,
+  val localIters: Interval,
+  val sgdIters: Interval,
+  val dataSize: Interval,  
+  val nWorkers: Int) extends Serializable {
+  
+
+  def +(other: WorkerStats) = {
+    new WorkerStats(
+      weightedPrimalVar = weightedPrimalVar + other.weightedPrimalVar,
+      weightedDualVar = weightedDualVar + other.weightedDualVar,
+      msgsSent = msgsSent + other.msgsSent,
+      localIters = localIters + other.localIters, 
+      sgdIters = sgdIters + other.sgdIters,
+      dataSize = dataSize + other.dataSize,
+      nWorkers = nWorkers + other.nWorkers)
+  }
+  
+  def primalAvg() = weightedPrimalVar / dataSize.x
+  def dualAvg() = weightedDualVar / dataSize.x
+  def avgMsgsSent() = msgsSent / nWorkers.toDouble
+  def avgLocalIters() = localIters / nWorkers.toDouble
+  def avgSGDIters() = sgdIters / nWorkers.toDouble
+
+}
+
+
+
+
 
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
@@ -106,6 +168,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   val nExamples = data.length
   val dim = data(0)._2.size
   val rnd = new java.util.Random(subProblemId)
+  var sgdIters = 0
 
   var residual: Double = Double.MaxValue
 
@@ -116,6 +179,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
   @volatile var primalConsensus = BV.zeros[Double](dim)
 
   @volatile var rho = 1.0
+
+  def getStats() = {
+    WorkerStats(primalVar, dualVar, msgsSent = 0, sgdIters = sgdIters, dataSize = data.length)  
+  }
 
   def dualUpdate(rate: Double) {
     // Do the dual update
@@ -148,10 +215,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
-    var t = 0
     residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
     var currentTime = startTime
+    var t = 0
     while(t < maxIterations && residual > epsilon && (currentTime - startTime) < remainingTimeMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
@@ -172,13 +239,14 @@ class SGDLocalOptimizer(val subProblemId: Int,
       axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2.0)
-
-      if (t % 1000 == 0) {
+      // Update the current time every 1000 iterations
+      if (t % 100 == 0) {
         currentTime = System.currentTimeMillis()
       }
-
       t += 1
     }
+    // Save the last num
+    sgdIters = t
   }
 }
 
@@ -200,6 +268,8 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
   var iteration = 0
 
   var solvers: RDD[SGDLocalOptimizer] = null
+
+  var stats: WorkerStats = null
 
   def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
     val primal0 = initialWeights.toBreeze
@@ -250,23 +320,19 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       println("========================================================")
       println(s"Starting iteration $iteration.")
       val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
-      var (primalAvg, dualAvg) = solvers.map{ solver =>
+      stats = solvers.map{ solver =>
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
         solver.rho = rho
         solver.dualUpdate(rho)
         // Do a primal update
         solver.primalUpdate(timeRemaining)
-        // Return the scaled primal and dual values
-        (solver.primalVar * solver.data.length.toDouble, solver.dualVar * solver.data.length.toDouble)
-        }
-        .reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
-      primalAvg /= nExamples.toDouble
-      dualAvg /= nExamples.toDouble
+        solver.getStats()
+        }.reduce( _ + _ )
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
-      primalConsensus = consensus(primalAvg, dualAvg, nSolvers, rho, regParam)
+      primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho, regParam)
 
       // Compute the residuals
       primalResidual = solvers.map(s => norm(s.primalVar - primalConsensus, 2) * s.data.length).reduce(_+_) / nExamples.toDouble
