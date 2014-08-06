@@ -399,6 +399,7 @@ object SynchronousADMMTests {
         algorithm.epsilon = params.ADMMepsilon
         algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.rho = params.rho
         algorithm.lagrangianRho = params.lagrangianRho
         algorithm.setup()
@@ -410,6 +411,7 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.broadcastDelayMS = params.broadcastDelayMs
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
@@ -437,6 +439,7 @@ object SynchronousADMMTests {
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon
+        algorithm.localEpsilon = params.ADMMLocalepsilon
         algorithm.broadcastDelayMS = 100
         algorithm.runtimeMS = params.runtimeMS
         algorithm.rho = params.rho
