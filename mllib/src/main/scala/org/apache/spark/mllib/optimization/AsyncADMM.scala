@@ -115,7 +115,7 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var done = false
 
   @volatile var runtimeMS = -1L
-  @volatile var startTime = -1L
+  @volatile var startTime = 0L
 
   var commStages = 0
   val broadcastThread = new Thread {
@@ -182,8 +182,13 @@ class AsyncADMMWorker(subProblemId: Int,
     }
   }
 
+  var ranOnce = false
 
   def mainLoop(runTimeMSArg: Int = 1000) = {
+    assert(!done)
+    assert(!ranOnce)
+    ranOnce = true
+
     // Setup the control state
     done = false
     startTime = System.currentTimeMillis()
@@ -206,14 +211,8 @@ class AsyncADMMWorker(subProblemId: Int,
 
 
   def mainLoopSync(runTimeMS: Int = 1000) = {
-    done = false
-
-    // Launch a thread to send the messages in the background
-    broadcastThread.start()
-
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
-
     // Loop until done
     while (!done) {
 //      // Reset the primal var
