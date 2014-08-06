@@ -105,6 +105,7 @@ class AsyncADMMWorker(subProblemId: Int,
                       maxIterations: Int,
                       miniBatchSize: Int,
                       var rho: Double,
+                      var lagrangianRho: Double,
                       val comm: WorkerCommunication,
                       val broadcastDelayMS: Int)
   extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
@@ -188,7 +189,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Only do dual updates the primal converges
       if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
-        dualUpdate(primalConsensus, rho)
+        dualUpdate(primalConsensus, lagrangianRho)
       }
 
       // Check to see if we are done
@@ -223,6 +224,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
   var broadcastDelayMS: Int = 100
   var commStages: Int = 0
   var rho: Double = 1.0
+  var lagrangianRho: Double = 1.0
 
   @transient var workers : RDD[AsyncADMMWorker] = null
 
@@ -245,6 +247,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
       val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
         primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
         eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
+        lagrangianRho = lagrangianRho,
         miniBatchSize = miniBatchSize, rho = rho, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
 
       Iterator(worker)
