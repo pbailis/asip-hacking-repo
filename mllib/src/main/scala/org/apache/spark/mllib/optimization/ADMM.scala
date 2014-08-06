@@ -117,9 +117,9 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   @volatile var rho = 1.0
 
-  def dualUpdate() {
+  def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar += (primalVar - primalConsensus) * rho
+    dualVar += (primalVar - primalConsensus) * rate
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
@@ -221,7 +221,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
    * Solve the provided convex optimization problem.
    */
   override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    
+
     setup(rawData, initialWeights)
 
 
@@ -252,9 +252,9 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
       var (primalAvg, dualAvg) = solvers.map{ solver =>
         // Do a dual update
-        solver.primalConsensus = primalConsensus
+        solver.primalConsensus = primalConsensus.copy()
         solver.rho = rho
-        solver.dualUpdate()
+        solver.dualUpdate(rho)
         // Do a primal update
         solver.primalUpdate(timeRemaining)
         // Return the scaled primal and dual values

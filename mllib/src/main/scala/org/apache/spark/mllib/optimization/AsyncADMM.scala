@@ -141,7 +141,7 @@ class AsyncADMMWorker(subProblemId: Int,
         primalUpdate(timeRemainingMS)
         // Do a Dual update if the primal seems to be converging
         if (norm(primalOld - primalVar, 2) < 0.01) {
-          dualUpdate()
+          dualUpdate(lagrangianRho)
         }
       }
       // Kill the consumer thread
@@ -183,7 +183,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // If the consensus changed then update the dual once (why not?)
         if (norm(primalConsensus - primalConsensusOld, 2) > 0.01) {
-          dualUpdate()
+          dualUpdate(lagrangianRho)
         }
       }
     }
@@ -267,6 +267,11 @@ class AsyncADMMWorker(subProblemId: Int,
       //   rho = rho / 2.0
       //   println(s"Decreasing rho: $rho")
       // }
+
+      // Only do dual updates the primal converges
+      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
+        dualUpdate(lagrangianRho)
+      }
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
