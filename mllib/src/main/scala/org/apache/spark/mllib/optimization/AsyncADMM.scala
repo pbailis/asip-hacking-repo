@@ -104,7 +104,6 @@ class AsyncADMMWorker(subProblemId: Int,
                       epsilon: Double,
                       maxIterations: Int,
                       miniBatchSize: Int,
-                      var rho: Double,
                       var lagrangianRho: Double,
                       val comm: WorkerCommunication,
                       val broadcastDelayMS: Int)
@@ -113,10 +112,10 @@ class AsyncADMMWorker(subProblemId: Int,
     miniBatchSize = miniBatchSize)
   with Logging {
 
-
   @volatile var done = false
 
-  var primalConsensus = primalVar0.copy
+  @volatile var runtimeMS = -1L
+  @volatile var startTime = 0L
 
   var commStages = 0
   val broadcastThread = new Thread {
@@ -125,27 +124,111 @@ class AsyncADMMWorker(subProblemId: Int,
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
         commStages += 1
         Thread.sleep(broadcastDelayMS)
+        // Check to see if we are done
+        val elapsedTime = System.currentTimeMillis() - startTime
+        done = elapsedTime > runtimeMS
       }
     }
   }
 
 
-  def mainLoop(runTimeMS: Int = 1000) = {
+  val solverLoopThread = new Thread {
+    override def run {
+      while (!done) {
+        val primalOld = primalVar.copy
+        val timeRemainingMS = runtimeMS - (System.currentTimeMillis() - startTime)
+        // Run the primal update
+        primalUpdate(timeRemainingMS)
+        // Do a Dual update if the primal seems to be converging
+        if (norm(primalOld - primalVar, 2) < 0.01) {
+          dualUpdate(lagrangianRho)
+        }
+      }
+      // Kill the consumer thread
+      val poisonMessage = new InternalMessages.VectorUpdateMessage(-1, null, null, -1)
+      comm.inputQueue.add(poisonMessage)
+    }
+  }
+
+
+  val consumerThread = new Thread {
+    override def run {
+      // Intialize global view of primalVars
+      val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
+      while (!done) {
+        // Collect latest variables from everyone
+        allVars.put(comm.selfID, (primalVar, dualVar, data.length))
+        var tiq = comm.inputQueue.take()
+        while (tiq != null) {
+          if (tiq.nExamples == -1) {
+            done = true
+          } else {
+            allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
+            tiq = comm.inputQueue.poll()
+          }
+        }
+        // Compute primal and dual averages
+        var (primalAvg, dualAvg) = allVars.values.iterator.map {
+          case (primal, dual, nExamples) => (primal * nExamples.toDouble, dual * nExamples.toDouble)
+        }.reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+        val nTotalExamples = allVars.values.iterator.map {
+          case (primal, dual, nExamples) => nExamples
+        }.sum
+        primalAvg /= nTotalExamples.toDouble
+        dualAvg /= nTotalExamples.toDouble
+
+        // Recompute the consensus variable
+        val primalConsensusOld = primalConsensus.copy
+        primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
+
+        // If the consensus changed then update the dual once (why not?)
+        if (norm(primalConsensus - primalConsensusOld, 2) > 0.01) {
+          dualUpdate(lagrangianRho)
+        }
+      }
+    }
+  }
+
+  var ranOnce = false
+
+  def mainLoop(runTimeMSArg: Int = 1000) = {
+    assert(!done)
+    assert(!ranOnce)
+    ranOnce = true
+
+    // Setup the control state
     done = false
-    // Launch a thread to send the messages in the background
+    startTime = System.currentTimeMillis()
+    runtimeMS = runTimeMSArg
     broadcastThread.start()
 
+    mainLoopSync(runTimeMSArg)
+  }
+
+
+  def mainLoopAsync(runTimeMS: Int = 1000) = {
+
+    // Launch a thread to send the messages in the background
+    solverLoopThread.start()
+    consumerThread.start()
+
+    // Return the primal consensus value
+    primalConsensus
+  }
+
+
+  def mainLoopSync(runTimeMS: Int = 1000) = {
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
-
-    var loopIter = 0
-    val startTime = System.currentTimeMillis()
     // Loop until done
     while (!done) {
-      // Reset the primal var
-      primalVar = primalConsensus.copy
-      // Run the primal update
-      primalUpdate(primalConsensus, rho)
+//      // Reset the primal var
+//      primalVar = primalConsensus.copy
+
+      // Runt he primal update
+      val timeRemainingMS = runtimeMS - (System.currentTimeMillis() - startTime)
+      primalUpdate(timeRemainingMS)
+
 
       // Collect latest variables from everyone
       allVars.put(comm.selfID, (primalVar, dualVar, data.length))
@@ -157,12 +240,10 @@ class AsyncADMMWorker(subProblemId: Int,
       }
 
       // Compute primal and dual averages
-      var (primalAvg, dualAvg) = allVars.values.iterator.map {
-        case (primal, dual, nExamples) => (primal * nExamples.toDouble, dual * nExamples.toDouble)
-      }.reduce((a, b) => (a._1 + b._1, a._2 + b._2))
-      val nTotalExamples = allVars.values.iterator.map {
-        case (primal, dual, nExamples) => nExamples
-      }.sum
+      var (primalAvg, dualAvg, nTotalExamples) = allVars.values.iterator.map {
+        case (primal, dual, nExamples) =>
+          (primal * nExamples.toDouble, dual * nExamples.toDouble, nExamples)
+      }.reduce((a, b) => (a._1 + b._1, a._2 + b._2, a._3 + b._3))
       primalAvg /= nTotalExamples.toDouble
       dualAvg /= nTotalExamples.toDouble
 
@@ -187,10 +268,12 @@ class AsyncADMMWorker(subProblemId: Int,
       //   println(s"Decreasing rho: $rho")
       // }
 
-      // Only do dual updates the primal converges
-      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
-        dualUpdate(primalConsensus, lagrangianRho)
-      }
+//      // Only do dual updates the primal converges
+//      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
+//        dualUpdate(lagrangianRho)
+//      }
+
+      dualUpdate(lagrangianRho)
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
@@ -248,8 +331,8 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
         primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
         eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
         lagrangianRho = lagrangianRho,
-        miniBatchSize = miniBatchSize, rho = rho, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
-
+        miniBatchSize = miniBatchSize, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
+        worker.rho = rho
       Iterator(worker)
      }.cache()
 

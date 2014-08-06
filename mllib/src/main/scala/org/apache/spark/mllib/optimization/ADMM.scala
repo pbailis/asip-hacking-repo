@@ -95,7 +95,7 @@ class L1ConsensusFunction extends ConsensusFunction {
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
                         val data: Array[(Double, BV[Double])],
-                        var primalVar: BV[Double],
+                        @volatile var primalVar: BV[Double],
                         val gradient: FastGradient,
                         val eta_0: Double,
                         val epsilon: Double,
@@ -111,18 +111,22 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   var grad = BV.zeros[Double](dim)
 
-  var dualVar = BV.zeros[Double](dim)
+  @volatile var dualVar = BV.zeros[Double](dim)
 
-  def dualUpdate(primalConsensus: BV[Double], rho: Double) {
+  @volatile var primalConsensus = BV.zeros[Double](dim)
+
+  @volatile var rho = 1.0
+
+  def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar += (primalVar - primalConsensus) * rho
+    dualVar += (primalVar - primalConsensus) * rate
   }
 
-  def primalUpdate(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
-    sgd(primalConsensus, rho, remainingTimeMS)
+  def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
+    sgd(remainingTimeMS)
   }
 
-  def lbfgs(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
+  def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
     val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](maxIterations, 3)
     val f = new DiffFunction[BDV[Double]] {
       override def calculate(x: BDV[Double]) = {
@@ -143,7 +147,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
 
-  def sgd(primalConsensus: BV[Double], rho: Double, remainingTimeMS: Long = Long.MaxValue) {
+  def sgd(remainingTimeMS: Long = Long.MaxValue) {
     var t = 0
     residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
@@ -217,7 +221,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
    * Solve the provided convex optimization problem.
    */
   override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    
+
     setup(rawData, initialWeights)
 
 
@@ -248,9 +252,11 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
       var (primalAvg, dualAvg) = solvers.map{ solver =>
         // Do a dual update
-        solver.dualUpdate(primalConsensus, rho)
+        solver.primalConsensus = primalConsensus.copy
+        solver.rho = rho
+        solver.dualUpdate(rho)
         // Do a primal update
-        solver.primalUpdate(primalConsensus, rho, timeRemaining)
+        solver.primalUpdate(timeRemaining)
         // Return the scaled primal and dual values
         (solver.primalVar * solver.data.length.toDouble, solver.dualVar * solver.data.length.toDouble)
         }
