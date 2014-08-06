@@ -116,8 +116,8 @@ class AsyncADMMWorker(subProblemId: Int,
 
   @volatile var runtimeMS = -1L
   @volatile var startTime = 0L
-  var localIters = 0
-  var msgsSent = 0
+  @volatile var localIters = 0
+  @volatile var msgsSent = 0
 
 
 
