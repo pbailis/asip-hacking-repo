@@ -1,6 +1,8 @@
 package org.apache.spark.examples.mllib.research
 
 import java.util.concurrent.TimeUnit
+import org.apache.log4j.{Level, Logger}
+
 
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
@@ -10,7 +12,7 @@ import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-import scopt.OptionParser
+
 
 import scala.util.Random
 import scopt.OptionParser
@@ -129,7 +131,7 @@ object DataLoaders {
                         numPartitions: Int,
                         pointsPerPartition: Int): RDD[LabeledPoint] = {
     sc.parallelize(1 to numPartitions, numPartitions).flatMap { idx =>
-      val plusCloud = new DenseVector(Array.fill[Double](dim)(0.0))
+      val plusCloud = new DenseVector(Array.fill[Double](dim)(10.0))
       plusCloud.values(dim - 1) = 1
       val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
       negCloud.values(dim - 1) = 1
@@ -176,6 +178,7 @@ object SynchronousADMMTests {
 
   case class Params(
                      input: String = null,
+                     iterations: Int = 10000000,
                      runtimeMS: Int = 10000,
                      stepSize: Double = 1.0,
                      algorithm: Algorithm = SVM,
@@ -199,6 +202,8 @@ object SynchronousADMMTests {
   def main(args: Array[String]) {
     val defaultParams = Params()
 
+    Logger.getRootLogger.setLevel(Level.WARN)
+
     val parser = new OptionParser[Params]("BinaryClassification") {
       head("BinaryClassification: an example app for binary classification.")
 
@@ -206,7 +211,9 @@ object SynchronousADMMTests {
       opt[Int]("runtimeMS")
         .text("runtime in miliseconds")
         .action((x, c) => c.copy(runtimeMS = x))
-
+      opt[Int]("iterations")
+        .text("num iterations")
+        .action((x, c) => c.copy(iterations = x))
       opt[Double]("stepSize")
         .text(s"initial step size, default: ${defaultParams.stepSize}")
         .action((x, c) => c.copy(stepSize = x))
@@ -287,6 +294,7 @@ object SynchronousADMMTests {
   def run(params: Params) {
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
+
     val sc = new SparkContext(conf)
 
     println("Starting to load data...")
@@ -328,11 +336,11 @@ object SynchronousADMMTests {
 
     val (model, stats) = runTest(training, params)
 
-    val trainingError = training.map{ point =>
+    var trainingError = training.map{ point =>
       val p = model.predict(point.features)
       val y = 2.0 * point.label - 1.0
       if (y * p <= 0.0) 1.0 else 0.0
-    }.reduce(_ + _) / training.count.toDouble
+    }.reduce(_ + _) / numTraining.toDouble
 
     val trainingLoss = model.loss(training)
     val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
@@ -404,7 +412,7 @@ object SynchronousADMMTests {
       case SVMADMM =>
         val algorithm = new SVMWithADMM()
         algorithm.consensus = consensusFun
-        //        algorithm.maxGlobalIterations = iterations
+        algorithm.maxGlobalIterations = params.iterations
         algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
         algorithm.regParam = params.regParam
         algorithm.epsilon = params.ADMMepsilon

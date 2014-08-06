@@ -117,8 +117,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
   var grad_delta: BV[Double] = BV.zeros(primalVar0.size)
 
 
-  var msgsSent = 0
-  var localIters = 0
+  @volatile var msgsSent = 0
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar, 

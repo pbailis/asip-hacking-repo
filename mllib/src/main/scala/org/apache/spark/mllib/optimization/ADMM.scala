@@ -82,6 +82,7 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
 
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
+    assert(false)
     if (rho == 0.0) {
       softThreshold(regParam, primalAvg)
     } else {
@@ -109,25 +110,28 @@ object WorkerStats {
     msgsSent: Int = 0, 
     localIters: Int = 0,
     sgdIters: Int = 0,
+    residual: Double = 0.0,
     dataSize: Int = 0) = {
     new WorkerStats(
       weightedPrimalVar = primalVar * dataSize.toDouble, 
       weightedDualVar = dualVar * dataSize.toDouble,
       msgsSent = Interval(msgsSent), 
       localIters = Interval(localIters), 
-      sgdIters = Interval(sgdIters), 
+      sgdIters = Interval(sgdIters),
+      residual = Interval(residual),
       dataSize = Interval(dataSize), 
       nWorkers = 1)
   }
 }
 
-class WorkerStats(
+case class WorkerStats(
   val weightedPrimalVar: BV[Double],
   val weightedDualVar: BV[Double],
   val msgsSent: Interval,
   val localIters: Interval,
   val sgdIters: Interval,
-  val dataSize: Interval,  
+  val dataSize: Interval,
+  val residual: Interval,
   val nWorkers: Int) extends Serializable {
   
 
@@ -139,6 +143,7 @@ class WorkerStats(
       localIters = localIters + other.localIters, 
       sgdIters = sgdIters + other.sgdIters,
       dataSize = dataSize + other.dataSize,
+      residual = residual + other.residual,
       nWorkers = nWorkers + other.nWorkers)
   }
   
@@ -168,11 +173,12 @@ class SGDLocalOptimizer(val subProblemId: Int,
   val nExamples = data.length
   val dim = data(0)._2.size
   val rnd = new java.util.Random(subProblemId)
-  var sgdIters = 0
-
-  var residual: Double = Double.MaxValue
 
   var grad = BV.zeros[Double](dim)
+
+  @volatile var sgdIters = 0
+
+  @volatile var residual: Double = Double.MaxValue
 
   @volatile var dualVar = BV.zeros[Double](dim)
 
@@ -180,8 +186,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   @volatile var rho = 1.0
 
+  @volatile var localIters = 0
+
   def getStats() = {
-    WorkerStats(primalVar, dualVar, msgsSent = 0, sgdIters = sgdIters, dataSize = data.length)  
+    WorkerStats(primalVar, dualVar, msgsSent = 0, sgdIters = sgdIters, dataSize = data.length, residual = residual)  
   }
 
   def dualUpdate(rate: Double) {
@@ -215,7 +223,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
-    residual = Double.MaxValue
+    residual = 0.0
     val startTime = System.currentTimeMillis()
     var currentTime = startTime
     var t = 0
@@ -296,11 +304,10 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
 
     val nDim = initialWeights.size
-    val nExamples: Int = solvers.map(s => s.data.length).reduce(_+_)
     val nSolvers = solvers.partitions.length
 
 
-    println(s"nExamples: $nExamples")
+    //    println(s"nExamples: $nExamples")
     println(s"dim: $nDim")
     println(s"number of solver $nSolvers")
 
@@ -320,22 +327,40 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
       println("========================================================")
       println(s"Starting iteration $iteration.")
       val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
+     
+      // Run the local solvers
       stats = solvers.map{ solver =>
+        // Make sure that the local solver did not reset!
+        assert(solver.localIters == iteration)
+        solver.localIters += 1
+
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
         solver.rho = rho
         solver.dualUpdate(rho)
+
         // Do a primal update
         solver.primalUpdate(timeRemaining)
+
+        // Construct stats
         solver.getStats()
         }.reduce( _ + _ )
+
+      println(stats)
+
+      solvers.map(s => (s.primalVar, s.dualVar)).collect().foreach(x => println(s"\t ${x._1} \t ${x._2}"))
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho, regParam)
 
-      // Compute the residuals
-      primalResidual = solvers.map(s => norm(s.primalVar - primalConsensus, 2) * s.data.length).reduce(_+_) / nExamples.toDouble
+      // println(s"PrimalAvg: ${stats.primalAvg}")
+      // println(s"DualAvg: ${stats.dualAvg}")
+      // println(s"Consenus: $primalConsensus")
+
+      // // // Compute the residuals
+      primalResidual = solvers.map( s => norm(s.primalVar - primalConsensus, 2) * s.data.length)
+        .reduce(_+_) / stats.dataSize.x
       dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
      // Rho upate from Boyd text
@@ -354,6 +379,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
       iteration += 1
     }
+    primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho, regParam)
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
