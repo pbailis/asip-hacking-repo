@@ -103,9 +103,9 @@ private[spark] object AkkaUtils extends Logging {
       |akka.remote.log-remote-lifecycle-events = $lifecycleEvents
       |akka.log-dead-letters = $lifecycleEvents
       |akka.log-dead-letters-during-shutdown = $lifecycleEvents
-      |akka.extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension"]
+      |akka.extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension$$"]
       |akka.actor.serializers = { kryo = "com.romix.akka.serialization.kryo.KryoSerializer" }
-      |akka.actor.serialization-bindings { "java.io.Serializable" = java }
+      |akka.actor.serialization-bindings { "java.io.Serializable" = kryo }
       |kryo.type = "nograph"
       |kryo.idstrategy = "incremental"
       |kryo.serializer-pool-size = 32
