@@ -16,6 +16,8 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import akka.routing.{BroadcastRouter, RoundRobinRouter, Router}
+import java.util
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -33,7 +35,8 @@ class HWWorkerCommunicationHack {
 
 class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorRef]
+  var broadcastRouter: ActorRef = null
   var selfID: Int = -1
 
   var inputQueue = new LinkedBlockingQueue[HWInternalMessages.DeltaUpdate]()
@@ -62,17 +65,27 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     for (host <- allHosts) {
       if (!host.equals(address)) {
         //logInfo(s"Connecting to $host, $i")
-        others.put(i, context.actorSelection(allHosts(i)))
+        val selection = context.actorSelection(allHosts(i))
 
-        implicit val timeout = Timeout(15 seconds)
-        val f = others(i).resolveOne()
+        implicit val timeout = Timeout(150000 seconds)
+        val f = selection.resolveOne()
         Await.ready(f, Duration.Inf)
+        val ref = f.value.get.get
+        others.put(i, ref)
+
         logInfo(s"Connected to ${f.value.get.get}")
       } else {
         selfID = i
       }
       i += 1
     }
+
+    val routees = new util.ArrayList[ActorRef]
+    for(other <- others.values) {
+      routees.add(other)
+    }
+
+    broadcastRouter = Worker.HACKworkerActorSystem.actorOf(Props.empty.withRouter(BroadcastRouter.create(routees = routees)))
   }
 
   def sendPingPongs() {
@@ -83,9 +96,7 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
   def broadcastDeltaUpdate(delta: BV[Double]) {
     val msg = new HWInternalMessages.DeltaUpdate(selfID, delta)
-    for (other <- others.values) {
-      other ! msg
-    }
+    broadcastRouter ! msg
   }
 }
 

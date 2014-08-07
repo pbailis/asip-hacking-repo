@@ -17,6 +17,8 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import java.util
+import akka.routing.BroadcastRouter
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -35,8 +37,10 @@ object InternalMessages {
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorRef]
   var selfID: Int = -1
+
+  var broadcastRouter: ActorRef = null
 
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
 
@@ -62,20 +66,29 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     var i = 0
     //logInfo(s"Connecting to others ${allHosts.mkString(",")} ${allHosts.length}")
     for (host <- allHosts) {
-      // skip self
       if (!host.equals(address)) {
         //logInfo(s"Connecting to $host, $i")
-        others.put(i, context.actorSelection(allHosts(i)))
+        val selection = context.actorSelection(allHosts(i))
 
-        implicit val timeout = Timeout(15000 seconds)
-        val f = others(i).resolveOne()
+        implicit val timeout = Timeout(150000 seconds)
+        val f = selection.resolveOne()
         Await.ready(f, Duration.Inf)
+        val ref = f.value.get.get
+        others.put(i, ref)
+
         logInfo(s"Connected to ${f.value.get.get}")
       } else {
         selfID = i
       }
       i += 1
     }
+
+    val routees = new util.ArrayList[ActorRef]
+    for(other <- others.values) {
+      routees.add(other)
+    }
+
+    broadcastRouter = Worker.HACKworkerActorSystem.actorOf(Props.empty.withRouter(BroadcastRouter.create(routees = routees)))
   }
 
   def sendPingPongs() {
@@ -86,9 +99,7 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
   def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double], nExamples: Int) {
     val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)
-    for (other <- others.values) {
-      other ! msg
-    }
+    broadcastRouter ! msg
   }
 }
 
