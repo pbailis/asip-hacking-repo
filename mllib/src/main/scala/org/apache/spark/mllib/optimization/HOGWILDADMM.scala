@@ -16,6 +16,10 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import akka.routing.{BroadcastRouter, RoundRobinRouter, Router}
+import java.util
+import com.twitter.chill.{ScalaKryoInstantiator, KryoPool}
+import org.apache.spark.mllib.optimization.HWInternalMessages.DeltaUpdate
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -25,6 +29,7 @@ object HWInternalMessages {
   class PingPong
   class DeltaUpdate(val sender: Int,
                     val delta: BV[Double])
+  class PackedDeltaUpdate(val bytes: Array[Byte])
 }
 
 class HWWorkerCommunicationHack {
@@ -33,8 +38,10 @@ class HWWorkerCommunicationHack {
 
 class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorRef]
   var selfID: Int = -1
+
+  val kryoPool = KryoPool.withByteArrayOutputStream(50, new ScalaKryoInstantiator())
 
   var inputQueue = new LinkedBlockingQueue[HWInternalMessages.DeltaUpdate]()
 
@@ -46,8 +53,8 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
       logInfo("activated local!"); sender ! "yo"
     }
     case s: String => println(s)
-    case d: HWInternalMessages.DeltaUpdate => {
-      inputQueue.add(d)
+    case d: HWInternalMessages.PackedDeltaUpdate => {
+      inputQueue.add(kryoPool.fromBytes(d.bytes, classOf[DeltaUpdate]))
     }
     case _ => println("hello, world!")
   }
@@ -62,16 +69,24 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     for (host <- allHosts) {
       if (!host.equals(address)) {
         //logInfo(s"Connecting to $host, $i")
-        others.put(i, context.actorSelection(allHosts(i)))
+        val selection = context.actorSelection(allHosts(i))
 
-        implicit val timeout = Timeout(15 seconds)
-        val f = others(i).resolveOne()
+        implicit val timeout = Timeout(150000 seconds)
+        val f = selection.resolveOne()
         Await.ready(f, Duration.Inf)
+        val ref = f.value.get.get
+        others.put(i, ref)
+
         logInfo(s"Connected to ${f.value.get.get}")
       } else {
         selfID = i
       }
       i += 1
+    }
+
+    val routees = new util.ArrayList[ActorRef]
+    for(other <- others.values) {
+      routees.add(other)
     }
   }
 
@@ -82,8 +97,8 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
   }
 
   def broadcastDeltaUpdate(delta: BV[Double]) {
-    val msg = new HWInternalMessages.DeltaUpdate(selfID, delta)
-    for (other <- others.values) {
+    val msg = new HWInternalMessages.PackedDeltaUpdate(kryoPool.toBytesWithoutClass(new HWInternalMessages.DeltaUpdate(selfID, delta)))
+    for(other <- others.values) {
       other ! msg
     }
   }

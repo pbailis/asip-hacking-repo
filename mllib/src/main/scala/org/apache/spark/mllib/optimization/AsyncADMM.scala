@@ -17,6 +17,9 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import java.util
+import akka.routing.BroadcastRouter
+import com.twitter.chill.{ScalaKryoInstantiator, KryoPool}
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -31,14 +34,18 @@ object InternalMessages {
   class PingPong
   class VectorUpdateMessage(val sender: Int,
                             val primalVar: BV[Double], val dualVar: BV[Double], val nExamples: Int)
+  class PackedVectorUpdateMessage(val bytes: Array[Byte])
+
 }
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorRef]
   var selfID: Int = -1
 
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
+
+  val kryoPool = KryoPool.withByteArrayOutputStream(50, new ScalaKryoInstantiator())
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
@@ -48,8 +55,8 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       logInfo("activated local!"); sender ! "yo"
     }
     case s: String => println(s)
-    case d: InternalMessages.VectorUpdateMessage => {
-      inputQueue.add(d)
+    case d: InternalMessages.PackedVectorUpdateMessage => {
+      inputQueue.add(kryoPool.fromBytes(d.bytes, classOf[InternalMessages.VectorUpdateMessage]))
     }
     case _ => println("hello, world!")
   }
@@ -62,14 +69,16 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     var i = 0
     //logInfo(s"Connecting to others ${allHosts.mkString(",")} ${allHosts.length}")
     for (host <- allHosts) {
-      // skip self
       if (!host.equals(address)) {
         //logInfo(s"Connecting to $host, $i")
-        others.put(i, context.actorSelection(allHosts(i)))
+        val selection = context.actorSelection(allHosts(i))
 
-        implicit val timeout = Timeout(15000 seconds)
-        val f = others(i).resolveOne()
+        implicit val timeout = Timeout(150000 seconds)
+        val f = selection.resolveOne()
         Await.ready(f, Duration.Inf)
+        val ref = f.value.get.get
+        others.put(i, ref)
+
         logInfo(s"Connected to ${f.value.get.get}")
       } else {
         selfID = i
@@ -85,8 +94,8 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   }
 
   def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double], nExamples: Int) {
-    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)
-    for (other <- others.values) {
+    val msg = new InternalMessages.PackedVectorUpdateMessage(kryoPool.toBytesWithoutClass(new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)))
+    for(other <- others.values) {
       other ! msg
     }
   }
