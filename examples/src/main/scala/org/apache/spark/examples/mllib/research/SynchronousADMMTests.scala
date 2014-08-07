@@ -444,6 +444,7 @@ object SynchronousADMMTests {
             "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
             "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
             "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
           )
         println(results)
@@ -456,6 +457,7 @@ object SynchronousADMMTests {
           Map(
             "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
             "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
           )
         (model, results)
