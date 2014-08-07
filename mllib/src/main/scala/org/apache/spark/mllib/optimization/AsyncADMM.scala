@@ -94,25 +94,18 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
 
 class AsyncADMMWorker(subProblemId: Int,
-                      val nSubProblems: Int,
                       data: Array[(Double, BV[Double])],
-                      primalVar0: BV[Double],
                       gradient: FastGradient,
-                      val consensus: ConsensusFunction,
-                      val regParam: Double,
-                      eta_0: Double,
-                      epsilon: Double,
-                      maxIterations: Int,
-                      miniBatchSize: Int,
-                      var lagrangianRho: Double,
-                      val comm: WorkerCommunication,
-                      val broadcastDelayMS: Int)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
-    gradient = gradient, eta_0 = eta_0, epsilon = epsilon, maxIterations = maxIterations,
-    miniBatchSize = miniBatchSize)
-  with Logging {
+                      val consensus: ConsensusFunction,                     
+                      val comm: WorkerCommunication)
+    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient) with Logging {
 
-  @volatile var done = false
+  var nSubProblems: Int = -1
+  var regParam: Double = 0.0
+  var lagrangianRho: Double = rho
+  val broadcastDelayMS: Int = 100
+
+@volatile var done = false
 
   @volatile var runtimeMS = -1L
   @volatile var startTime = 0L

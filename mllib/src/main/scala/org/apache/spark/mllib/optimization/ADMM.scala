@@ -163,33 +163,39 @@ case class WorkerStats(
 }
 
 
-
+class ADMMParams {
+  var eta_0 = 1.0
+  var tol = 1.0e-5
+  var workerTol = 1.0e-5
+  var maxIterations = 1000
+  var maxWorkerIterations = 1000
+  var miniBatchSize = 10
+  var useLBFGS = false
+}
 
 
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
                         val data: Array[(Double, BV[Double])],
-                        @volatile var primalVar: BV[Double],
                         val gradient: FastGradient,
-                        val eta_0: Double,
-                        val epsilon: Double,
-                        val maxIterations: Int,
-                        val miniBatchSize: Int
-                        ) extends Serializable with Logging {
+                        val params: ADMMParams) extends Serializable with Logging {
 
   val nExamples = data.length
   val dim = data(0)._2.size
-  val rnd = new java.util.Random(subProblemId)
+  val rnd = new java.util.Random(subProblemId)  
 
-  var grad = BV.zeros[Double](dim)
+  @volatile var primalConsensus = BV.zeros[Double](dim)
+
+  @volatile var primalVar = BV.zeros[Double](dim)
+
+  @volatile var dualVar = BV.zeros[Double](dim)
+  
+  @volatile var grad = BV.zeros[Double](dim)
+  
 
   @volatile var sgdIters = 0
 
   @volatile var residual: Double = Double.MaxValue
-
-  @volatile var dualVar = BV.zeros[Double](dim)
-
-  @volatile var primalConsensus = BV.zeros[Double](dim)
 
   @volatile var rho = 1.0
 
@@ -205,7 +211,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
-    lbfgs(remainingTimeMS)
+    if(params.useLBFGS) {
+      lbfgs(remainingTimeMS)
+    } else {
+      sgd(remainingTimeMS)
+    }
   }
 
   def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
@@ -296,9 +306,18 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     val primal0 = initialWeights.toBreeze
     solvers =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
-        val data: Array[(Double, BV[Double])] = iter.map { case (label, features) => (label, features.toBreeze)}.toArray
-        val solver = new SGDLocalOptimizer(ind, data, primal0.copy, gradient,
-          eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations, miniBatchSize = miniBatchSize)
+        val data: Array[(Double, BV[Double])] = iter.map { 
+          case (label, features) => (label, features.toBreeze)
+        }.toArray
+        val solver = new SGDLocalOptimizer(ind, data, gradient)
+        solver.eta_0 = eta_0
+        solver.epsilon = localEpsilon
+        solver.maxIterations = localMaxIterations
+        solver.miniBatchSize = miniBatchSize
+
+        // Initialize the primal variable and primal consensus
+        solver.primalVar = primal0.copy
+        solver.primalConsensus = primal0.copy
         Iterator(solver)
       }.cache()
       solvers.count
