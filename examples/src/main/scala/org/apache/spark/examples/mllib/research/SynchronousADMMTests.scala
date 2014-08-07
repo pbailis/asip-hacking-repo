@@ -170,16 +170,18 @@ object SynchronousADMMTests {
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Algorithm._
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.RegType._
 
-  case class Params(input: String = null,
-                    format: String = "libsvm",
-                    numPartitions: Int = -1,
-                    algorithm: Algorithm = SVM,
-                    regType: RegType = L2,
-                     pointCloudDimension: Int = 10,
-                     pointCloudLabelNoise: Double = .2,
-                     pointCloudPartitionSkew: Double = 0,
-                     pointCloudPointsPerPartition: Int = 10000,
-                     pointCloudSize: Double = 1.0) extends ADMMParams {
+  class Params extends ADMMParams {
+    var input: String = null
+    var  format: String = "libsvm"
+    var numPartitions: Int = -1
+    var algorithm: Algorithm = SVM
+    var regType: RegType = L2
+    var pointCloudDimension: Int = 10
+    var pointCloudLabelNoise: Double = .2
+    var pointCloudPartitionSkew: Double = 0
+    var pointCloudPointsPerPartition: Int = 10000
+    var pointCloudSize: Double = 1.0
+
     override def toString = {
       "{" + "input: " + input + ", " +
       "format: " + format + ", " +
@@ -196,7 +198,7 @@ object SynchronousADMMTests {
   }
 
   def main(args: Array[String]) {
-    val defaultParams = Params()
+    val defaultParams = new Params()
 
     Logger.getRootLogger.setLevel(Level.WARN)
 
@@ -217,33 +219,33 @@ object SynchronousADMMTests {
 
       // point cloud parameters
       opt[Int]("pointCloudDimension")
-        .action((x, c) => c.copy(pointCloudDimension = x))
+        .action { (x, c) => c.pointCloudDimension = x; c }
       opt[Double]("pointCloudLabelNoise")
-        .action((x, c) => c.copy(pointCloudLabelNoise = x))
+        .action { (x, c) => c.pointCloudLabelNoise = x; c }
       opt[Double]("pointCloudPartitionSkew")
-        .action((x, c) => c.copy(pointCloudPartitionSkew = x))
+        .action { (x, c) => c.pointCloudPartitionSkew = x; c }
       opt[Int]("pointCloudPointsPerPartition")
-        .action((x, c) => c.copy(pointCloudPointsPerPartition = x))
+        .action { (x, c) => c.pointCloudPointsPerPartition = x; c }
       opt[Double]("pointCloudRadius")
-        .action((x, c) => c.copy(pointCloudSize = x))
+        .action { (x, c) => c.pointCloudSize = x; c }
 
       opt[String]("algorithm")
         .text(s"algorithm (${Algorithm.values.mkString(",")}), " +
         s"default: ${defaultParams.algorithm}")
-        .action((x, c) => c.copy(algorithm = Algorithm.withName(x)))
+        .action { (x, c) => c.algorithm = Algorithm.withName(x); c }
       opt[String]("regType")
         .text(s"regularization type (${RegType.values.mkString(",")}), " +
         s"default: ${defaultParams.regType}")
-        .action((x, c) => c.copy(regType = RegType.withName(x)))
+        .action { (x, c) => c.regType = RegType.withName(x); c }
 
       opt[Double]("regParam")
         .text(s"regularization parameter, default: ${defaultParams.regParam}")
         .action { (x, c) => c.regParam = x; c }
       opt[Int]("numPartitions")
-        .action((x, c) => c.copy(numPartitions = x))
+        .action { (x, c) => c.numPartitions = x; c }
       opt[String]("input")
         .text("input paths to labeled examples in LIBSVM format")
-        .action((x, c) => c.copy(input = x))
+        .action { (x, c) => c.input = x; c }
 
       opt[Double]("ADMMrho")
         .action { (x, c) => c.rho0 = x; c }
@@ -252,7 +254,7 @@ object SynchronousADMMTests {
         .action { (x, c) => c.lagrangianRho = x; c }
       opt[String]("format")
         .text("File format")
-        .action((x, c) => c.copy(format = x))
+        .action { (x, c) => c.format = x; c }
 
       // ADMM-specific stuff
       opt[Double]("ADMMepsilon")
