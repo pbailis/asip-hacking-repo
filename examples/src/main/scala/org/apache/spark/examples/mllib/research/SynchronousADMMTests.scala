@@ -367,9 +367,9 @@ object SynchronousADMMTests {
       s"$trainingLoss\t" +
       s"$regularizationPenalty\t" +
       s"${trainingLoss + regularizationPenalty}\t" +
-      s"${stats.toString}\t" +
       s"${model.weights.toArray.mkString(",")}\t" +
-      s"${params.toString}\t"
+      s"${params.toString}\t" +
+      "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}"
 
     println(summary)
 
@@ -441,7 +441,7 @@ object SynchronousADMMTests {
         val model = algorithm.run(training).clearThreshold()
         val results =
           Map(
-            "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
+            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
             "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
             "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
             "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
