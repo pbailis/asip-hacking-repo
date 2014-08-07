@@ -19,6 +19,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import java.util
 import akka.routing.BroadcastRouter
+import com.twitter.chill.{ScalaKryoInstantiator, KryoPool}
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -33,6 +34,8 @@ object InternalMessages {
   class PingPong
   class VectorUpdateMessage(val sender: Int,
                             val primalVar: BV[Double], val dualVar: BV[Double], val nExamples: Int)
+  class PackedVectorUpdateMessage(val bytes: Array[Byte])
+
 }
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
@@ -40,9 +43,9 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   val others = new mutable.HashMap[Int, ActorRef]
   var selfID: Int = -1
 
-  var broadcastRouter: ActorRef = null
-
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
+
+  val kryoPool = KryoPool.withByteArrayOutputStream(16, new ScalaKryoInstantiator())
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
@@ -52,8 +55,8 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       logInfo("activated local!"); sender ! "yo"
     }
     case s: String => println(s)
-    case d: InternalMessages.VectorUpdateMessage => {
-      inputQueue.add(d)
+    case d: InternalMessages.PackedVectorUpdateMessage => {
+      inputQueue.add(kryoPool.fromBytes(d.bytes, classOf[InternalMessages.VectorUpdateMessage]))
     }
     case _ => println("hello, world!")
   }
@@ -82,13 +85,6 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       }
       i += 1
     }
-
-    val routees = new util.ArrayList[ActorRef]
-    for(other <- others.values) {
-      routees.add(other)
-    }
-
-    broadcastRouter = Worker.HACKworkerActorSystem.actorOf(Props.empty.withRouter(BroadcastRouter.create(routees = routees)))
   }
 
   def sendPingPongs() {
@@ -98,8 +94,10 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   }
 
   def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double], nExamples: Int) {
-    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)
-    broadcastRouter ! msg
+    val msg = new InternalMessages.PackedVectorUpdateMessage(kryoPool.toBytesWithoutClass(new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)))
+    for(other <- others.values) {
+      other ! msg
+    }
   }
 }
 

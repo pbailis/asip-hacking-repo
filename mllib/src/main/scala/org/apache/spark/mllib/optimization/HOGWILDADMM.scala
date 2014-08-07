@@ -36,7 +36,6 @@ class HWWorkerCommunicationHack {
 class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
   val others = new mutable.HashMap[Int, ActorRef]
-  var broadcastRouter: ActorRef = null
   var selfID: Int = -1
 
   var inputQueue = new LinkedBlockingQueue[HWInternalMessages.DeltaUpdate]()
@@ -84,8 +83,6 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     for(other <- others.values) {
       routees.add(other)
     }
-
-    broadcastRouter = Worker.HACKworkerActorSystem.actorOf(Props.empty.withRouter(BroadcastRouter.create(routees = routees)))
   }
 
   def sendPingPongs() {
@@ -96,7 +93,9 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
   def broadcastDeltaUpdate(delta: BV[Double]) {
     val msg = new HWInternalMessages.DeltaUpdate(selfID, delta)
-    broadcastRouter ! msg
+    for(other <- others.values) {
+      other ! msg
+    }
   }
 }
 
