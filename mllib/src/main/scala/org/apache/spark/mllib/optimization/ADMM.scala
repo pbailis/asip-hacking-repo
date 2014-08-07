@@ -102,6 +102,7 @@ class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serial
     new Interval(x+other.x, math.min(xMin, other.xMin), math.max(xMax, other.xMax))
   }
   def /(d: Double) = new Interval(x / d, xMin, xMax)
+
   override def toString() = s"[$xMin, $x, $xMax]"
 }
 
@@ -146,12 +147,18 @@ case class WorkerStats(
       residual = residual + other.residual,
       nWorkers = nWorkers + other.nWorkers)
   }
-  
+
+  override def toString() = {
+    s"{primalAvg: ${primalAvg()}, dualAvg: ${dualAvg()}, avgMsgsSent: ${avgMsgsSent()}, " +
+    s"avgLocalIters: ${avgLocalIters()}, avgSGDIters: ${avgSGDIters()}, avgResidual: ${avgResidual()}}" 
+  }
+
   def primalAvg() = weightedPrimalVar / dataSize.x
   def dualAvg() = weightedDualVar / dataSize.x
   def avgMsgsSent() = msgsSent / nWorkers.toDouble
   def avgLocalIters() = localIters / nWorkers.toDouble
   def avgSGDIters() = sgdIters / nWorkers.toDouble
+  def avgResidual() = residual / nWorkers.toDouble
 
 }
 
@@ -198,11 +205,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
-    sgd(remainingTimeMS)
+    lbfgs(remainingTimeMS)
   }
 
   def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
-    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](maxIterations, 3)
+    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](maxIterations)
     val f = new DiffFunction[BDV[Double]] {
       override def calculate(x: BDV[Double]) = {
         var obj = 0.0
@@ -213,8 +220,14 @@ class SGDLocalOptimizer(val subProblemId: Int,
           i += 1
         }
         cumGrad /= data.length.toDouble
+        obj /= data.length.toDouble
+
         cumGrad += dualVar
+        obj += dualVar.dot(x - primalConsensus)
+
         axpy(rho, x - primalConsensus, cumGrad)
+        obj += (rho / 2.0) *  math.pow(norm(x - primalConsensus, 2), 2)
+
         (obj, cumGrad)
       }
     }
@@ -223,7 +236,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
-    residual = 0.0
+    residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
     var currentTime = startTime
     var t = 0
@@ -348,7 +361,7 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
 
       println(stats)
 
-      solvers.map(s => (s.primalVar, s.dualVar)).collect().foreach(x => println(s"\t ${x._1} \t ${x._2}"))
+      // solvers.map(s => (s.primalVar, s.dualVar)).collect().foreach(x => println(s"\t ${x._1} \t ${x._2}"))
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
@@ -384,8 +397,11 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
+    println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
+
 
     Vectors.fromBreeze(primalConsensus)
+
   }
 
 }
