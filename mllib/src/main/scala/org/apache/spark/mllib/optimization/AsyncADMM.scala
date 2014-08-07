@@ -31,14 +31,18 @@ object InternalMessages {
   class WakeupMsg
   class PingPong
   class VectorUpdateMessage(val sender: Int,
-                            val primalVar: BV[Double], val dualVar: BV[Double], val nExamples: Int)
+                            val primalVarAr: Array[Double], val dualVarAr: Array[Double], val nExamples: Int) {
+    def primalVar = new BDV[Double](primalVarAr)
+    def dualVar = new BDV[Double](dualVarAr)
+  }
+
   class PackedVectorUpdateMessage(val bytes: Array[Byte])
 
 }
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorRef]
+  val others = new mutable.HashMap[Int, ActorSelection]
   var selfID: Int = -1
 
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
@@ -53,8 +57,10 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       logInfo("activated local!"); sender ! "yo"
     }
     case s: String => println(s)
-    case d: InternalMessages.PackedVectorUpdateMessage => {
-      inputQueue.add(kryoPool.fromBytes(d.bytes, classOf[InternalMessages.VectorUpdateMessage]))
+    case d: InternalMessages.VectorUpdateMessage => {
+      // DESERIALIZE BYTES USING KRYO
+      //inputQueue.add(kryoPool.fromBytes(d.bytes, classOf[InternalMessages.VectorUpdateMessage]))
+      inputQueue.add(d)
     }
     case _ => println("hello, world!")
   }
@@ -71,11 +77,13 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
         //logInfo(s"Connecting to $host, $i")
         val selection = context.actorSelection(allHosts(i))
 
+        others.put(i, selection)
+
         implicit val timeout = Timeout(150000 seconds)
         val f = selection.resolveOne()
         Await.ready(f, Duration.Inf)
-        val ref = f.value.get.get
-        others.put(i, ref)
+        //val ref = f.value.get.get
+        //others.put(i, ref)
 
         logInfo(s"Connected to ${f.value.get.get}")
       } else {
@@ -92,7 +100,9 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   }
 
   def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double], nExamples: Int) {
-    val msg = new InternalMessages.PackedVectorUpdateMessage(kryoPool.toBytesWithoutClass(new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)))
+    // SERIALIZE/PACK BYTES USING KRYO
+    //val msg = new InternalMessages.VectorUpdateMessage(kryoPool.toBytesWithoutClass(new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar, nExamples)))
+    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar.toArray, dualVar.toArray, nExamples)
     for(other <- others.values) {
       other ! msg
     }
