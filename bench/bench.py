@@ -76,7 +76,7 @@ def runTest(runtimeMS,
             cloudPartitionSkew=-1,
             flightsYear = "2008",
             miscStr = ""):
-    if datasetName == "forest":
+    if datasetName == "bismarck":
         datasetConfigStr = describe_forest(HDFS_MASTER)
     elif datasetName == "cloud":
         datasetConfigStr = describe_point_cloud(partitionSkew = cloudPartitionSkew, dimension = cloudDim)
@@ -165,6 +165,50 @@ results = []
 
 
 ## START OF EXPERIMENT RUNS
+
+
+for runtime in RUNTIMES:
+    for algorithm in ALGORITHMS:
+        broadcastDelay = -1
+        if algorithm == "SVMADMM":
+            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
+        elif algorithm == "HOGWILDSVM":
+            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
+            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+        else:
+            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
+            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+
+        results += runTest(runtime,
+                           algorithm,
+                           "bismarck",
+                           broadcastDelay = broadcastDelay)
+
+        output = open(PICKLED_OUTPUT, 'wb')
+        pickle.dump(results, output)
+        output.close()
+
+for runtime in RUNTIMES:
+    for algorithm in ALGORITHMS:
+        broadcastDelay = -1
+        if algorithm == "SVMADMM":
+            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
+        elif algorithm == "HOGWILDSVM":
+            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
+            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+        else:
+            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
+            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+
+        results += runTest(runtime,
+                           algorithm,
+                           "flights",
+                           flightsYear=2008,
+                           broadcastDelay = broadcastDelay)
+
+        output = open(PICKLED_OUTPUT, 'wb')
+        pickle.dump(results, output)
+        output.close()
 
 for runtime in RUNTIMES:
     for dim in [2, 100]:
