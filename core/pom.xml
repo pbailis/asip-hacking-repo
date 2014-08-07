@@ -178,9 +178,14 @@
       <artifactId>metrics-jvm</artifactId>
     </dependency>
       <dependency>
-          <groupId>com.github.romix.akka</groupId>
-          <artifactId>akka-kryo-serialization_2.10</artifactId>
-          <version>0.3.2</version>
+          <groupId>com.esotericsoftware.kryo</groupId>
+          <artifactId>kryo</artifactId>
+          <version>2.24.0</version>
+      </dependency>
+      <dependency>
+          <groupId>net.jpountz.lz4</groupId>
+          <artifactId>lz4</artifactId>
+          <version>1.2.0</version>
       </dependency>
     <dependency>
       <groupId>com.codahale.metrics</groupId>
