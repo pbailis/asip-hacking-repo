@@ -148,7 +148,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
       var iter = 0
       residual = Double.MaxValue
       var currentTime = startTime
-      while(iter < 10 && !done) {
+      while(iter < params.maxWorkerIterations && !done) {
         grad *= 0.0 // Clear the gradient sum
         var b = 0
         while (b < 1) {
@@ -158,7 +158,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
         }
         // Set the learning rate
         val eta_t = params.eta_0 / (t.toDouble + 1.0)
-        grad *= eta_t
+        grad *= (eta_t / params.miniBatchSize)
 
         grad_delta += grad
         primalVar -= grad
