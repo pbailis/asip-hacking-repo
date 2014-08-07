@@ -456,7 +456,7 @@ object SynchronousADMMTests {
         val model = algorithm.run(training).clearThreshold()
         val results =
           Map(
-            "iterations" -> algorithm.optimizer.stats.avgLocalIters().toString,
+            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
             "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
             "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
