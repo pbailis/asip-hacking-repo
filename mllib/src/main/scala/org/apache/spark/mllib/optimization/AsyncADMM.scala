@@ -45,7 +45,7 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
 
-  val kryoPool = KryoPool.withByteArrayOutputStream(16, new ScalaKryoInstantiator())
+  val kryoPool = KryoPool.withByteArrayOutputStream(50, new ScalaKryoInstantiator())
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
