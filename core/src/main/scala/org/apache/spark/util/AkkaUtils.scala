@@ -103,6 +103,8 @@ private[spark] object AkkaUtils extends Logging {
       |akka.remote.log-remote-lifecycle-events = $lifecycleEvents
       |akka.log-dead-letters = $lifecycleEvents
       |akka.log-dead-letters-during-shutdown = $lifecycleEvents
+      |akka.actor.serializers { kryo = "com.twitter.chill.akka.AkkaSerializer" }
+      |akka.actor.serialization-bindings { "org.apache.spark.mllib" = kryo }
       """.stripMargin))
 
     val actorSystem = ActorSystem(name, akkaConf)
