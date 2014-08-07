@@ -331,11 +331,15 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
       Await.result(f, timeout.duration).asInstanceOf[String]
 
       val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
-        eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
-        lagrangianRho = lagrangianRho,
-        miniBatchSize = miniBatchSize, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
-        worker.rho = rho
+        gradient = gradient, consensus = consensus, comm = hack.ref)
+        
+      worker.rho = rho
+      primalVar0 = primal0.copy
+      regParam = regParam,
+      eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
+      lagrangianRho = lagrangianRho,
+      miniBatchSize = miniBatchSize,
+      broadcastDelayMS = broadcastDelayMS
       Iterator(worker)
      }.cache()
 

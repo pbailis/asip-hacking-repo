@@ -219,7 +219,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
-    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](maxIterations)
+    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](params.maxIterations)
     val f = new DiffFunction[BDV[Double]] {
       override def calculate(x: BDV[Double]) = {
         var obj = 0.0
