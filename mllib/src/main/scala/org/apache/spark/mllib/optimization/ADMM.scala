@@ -126,15 +126,18 @@ object WorkerStats {
 }
 
 case class WorkerStats(
-  val weightedPrimalVar: BV[Double],
-  val weightedDualVar: BV[Double],
-  val msgsSent: Interval,
-  val localIters: Interval,
-  val sgdIters: Interval,
-  val dataSize: Interval,
-  val residual: Interval,
-  val nWorkers: Int) extends Serializable {
-  
+  weightedPrimalVar: BV[Double],
+  weightedDualVar: BV[Double],
+  msgsSent: Interval,
+  localIters: Interval,
+  sgdIters: Interval,
+  dataSize: Interval,
+  residual: Interval,
+  nWorkers: Int) extends Serializable {
+
+  def withoutVars() = {
+    WorkerStats(null, null, msgsSent, localIters, sgdIters, dataSize, residual, nWorkers)
+  }
 
   def +(other: WorkerStats) = {
     new WorkerStats(
@@ -163,7 +166,7 @@ case class WorkerStats(
 }
 
 
-class ADMMParams {
+class ADMMParams extends Serializable {
   var eta_0 = 1.0
   var tol = 1.0e-5
   var workerTol = 1.0e-5
@@ -171,6 +174,14 @@ class ADMMParams {
   var maxWorkerIterations = 1000
   var miniBatchSize = 10
   var useLBFGS = false
+  var rho0 = 1.0
+  var lagrangianRho = 1.0
+  var regParam = 0.1
+  var runtimeMS = Int.MaxValue
+  var displayIncrementalStats = false
+  var adaptiveRho = false
+  var broadcastDelayMS = 100
+  var useHogWildAsync = false
 }
 
 
@@ -191,18 +202,20 @@ class SGDLocalOptimizer(val subProblemId: Int,
   @volatile var dualVar = BV.zeros[Double](dim)
   
   @volatile var grad = BV.zeros[Double](dim)
-  
+
 
   @volatile var sgdIters = 0
 
   @volatile var residual: Double = Double.MaxValue
 
-  @volatile var rho = 1.0
+  @volatile var rho = params.rho0
 
   @volatile var localIters = 0
 
   def getStats() = {
-    WorkerStats(primalVar, dualVar, msgsSent = 0, sgdIters = sgdIters, dataSize = data.length, residual = residual)  
+    WorkerStats(primalVar, dualVar, msgsSent = 0,
+      sgdIters = sgdIters, dataSize = data.length,
+      residual = residual)
   }
 
   def dualUpdate(rate: Double) {
@@ -219,7 +232,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
-    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](params.maxIterations)
+    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](params.maxIterations,
+      tolerance = params.workerTol)
     val f = new DiffFunction[BDV[Double]] {
       override def calculate(x: BDV[Double]) = {
         var obj = 0.0
@@ -250,22 +264,23 @@ class SGDLocalOptimizer(val subProblemId: Int,
     val startTime = System.currentTimeMillis()
     var currentTime = startTime
     var t = 0
-    while(t < maxIterations && residual > epsilon && (currentTime - startTime) < remainingTimeMS) {
+    while(t < params.maxWorkerIterations && residual > params.workerTol &&
+      (currentTime - startTime) < remainingTimeMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
-      while (b < miniBatchSize) {
-        val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+      while (b < params.miniBatchSize) {
+        val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
         gradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
       // Normalize the gradient to the batch size
-      grad /= miniBatchSize.toDouble
+      grad /= params.miniBatchSize.toDouble
       // Add the lagrangian
       grad += dualVar
       // Add the augmenting term
       axpy(rho, primalVar - primalConsensus, grad)
       // Set the learning rate
-      val eta_t = eta_0 / (t.toDouble + 1.0)
+      val eta_t = params.eta_0 / (t.toDouble + 1.0)
       // Do the gradient update
       axpy(-eta_t, grad, primalVar)
       // Compute residual.
@@ -283,38 +298,22 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
 
-class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class ADMM(val params: ADMMParams, var gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
 
-  var numIterations: Int = 100
-  var regParam: Double = 1.0
-  var epsilon: Double = 1.0e-5
-  var eta_0: Double = 1.0
-  var localEpsilon: Double = 0.001
-  var localMaxIterations: Int = Integer.MAX_VALUE
-  var miniBatchSize: Int = 10  // math.max(1, math.min(nExamples, (miniBatchFraction * nExamples).toInt))
-  var displayLocalStats: Boolean = true
-  var runtimeMS: Int =  Integer.MAX_VALUE
-  var rho: Double = 1.0
 
   var iteration = 0
-
   var solvers: RDD[SGDLocalOptimizer] = null
-
   var stats: WorkerStats = null
+  var totalTimeMs: Long = -1
 
   def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
     val primal0 = initialWeights.toBreeze
     solvers =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
-        val data: Array[(Double, BV[Double])] = iter.map { 
+        val data: Array[(Double, BV[Double])] = iter.map {
           case (label, features) => (label, features.toBreeze)
         }.toArray
-        val solver = new SGDLocalOptimizer(ind, data, gradient)
-        solver.eta_0 = eta_0
-        solver.epsilon = localEpsilon
-        solver.maxIterations = localMaxIterations
-        solver.miniBatchSize = miniBatchSize
-
+        val solver = new SGDLocalOptimizer(ind, data, gradient, params)
         // Initialize the primal variable and primal consensus
         solver.primalVar = primal0.copy
         solver.primalConsensus = primal0.copy
@@ -325,23 +324,16 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     rawData.unpersist(true)
     solvers.foreach( f => System.gc() )
   }
-
-  var totalTimeMs: Long = -1
   /**
    * Solve the provided convex optimization problem.
    */
   override def optimize(rawData: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-
     setup(rawData, initialWeights)
 
+    println(params)
 
     val nDim = initialWeights.size
     val nSolvers = solvers.partitions.length
-
-
-    //    println(s"nExamples: $nExamples")
-    println(s"dim: $nDim")
-    println(s"number of solver $nSolvers")
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
@@ -349,19 +341,20 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
     var primalConsensus = initialWeights.toBreeze.copy
 
     val starttime = System.currentTimeMillis()
-
     val startTimeNs = System.nanoTime()
 
+    var rho = params.rho0
+
     iteration = 0
-    println(s"ADMM numIterations: $numIterations")
-    while (iteration < numIterations && (primalResidual > epsilon || dualResidual > epsilon) &&
-      (System.currentTimeMillis() - starttime) < runtimeMS ) {
+    while (iteration < params.maxIterations &&
+      (primalResidual > params.tol || dualResidual > params.tol) &&
+      (System.currentTimeMillis() - starttime) < params.runtimeMS ) {
       println("========================================================")
       println(s"Starting iteration $iteration.")
-      val timeRemaining = runtimeMS - (System.currentTimeMillis() - starttime)
-     
+
+      val timeRemaining = params.runtimeMS - (System.currentTimeMillis() - starttime)
       // Run the local solvers
-      stats = solvers.map{ solver =>
+      stats = solvers.map { solver =>
         // Make sure that the local solver did not reset!
         assert(solver.localIters == iteration)
         solver.localIters += 1
@@ -369,55 +362,55 @@ class ADMM(var gradient: FastGradient, var consensus: ConsensusFunction) extends
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
         solver.rho = rho
-        solver.dualUpdate(rho)
+        if(params.adaptiveRho) {
+          solver.dualUpdate(rho)
+        } else {
+          solver.dualUpdate(solver.params.lagrangianRho)
+        }
 
         // Do a primal update
         solver.primalUpdate(timeRemaining)
 
         // Construct stats
         solver.getStats()
-        }.reduce( _ + _ )
-
-      println(stats)
+      }.reduce( _ + _ )
 
       // solvers.map(s => (s.primalVar, s.dualVar)).collect().foreach(x => println(s"\t ${x._1} \t ${x._2}"))
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
-      primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho, regParam)
+      primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho,
+        params.regParam)
 
-      // println(s"PrimalAvg: ${stats.primalAvg}")
-      // println(s"DualAvg: ${stats.dualAvg}")
-      // println(s"Consenus: $primalConsensus")
-
-      // // // Compute the residuals
+      // Compute the residuals
       primalResidual = solvers.map( s => norm(s.primalVar - primalConsensus, 2) * s.data.length)
         .reduce(_+_) / stats.dataSize.x
       dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
-     // Rho upate from Boyd text
-//     if (rho == 0.0) {
-//       rho = 1.0
-//     } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-//       rho = 2.0 * rho
-//       println(s"Increasing rho: $rho")
-//     } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
-//       rho = rho / 2.0
-//       println(s"Decreasing rho: $rho")
-//     }
+      if (params.adaptiveRho) {
+        if (rho == 0.0) {
+          rho = 1.0
+        } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+          rho = 2.0 * rho
+          println(s"Increasing rho: $rho")
+        } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
+          rho = rho / 2.0
+          println(s"Decreasing rho: $rho")
+        }
+      }
 
-      println(s"Iteration: $iteration")
-      println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
-
+      if (params.displayIncrementalStats) {
+        println(stats.withoutVars())
+        println(s"Iteration: $iteration")
+        println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
+      }
       iteration += 1
     }
-    primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho, regParam)
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
-
 
     Vectors.fromBreeze(primalConsensus)
 

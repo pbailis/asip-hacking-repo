@@ -96,26 +96,21 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 class AsyncADMMWorker(subProblemId: Int,
                       data: Array[(Double, BV[Double])],
                       gradient: FastGradient,
-                      val consensus: ConsensusFunction,                     
-                      val comm: WorkerCommunication)
-    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient) with Logging {
+                      params: ADMMParams,
+                      val consensus: ConsensusFunction,
+                      val comm: WorkerCommunication,
+                      val nSubProblems: Int)
+    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient, params)
+    with Logging {
 
-  var nSubProblems: Int = -1
-  var regParam: Double = 0.0
-  var lagrangianRho: Double = rho
-  val broadcastDelayMS: Int = 100
-
-@volatile var done = false
-
-  @volatile var runtimeMS = -1L
+  @volatile var done = false
   @volatile var startTime = 0L
   @volatile var msgsSent = 0
-
-
+  @volatile var ranOnce = false
 
   override def getStats() = {
-    WorkerStats(primalVar = primalVar, dualVar = dualVar, 
-      msgsSent = msgsSent, localIters = localIters, sgdIters = sgdIters, 
+    WorkerStats(primalVar = primalVar, dualVar = dualVar,
+      msgsSent = msgsSent, localIters = localIters, sgdIters = sgdIters,
       dataSize = data.length)
   }
 
@@ -124,10 +119,10 @@ class AsyncADMMWorker(subProblemId: Int,
       while (!done) {
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
         msgsSent += 1
-        Thread.sleep(broadcastDelayMS)
+        Thread.sleep(params.broadcastDelayMS)
         // Check to see if we are done
         val elapsedTime = System.currentTimeMillis() - startTime
-        done = elapsedTime > runtimeMS
+        done = elapsedTime > params.runtimeMS
       }
     }
   }
@@ -137,12 +132,12 @@ class AsyncADMMWorker(subProblemId: Int,
     override def run {
       while (!done) {
         val primalOld = primalVar.copy
-        val timeRemainingMS = runtimeMS - (System.currentTimeMillis() - startTime)
+        val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
         // Run the primal update
         primalUpdate(timeRemainingMS)
         // Do a Dual update if the primal seems to be converging
         if (norm(primalOld - primalVar, 2) < 0.01) {
-          dualUpdate(lagrangianRho)
+          dualUpdate(params.lagrangianRho)
         }
         localIters += 1
       }
@@ -151,7 +146,6 @@ class AsyncADMMWorker(subProblemId: Int,
       comm.inputQueue.add(poisonMessage)
     }
   }
-
 
   val consumerThread = new Thread {
     override def run {
@@ -181,54 +175,54 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // Recompute the consensus variable
         val primalConsensusOld = primalConsensus.copy
-        primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
+        primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, params.regParam)
 
         // If the consensus changed then update the dual once (why not?)
         if (norm(primalConsensus - primalConsensusOld, 2) > 0.01) {
-          dualUpdate(lagrangianRho)
+          dualUpdate(params.lagrangianRho)
         }
       }
     }
   }
 
-  var ranOnce = false
-
-  def mainLoop(runTimeMSArg: Int = 1000) = {
+  def mainLoop() = {
     assert(!done)
     assert(!ranOnce)
     ranOnce = true
-
-    // Setup the control state
-    done = false
     startTime = System.currentTimeMillis()
-    runtimeMS = runTimeMSArg
+    rho = params.rho0
     broadcastThread.start()
-
-    mainLoopSync(runTimeMSArg)
+    val primalOptimum = if (params.useHogWildAsync) {
+      mainLoopAsync()
+    } else {
+      mainLoopSync()
+    }
+    broadcastThread.join()
+    primalOptimum
   }
 
 
-  def mainLoopAsync(runTimeMS: Int = 1000) = {
-
+  def mainLoopAsync() = {
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
     consumerThread.start()
-
+    solverLoopThread.join()
+    consumerThread.join()
     // Return the primal consensus value
     primalConsensus
   }
 
 
-  def mainLoopSync(runTimeMS: Int = 1000) = {
+  def mainLoopSync() = {
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
     // Loop until done
     while (!done) {
-//      // Reset the primal var
-//      primalVar = primalConsensus.copy
+      // Reset the primal var
+      // primalVar = primalConsensus.copy
 
       // Run the primal update
-      val timeRemainingMS = runtimeMS - (System.currentTimeMillis() - startTime)
+      val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(timeRemainingMS)
 
 
@@ -251,39 +245,35 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
-      primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, regParam)
+      primalConsensus = consensus(primalAvg, dualAvg, nSubProblems, rho, params.regParam)
 
-      // Compute the residuals
-      //val primalResidual = allVars.values.iterator.map {
-      //  case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
-      //}.sum / nTotalExamples.toDouble
-      //val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
-      // // Rho update from Boyd text
-      // if (rho == 0.0) {
-      //   rho = 1.0
-      // } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-      //   rho = 2.0 * rho
-      //   println(s"Increasing rho: $rho")
-      // } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
-      //   rho = rho / 2.0
-      //   println(s"Decreasing rho: $rho")
-      // }
-
-//      // Only do dual updates the primal converges
-//      if (norm(primalConsensusOld - primalConsensusOld, 2.0) < 0.001) {
-//        dualUpdate(lagrangianRho)
-//      }
-
-      dualUpdate(lagrangianRho)
+      if (params.adaptiveRho) {
+        // Compute the residuals
+        val primalResidual = allVars.values.iterator.map {
+          case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
+        }.sum / nTotalExamples.toDouble
+        val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
+        // Rho update from Boyd text
+        if (rho == 0.0) {
+           rho = 1.0
+        } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+           rho = 2.0 * rho
+           println(s"Increasing rho: $rho")
+        } else if (dualResidual > 10.0 * primalResidual && rho > 0.01) {
+           rho = rho / 2.0
+           println(s"Decreasing rho: $rho")
+        }
+        dualUpdate(rho)
+      } else {
+        dualUpdate(params.lagrangianRho)
+      }
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
-      done = elapsedTime > runTimeMS
+      done = elapsedTime > params.runtimeMS
       localIters += 1
     }
-    // Run the primal update
-    ///primalUpdate(primalConsensus, rho)
 
     // Return the primal consensus value
     primalConsensus
@@ -296,20 +286,11 @@ object SetupBlock {
 }
 
 
-class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class AsyncADMM(val params: ADMMParams, val gradient: FastGradient, var consensus: ConsensusFunction)
+  extends Optimizer with Serializable with Logging {
 
-  var runtimeMS: Int = 5000
-  var paramBroadcastPeriodMs = 100
-  var regParam: Double = 1.0
-  var epsilon: Double = 1.0e-5
-  var eta_0: Double = 1.0
-  var localEpsilon: Double = 0.001
-  var localMaxIterations: Int = Integer.MAX_VALUE
-  var miniBatchSize: Int = 10
-  var displayLocalStats: Boolean = true
-  var broadcastDelayMS: Int = 100
-  var rho: Double = 1.0
-  var lagrangianRho: Double = 1.0
+  var totalTimeMs: Long = -1
+
   var stats: WorkerStats = null
 
   @transient var workers : RDD[AsyncADMMWorker] = null
@@ -319,7 +300,7 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
 
     workers = input.mapPartitionsWithIndex { (ind, iter) =>
       val data: Array[(Double, BV[Double])] =
-        iter.map { case (label, features) => (label, features.toBreeze)}.toArray
+        iter.map { case (label, features) => (label, features.toBreeze) }.toArray
       val workerName = UUID.randomUUID().toString
       val address = Worker.HACKakkaHost+workerName
       val hack = new WorkerCommunicationHack()
@@ -331,15 +312,9 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
       Await.result(f, timeout.duration).asInstanceOf[String]
 
       val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        gradient = gradient, consensus = consensus, comm = hack.ref)
-        
-      worker.rho = rho
-      primalVar0 = primal0.copy
-      regParam = regParam,
-      eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
-      lagrangianRho = lagrangianRho,
-      miniBatchSize = miniBatchSize,
-      broadcastDelayMS = broadcastDelayMS
+        gradient = gradient, params = params, consensus = consensus, comm = hack.ref)
+      worker.primalVar = primal0.copy
+      worker.dualVar = primal0.copy
       Iterator(worker)
      }.cache()
 
@@ -364,8 +339,6 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
     workers.foreach( f => System.gc() )
   }
 
-  var totalTimeMs: Long = -1
-
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
     // Initialize the cluster
     setup(input, primal0.toBreeze)
@@ -374,11 +347,11 @@ class AsyncADMMwithSGD(val gradient: FastGradient, var consensus: ConsensusFunct
 
     // Run all the workers
     stats = workers.map{
-      w => w.mainLoop(runtimeMS)
+      w => w.mainLoop()
       w.getStats()
     }.reduce( _ + _ )
-    val rhoFinal = rho
-    val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rhoFinal, regParam)
+    val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, params.rho0,
+      params.regParam)
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)

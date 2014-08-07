@@ -1,23 +1,17 @@
 package org.apache.spark.examples.mllib.research
 
-import java.util.concurrent.TimeUnit
 import org.apache.log4j.{Level, Logger}
-
-
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
-import org.apache.spark.mllib.optimization.{L1ConsensusFunction, L2ConsensusFunction, L1Updater, SquaredL2Updater}
+import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-
+import scopt.OptionParser
 
 import scala.util.Random
-import scopt.OptionParser
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 
 
 object DataLoaders {
@@ -176,28 +170,17 @@ object SynchronousADMMTests {
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Algorithm._
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.RegType._
 
-  case class Params(
-                     input: String = null,
-                     iterations: Int = 10000000,
-                     runtimeMS: Int = 10000,
-                     stepSize: Double = 1.0,
-                     algorithm: Algorithm = SVM,
-                     regType: RegType = L2,
-                     regParam: Double = 0.1,
-                     ADMMepsilon: Double = 1.0e-8,
-                     ADMMLocalepsilon: Double = 1.0e-3,
-                     ADMMmaxLocalIterations: Int = Int.MaxValue,
-                     localStats: Boolean = false,
-                     format: String = "libsvm",
-                     numPartitions: Int = 128,
+  case class Params(input: String = null,
+                    format: String = "libsvm",
+                    numPartitions: Int = -1,
+                    algorithm: Algorithm = SVM,
+                    algParams: ADMMParams = new ADMMParams,
+                    regType: RegType = L2,
                      pointCloudDimension: Int = 10,
                      pointCloudLabelNoise: Double = .2,
                      pointCloudPartitionSkew: Double = 0,
                      pointCloudPointsPerPartition: Int = 10000,
-                     pointCloudSize: Double = 1.0,
-                     rho: Double = 1.0,
-                     lagrangianRho: Double = 1.0,
-                     broadcastDelayMs: Int = 100)
+                     pointCloudSize: Double = 1.0) extends ADMMParams
 
   def main(args: Array[String]) {
     val defaultParams = Params()
@@ -210,13 +193,13 @@ object SynchronousADMMTests {
       // run a one-off test
       opt[Int]("runtimeMS")
         .text("runtime in miliseconds")
-        .action((x, c) => c.copy(runtimeMS = x))
+        .action { (x, c) => c.runtimeMS = x; c }
       opt[Int]("iterations")
-        .text("num iterations")
-        .action((x, c) => c.copy(iterations = x))
+        .text(s"num iterations: default ${defaultParams.maxIterations}")
+        .action { (x, c) => c.maxIterations = x; c }
       opt[Double]("stepSize")
-        .text(s"initial step size, default: ${defaultParams.stepSize}")
-        .action((x, c) => c.copy(stepSize = x))
+        .text(s"initial step size, default: ${defaultParams.eta_0}")
+        .action { (x, c) => c.eta_0 = x; c}
 
 
       // point cloud parameters
@@ -239,9 +222,10 @@ object SynchronousADMMTests {
         .text(s"regularization type (${RegType.values.mkString(",")}), " +
         s"default: ${defaultParams.regType}")
         .action((x, c) => c.copy(regType = RegType.withName(x)))
+
       opt[Double]("regParam")
         .text(s"regularization parameter, default: ${defaultParams.regParam}")
-        .action((x, c) => c.copy(regParam = x))
+        .action { (x, c) => c.regParam = x; c }
       opt[Int]("numPartitions")
         .action((x, c) => c.copy(numPartitions = x))
       opt[String]("input")
@@ -249,27 +233,26 @@ object SynchronousADMMTests {
         .action((x, c) => c.copy(input = x))
 
       opt[Double]("ADMMrho")
-        .action((x, c) => c.copy(rho = x))
+        .action { (x, c) => c.rho0 = x; c }
 
       opt[Double]("ADMMLagrangianrho")
-        .action((x, c) => c.copy(lagrangianRho = x))
+        .action { (x, c) => c.lagrangianRho = x; c }
       opt[String]("format")
         .text("File format")
         .action((x, c) => c.copy(format = x))
 
       // ADMM-specific stuff
       opt[Double]("ADMMepsilon")
-        .action((x, c) => c.copy(ADMMepsilon = x))
+        .action { (x, c) => c.tol = x; c }
       opt[Double]("ADMMLocalepsilon")
-        .action((x, c) => c.copy(ADMMLocalepsilon = x))
+        .action { (x, c) => c.workerTol = x; c }
       opt[Int]("broadcastDelayMs")
-        .action((x, c) => c.copy(broadcastDelayMs = x))
+        .action { (x, c) => c.broadcastDelayMS = x; c }
 
       opt[Int]("ADMMmaxLocalIterations")
-        .action((x, c) => c.copy(ADMMmaxLocalIterations = x))
+        .action{ (x, c) => c.maxWorkerIterations =x; c }
       opt[Boolean]("localStats")
-        .action((x, c) => c.copy(localStats = x))
-
+        .action{ (x, c) => c.displayIncrementalStats = x; c }
       note(
         """
           |For example, the following command runs this app on a synthetic dataset:
@@ -292,6 +275,8 @@ object SynchronousADMMTests {
   }
 
   def run(params: Params) {
+    println(params)
+
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
 
@@ -336,7 +321,7 @@ object SynchronousADMMTests {
 
     val (model, stats) = runTest(training, params)
 
-    var trainingError = training.map{ point =>
+    val trainingError = training.map{ point =>
       val p = model.predict(point.features)
       val y = 2.0 * point.label - 1.0
       if (y * p <= 0.0) 1.0 else 0.0
@@ -352,10 +337,17 @@ object SynchronousADMMTests {
     println(s"Total time ${stats("runtime")}ms")
 
     val summary =
-      s"RESULT: ${params.algorithm}\t${stats("iterations")}\t${params.runtimeMS}\t${stats("runtime")}\t${trainingError}" +
-      s"\t${trainingLoss}\t ${regularizationPenalty}\t${trainingLoss + regularizationPenalty}" +
-      s"\t${stats.toString}" +
-      s"\t${model.weights.toArray.mkString(",")}"
+      s"RESULT: ${params.algorithm}\t" +
+      s"${stats("iterations")}\t" +
+      s"${params.runtimeMS}\t" +
+      s"${stats("runtime")}\t" +
+      s"$trainingError\t" +
+      s"$trainingLoss\t" +
+      s"$regularizationPenalty\t" +
+      s"${trainingLoss + regularizationPenalty}\t" +
+      s"${stats.toString}\t" +
+      s"${model.weights.toArray.mkString(",")}\t" +
+      s"${params.toString}\t"
 
     println(summary)
 
@@ -383,7 +375,7 @@ object SynchronousADMMTests {
         algorithm.optimizer
           .setNumIterations(100000)
           .setRuntime(params.runtimeMS)
-          .setStepSize(params.stepSize)
+          .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
         val model = algorithm.run(training).clearThreshold()
@@ -398,7 +390,7 @@ object SynchronousADMMTests {
         algorithm.optimizer
           .setNumIterations(100000)
           .setRuntime(params.runtimeMS)
-          .setStepSize(params.stepSize)
+          .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
         val startTime = System.nanoTime()
@@ -410,17 +402,8 @@ object SynchronousADMMTests {
           )
         (model, results)
       case SVMADMM =>
-        val algorithm = new SVMWithADMM()
-        algorithm.consensus = consensusFun
-        algorithm.maxGlobalIterations = params.iterations
-        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.regParam = params.regParam
-        algorithm.epsilon = params.ADMMepsilon
-        algorithm.localEpsilon = params.ADMMLocalepsilon
-        algorithm.collectLocalStats = params.localStats
-        algorithm.runtimeMS = params.runtimeMS
-        algorithm.rho = params.rho
-        algorithm.setup()
+        val algorithm = new SVMWithADMM(params)
+        algorithm.optimizer.consensus = consensusFun
         val startTime = System.nanoTime()
         val model = algorithm.run(training).clearThreshold()
         val results =
@@ -431,17 +414,8 @@ object SynchronousADMMTests {
           )
         (model, results )
       case SVMADMMAsync =>
-        val algorithm = new SVMWithAsyncADMM()
-        algorithm.consensus = consensusFun
-        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.regParam = params.regParam
-        algorithm.epsilon = params.ADMMepsilon
-        algorithm.broadcastDelayMS = params.broadcastDelayMs
-        algorithm.runtimeMS = params.runtimeMS
-        algorithm.localEpsilon = params.ADMMLocalepsilon
-        algorithm.rho = params.rho
-        algorithm.lagrangianRho = params.lagrangianRho
-        algorithm.setup()
+        val algorithm = new SVMWithAsyncADMM(params)
+        algorithm.optimizer.consensus = consensusFun
         val model = algorithm.run(training).clearThreshold()
         val results =
           Map(
@@ -453,16 +427,8 @@ object SynchronousADMMTests {
         println(results)
         (model, results)
       case HOGWILDSVM =>
-        val algorithm = new SVMWithHOGWILD()
-        algorithm.consensus = consensusFun
-        algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-        algorithm.regParam = params.regParam
-        algorithm.epsilon = params.ADMMepsilon
-        algorithm.localEpsilon = params.ADMMLocalepsilon
-        algorithm.broadcastDelayMS = params.broadcastDelayMs
-        algorithm.runtimeMS = params.runtimeMS
-        algorithm.rho = params.rho
-        algorithm.setup()
+        val algorithm = new SVMWithHOGWILD(params)
+        algorithm.optimizer.consensus = consensusFun
         val model = algorithm.run(training).clearThreshold()
         val results =
           Map(
