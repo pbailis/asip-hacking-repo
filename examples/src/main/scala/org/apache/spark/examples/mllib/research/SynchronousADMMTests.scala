@@ -193,7 +193,7 @@ object SynchronousADMMTests {
       "pointCloudNoise: " + pointCloudLabelNoise + ", " +
       "pointCloudSkew: " + pointCloudPartitionSkew + ", " +
       "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
-      "poitCloudSize: " + pointCloudSize + "}"
+      "pointCloudSize: " + pointCloudSize + "}"
     }
   }
 

@@ -108,7 +108,8 @@ class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serial
 
 object WorkerStats {
   def apply(primalVar: BV[Double], dualVar: BV[Double],
-    msgsSent: Int = 0, 
+    msgsSent: Int = 0,
+    msgsRcvd: Int = 0,
     localIters: Int = 0,
     sgdIters: Int = 0,
     residual: Double = 0.0,
@@ -116,7 +117,8 @@ object WorkerStats {
     new WorkerStats(
       weightedPrimalVar = primalVar * dataSize.toDouble, 
       weightedDualVar = dualVar * dataSize.toDouble,
-      msgsSent = Interval(msgsSent), 
+      msgsSent = Interval(msgsSent),
+      msgsRcvd = Interval(msgsRcvd),
       localIters = Interval(localIters), 
       sgdIters = Interval(sgdIters),
       residual = Interval(residual),
@@ -129,6 +131,7 @@ case class WorkerStats(
   weightedPrimalVar: BV[Double],
   weightedDualVar: BV[Double],
   msgsSent: Interval,
+  msgsRcvd: Interval,
   localIters: Interval,
   sgdIters: Interval,
   dataSize: Interval,
@@ -136,7 +139,8 @@ case class WorkerStats(
   nWorkers: Int) extends Serializable {
 
   def withoutVars() = {
-    WorkerStats(null, null, msgsSent, localIters, sgdIters, dataSize, residual, nWorkers)
+    WorkerStats(null, null, msgsSent, msgsRcvd,
+      localIters, sgdIters, dataSize, residual, nWorkers)
   }
 
   def +(other: WorkerStats) = {
@@ -144,6 +148,7 @@ case class WorkerStats(
       weightedPrimalVar = weightedPrimalVar + other.weightedPrimalVar,
       weightedDualVar = weightedDualVar + other.weightedDualVar,
       msgsSent = msgsSent + other.msgsSent,
+      msgsRcvd = msgsRcvd + other.msgsRcvd,
       localIters = localIters + other.localIters, 
       sgdIters = sgdIters + other.sgdIters,
       dataSize = dataSize + other.dataSize,
@@ -152,16 +157,20 @@ case class WorkerStats(
   }
 
   override def toString() = {
-    s"{primalAvg: ${primalAvg()}, dualAvg: ${dualAvg()}, avgMsgsSent: ${avgMsgsSent()}, " +
-    s"avgLocalIters: ${avgLocalIters()}, avgSGDIters: ${avgSGDIters()}, avgResidual: ${avgResidual()}}" 
+    s"{primalAvg: ${primalAvg()}, dualAvg: ${dualAvg()}, " +
+    s"avgMsgsSent: ${avgMsgsSent()}, avgMsgsRcvd: ${avgMsgsRcvd()} " +
+    s"avgLocalIters: ${avgLocalIters()}, avgSGDIters: ${avgSGDIters()}, " +
+    s"avgResidual: ${avgResidual()}}"
   }
 
   def primalAvg() = weightedPrimalVar / dataSize.x
   def dualAvg() = weightedDualVar / dataSize.x
   def avgMsgsSent() = msgsSent / nWorkers.toDouble
+  def avgMsgsRcvd() = msgsRcvd / nWorkers.toDouble
   def avgLocalIters() = localIters / nWorkers.toDouble
   def avgSGDIters() = sgdIters / nWorkers.toDouble
   def avgResidual() = residual / nWorkers.toDouble
+
 
 }
 

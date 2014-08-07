@@ -7,6 +7,7 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import com.twitter.chill.{KryoPool, ScalaKryoInstantiator}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -17,9 +18,6 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import java.util
-import akka.routing.BroadcastRouter
-import com.twitter.chill.{ScalaKryoInstantiator, KryoPool}
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -115,11 +113,13 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var done = false
   @volatile var startTime = 0L
   @volatile var msgsSent = 0
+  @volatile var msgsRcvd = 0
   @volatile var ranOnce = false
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar,
-      msgsSent = msgsSent, localIters = localIters, sgdIters = sgdIters,
+      msgsSent = msgsSent, msgsRcvd = msgsRcvd,
+      localIters = localIters, sgdIters = sgdIters,
       dataSize = data.length)
   }
 
@@ -168,6 +168,7 @@ class AsyncADMMWorker(subProblemId: Int,
           if (tiq.nExamples == -1) {
             done = true
           } else {
+            msgsRcvd += 1
             allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
             tiq = comm.inputQueue.poll()
           }
@@ -242,6 +243,7 @@ class AsyncADMMWorker(subProblemId: Int,
       while (tiq != null) {
         allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
         tiq = comm.inputQueue.poll()
+        msgsRcvd += 1
       }
 
       // Compute primal and dual averages
