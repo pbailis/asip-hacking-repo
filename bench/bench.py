@@ -5,7 +5,7 @@ import pickle
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
 ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM"]
 
@@ -26,7 +26,7 @@ GLOBAL_ADMMlagrangianRho = 0.5
 GLOBAL_SVMADMM_maxLocalIterations = 1000000000
 
 GLOBAL_HOGWILDSVM_maxLocalIterations = 100
-GLOBAL_HOGWILDSVM_broadcastDelay = 5
+GLOBAL_HOGWILDSVM_broadcastDelay = 1
 
 GLOBAL_SVMADMMAsync_maxLocalIterations = 1000
 GLOBAL_SVMADMMAsync_broadcastDelay = 100
@@ -152,8 +152,8 @@ def runTest(runtimeMS,
                 "regParam": regParam,
                 "numPartitions": numPartitions,
                 "regType": regType,
-                "pointCloudDim": dim,
-                "pointCloudSkew": skew
+                "pointCloudDim": cloudDim,
+                "pointCloudSkew": cloudPartitionSkew
             }
             results.append(record)
 
