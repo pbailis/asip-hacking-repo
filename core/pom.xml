@@ -127,6 +127,11 @@
       <artifactId>chill-java</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>chill-akka_${scala.binary.version}</artifactId>
+      <version>0.4.0</version>
+    </dependency>
+    <dependency>
       <groupId>commons-net</groupId>
       <artifactId>commons-net</artifactId>
     </dependency>
