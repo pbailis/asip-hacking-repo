@@ -141,7 +141,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
       var tiq = comm.inputQueue.poll()
       val receivedMsgs = tiq != null
       while (tiq != null) {
-        primalVar += tiq.delta
+        primalVar -= tiq.delta
         tiq = comm.inputQueue.poll()
       }
 
@@ -161,7 +161,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
         grad *= eta_t
 
         grad_delta += grad
-        primalVar += grad
+        primalVar -= grad
 
         // Compute residual.
         //residual = eta_t * norm(grad, 2.0)
