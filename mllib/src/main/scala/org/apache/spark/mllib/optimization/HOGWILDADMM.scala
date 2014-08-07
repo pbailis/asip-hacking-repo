@@ -107,33 +107,19 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
 
 class HOGWILDSGDWorker(subProblemId: Int,
-                      val nSubProblems: Int,
-                      data: Array[(Double, BV[Double])],
-                      primalVar0: BV[Double],
-                      gradient: FastGradient,
-                      val consensus: ConsensusFunction,
-                      val regParam: Double,
-                      eta_0: Double,
-                      epsilon: Double,
-                      maxIterations: Int,
-                      miniBatchSize: Int,
-                      rho: Double,
-                      val comm: HWWorkerCommunication,
-                      val broadcastDelayMS: Int)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, primalVar = primalVar0.copy,
-    gradient = gradient, eta_0 = eta_0, epsilon = epsilon, maxIterations = maxIterations,
-    miniBatchSize = miniBatchSize)
+                       data: Array[(Double, BV[Double])],
+                       gradient: FastGradient,
+                       params: ADMMParams,
+                       val consensus: ConsensusFunction,
+                       val comm: HWWorkerCommunication,
+                       val nSubProblems: Int)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient, params)
   with Logging {
 
-
   @volatile var done = false
+  @volatile var msgsSent = 0
 
-  primalConsensus = primalVar0.copy
-  var grad_delta: BV[Double] = BV.zeros(primalVar0.size)
-
-
-  var msgsSent = 0
-  var localIters = 0
+  var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar, 
@@ -145,17 +131,17 @@ class HOGWILDSGDWorker(subProblemId: Int,
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
-        comm.broadcastDeltaUpdate(grad_delta)
+        comm.broadcastDeltaUpdate(grad_delta.copy)
         msgsSent += 1
-        grad_delta = BV.zeros(primalVar0.size)
-        Thread.sleep(broadcastDelayMS)
+        grad_delta *= 0.0
+        Thread.sleep(params.broadcastDelayMS)
       }
     }
   }
 
 
 
-  def mainLoop(runTimeMS: Int = 1000) = {
+  def mainLoop() = {
     done = false
     // Launch a thread to send the messages in the background
     broadcastThread.start()
@@ -181,12 +167,12 @@ class HOGWILDSGDWorker(subProblemId: Int,
         grad *= 0.0 // Clear the gradient sum
         var b = 0
         while (b < 1) {
-          val ind = if (miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+          val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
           gradient(primalVar, data(ind)._2, data(ind)._1, grad)
           b += 1
         }
         // Set the learning rate
-        val eta_t = eta_0 / (t.toDouble + 1.0)
+        val eta_t = params.eta_0 / (t.toDouble + 1.0)
         grad *= eta_t
 
         grad_delta += grad
@@ -204,29 +190,19 @@ class HOGWILDSGDWorker(subProblemId: Int,
       }
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
-      done = elapsedTime > runTimeMS
+      done = elapsedTime > params.runtimeMS
     }
     localIters = t
     primalVar
+    broadcastThread.join()
   }
 
 }
 
 
-class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
-
-  var runtimeMS: Int = 5000
-  var paramBroadcastPeriodMs = 100
-  var regParam: Double = 1.0
-  var epsilon: Double = 1.0e-5
-  var eta_0: Double = 1.0
-  var localEpsilon: Double = 0.001
-  var localMaxIterations: Int = Integer.MAX_VALUE
-  var miniBatchSize: Int = 10
-  var displayLocalStats: Boolean = true
-  var broadcastDelayMS: Int = 100
+class HOGWILDSGD(params: ADMMParams, val gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
   var stats: WorkerStats = null
-  var rho: Double = 1.0
+  var totalTimeMs: Long = -1
 
   @transient var workers : RDD[HOGWILDSGDWorker] = null
 
@@ -247,9 +223,7 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
       Await.result(f, timeout.duration).asInstanceOf[String]
 
       val worker = new HOGWILDSGDWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        primalVar0 = primal0.copy, gradient = gradient, consensus = consensus, regParam = regParam,
-        eta_0 = eta_0, epsilon = localEpsilon, maxIterations = localMaxIterations,
-        miniBatchSize = miniBatchSize, rho = rho, comm = hack.ref, broadcastDelayMS = broadcastDelayMS)
+        gradient = gradient, params = params, consensus = consensus, comm = hack.ref)
 
       Iterator(worker)
     }.cache()
@@ -272,8 +246,6 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
     workers.foreach { w => w.comm.sendPingPongs() }
   }
 
-  var totalTimeMs: Long = -1
-
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
     // Initialize the cluster
     setup(input, primal0.toBreeze)
@@ -282,7 +254,7 @@ class HOGWILDSGD(val gradient: FastGradient, var consensus: ConsensusFunction) e
     val startTimeNs = System.nanoTime()
 
     // Run all the workers
-    workers.foreach( w => w.mainLoop(runtimeMS) )
+    workers.foreach( w => w.mainLoop() )
     // compute the final consensus value synchronously
     val nExamples = workers.map(w=>w.data.length).reduce(_+_)
     // Collect the primal and dual averages

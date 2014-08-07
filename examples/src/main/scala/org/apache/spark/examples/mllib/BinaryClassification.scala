@@ -24,7 +24,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.classification.{SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.mllib.optimization.{SquaredL2Updater, L1Updater}
+import org.apache.spark.mllib.optimization.{ADMMParams, SquaredL2Updater, L1Updater}
 
 /**
  * An example app for binary classification. Run with
@@ -144,9 +144,10 @@ object BinaryClassification {
           .setRegParam(params.regParam)
         algorithm.run(training).clearThreshold()
       case SVMADMM =>
-        val algorithm = new SVMWithADMM()
-        algorithm.maxGlobalIterations = params.numIterations
-        algorithm.regParam = params.regParam
+        val admmParams = new ADMMParams()
+        admmParams.maxIterations = params.numIterations
+        admmParams.regParam = params.regParam
+        val algorithm = new SVMWithADMM(admmParams)
         algorithm.run(training).clearThreshold()
     }
 
