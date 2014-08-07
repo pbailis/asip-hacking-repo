@@ -174,13 +174,26 @@ object SynchronousADMMTests {
                     format: String = "libsvm",
                     numPartitions: Int = -1,
                     algorithm: Algorithm = SVM,
-                    algParams: ADMMParams = new ADMMParams,
                     regType: RegType = L2,
                      pointCloudDimension: Int = 10,
                      pointCloudLabelNoise: Double = .2,
                      pointCloudPartitionSkew: Double = 0,
                      pointCloudPointsPerPartition: Int = 10000,
-                     pointCloudSize: Double = 1.0) extends ADMMParams
+                     pointCloudSize: Double = 1.0) extends ADMMParams {
+    override def toString = {
+      "{" + "input: " + input + ", " +
+      "format: " + format + ", " +
+      "numPartitions: " + numPartitions + ", " +
+      "algorithm: " + algorithm + ", " +
+      "algParams: " + super.toString() + ", " +
+      "regType: " + regType + ", " +
+      "pointCloudDim: " + pointCloudDimension + ", " +
+      "pointCloudNoise: " + pointCloudLabelNoise + ", " +
+      "pointCloudSkew: " + pointCloudPartitionSkew + ", " +
+      "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
+      "poitCloudSize: " + pointCloudSize + "}"
+    }
+  }
 
   def main(args: Array[String]) {
     val defaultParams = Params()

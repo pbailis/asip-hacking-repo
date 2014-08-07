@@ -182,6 +182,25 @@ class ADMMParams extends Serializable {
   var adaptiveRho = false
   var broadcastDelayMS = 100
   var useHogWildAsync = false
+
+  override def toString = {
+    "{" +
+      "eta0: " + eta_0 + ", " +
+      "tol: " + tol + ", " +
+      "workerTol: " + workerTol + ", " +
+      "maxIterations: " + maxIterations + ", " +
+      "maxWorkerIterations: " + maxWorkerIterations + ", " +
+      "miniBatchSize: " + miniBatchSize + ", " +
+      "useLBFGS: " + useLBFGS + ", " +
+      "rho0: " + rho0 + ", " +
+      "lagrangianRho: " + lagrangianRho + ", " +
+      "regParam: " + regParam + ", " +
+      "runtimeMS: " + runtimeMS + ", " +
+      "displayIncrementalStats: " + displayIncrementalStats + ", " +
+      "adaptiveRho: " + adaptiveRho + ", " +
+      "broadcastDelayMS: " + broadcastDelayMS + ", " +
+      "useHogWildAsync: " + useHogWildAsync + "}"
+  }
 }
 
 
