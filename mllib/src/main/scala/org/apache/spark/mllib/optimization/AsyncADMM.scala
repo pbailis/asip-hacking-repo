@@ -192,7 +192,7 @@ class AsyncADMMWorker(subProblemId: Int,
     startTime = System.currentTimeMillis()
     rho = params.rho0
     broadcastThread.start()
-    val primalOptimum = if (params.useHogWildAsync) {
+    val primalOptimum = if (params.usePorkChop) {
       mainLoopAsync()
     } else {
       mainLoopSync()

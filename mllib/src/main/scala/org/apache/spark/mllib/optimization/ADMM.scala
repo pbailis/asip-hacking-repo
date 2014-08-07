@@ -181,7 +181,7 @@ class ADMMParams extends Serializable {
   var displayIncrementalStats = false
   var adaptiveRho = false
   var broadcastDelayMS = 100
-  var useHogWildAsync = false
+  var usePorkChop = false
 
   override def toString = {
     "{" +
@@ -199,7 +199,7 @@ class ADMMParams extends Serializable {
       "displayIncrementalStats: " + displayIncrementalStats + ", " +
       "adaptiveRho: " + adaptiveRho + ", " +
       "broadcastDelayMS: " + broadcastDelayMS + ", " +
-      "useHogWildAsync: " + useHogWildAsync + "}"
+      "usePorkChop: " + usePorkChop + "}"
   }
 }
 

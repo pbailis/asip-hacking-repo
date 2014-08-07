@@ -263,11 +263,18 @@ object SynchronousADMMTests {
         .action { (x, c) => c.workerTol = x; c }
       opt[Int]("broadcastDelayMs")
         .action { (x, c) => c.broadcastDelayMS = x; c }
-
       opt[Int]("ADMMmaxLocalIterations")
         .action{ (x, c) => c.maxWorkerIterations =x; c }
+      opt[Boolean]("useLBFGS")
+        .action{ (x, c) => c.useLBFGS = x; c }
+      opt[Boolean]("adpativeRho")
+        .action{ (x, c) => c.adaptiveRho = x; c }
+      opt[Boolean]("usePorkChop")
+        .action{ (x, c) => c.usePorkChop = x; c }
       opt[Boolean]("localStats")
         .action{ (x, c) => c.displayIncrementalStats = x; c }
+
+
       note(
         """
           |For example, the following command runs this app on a synthetic dataset:
