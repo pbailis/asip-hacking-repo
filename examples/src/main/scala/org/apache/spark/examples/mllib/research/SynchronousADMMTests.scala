@@ -448,6 +448,7 @@ object SynchronousADMMTests {
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
           )
         println(results)
+        println(algorithm.optimizer.stats)
         (model, results)
       case HOGWILDSVM =>
         val algorithm = new SVMWithHOGWILD(params)
