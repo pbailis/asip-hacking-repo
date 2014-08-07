@@ -104,7 +104,8 @@ private[spark] object AkkaUtils extends Logging {
       |akka.log-dead-letters = $lifecycleEvents
       |akka.log-dead-letters-during-shutdown = $lifecycleEvents
       |akka.actor.serializers { kryo = "com.twitter.chill.akka.AkkaSerializer" }
-      |akka.actor.serialization-bindings { "org.apache.spark.mllib" = kryo }
+      |akka.actor.serialization-bindings { "org.apache.spark.mllib.optimization.InternalMessages$$VectorUpdateMessage" = kryo,
+                                           "org.apache.spark.mllib.optimization.HWInternalMessages$$DeltaUpdate" = kryo }
       """.stripMargin))
 
     val actorSystem = ActorSystem(name, akkaConf)
