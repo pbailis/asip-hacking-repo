@@ -103,6 +103,16 @@ private[spark] object AkkaUtils extends Logging {
       |akka.remote.log-remote-lifecycle-events = $lifecycleEvents
       |akka.log-dead-letters = $lifecycleEvents
       |akka.log-dead-letters-during-shutdown = $lifecycleEvents
+      |akka.extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension"]
+      |akka.actor.serializers = { kryo = "com.romix.akka.serialization.kryo.KryoSerializer" }
+      |akka.actor.serialization-bindings { "java.io.Serializable" = java }
+      |kryo.type = "nograph"
+      |kryo.idstrategy = "incremental"
+      |kryo.serializer-pool-size = 32
+      |kryo.buffer-size = 16538
+      |kryo.use-manifests = false
+      |kryo.implicit-registration-logging = false
+      |kryo.kryo-trace = false
       """.stripMargin))
 
     val actorSystem = ActorSystem(name, akkaConf)

@@ -177,6 +177,11 @@
       <groupId>com.codahale.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
     </dependency>
+      <dependency>
+          <groupId>com.github.romix.akka</groupId>
+          <artifactId>akka-kryo-serialization_2.10</artifactId>
+          <version>0.3.2</version>
+      </dependency>
     <dependency>
       <groupId>com.codahale.metrics</groupId>
       <artifactId>metrics-json</artifactId>
