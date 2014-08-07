@@ -14,9 +14,13 @@ else:
 
 results = pickle.load(open(pickle_filename))
 
-results = [r for r in results if r['algorithm'] != "HOGWILDSVM"]
+#results = [r for r in results if r['algorithm'] != "HOGWILDSVM"]
 
-bismarck_results = [r for r in results if r['command'].find("bismarck") != -1]
+
+bismarck_results = [r for r in results if r['dataset'] == 'forest']
+
+for r in results:
+    print r['dataset']
 
 algs = unique([r['algorithm'] for r in results])
 
