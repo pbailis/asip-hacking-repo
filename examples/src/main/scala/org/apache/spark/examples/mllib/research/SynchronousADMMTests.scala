@@ -55,7 +55,8 @@ object DataLoaders {
       val features: Array[Double] = Array.fill[Double](maxFeatureID)(0.0)
       var i = 1
       while (i < splits.length) {
-        features(Math.abs(splits(i).toInt.hashCode()) % features.length) += 1.0
+        val hc = splits(i).toInt.hashCode()
+        features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
         i += 1
       }
       LabeledPoint(label, new DenseVector(features))
