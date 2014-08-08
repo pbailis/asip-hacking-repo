@@ -177,49 +177,28 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
+for dataset in ["flights", "bismarck", "dblp"]:
+    for runtime in RUNTIMES:
+        for algorithm in ALGORITHMS:
+            broadcastDelay = -1
+            if algorithm == "SVMADMM":
+                maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
+            elif algorithm == "HOGWILDSVM":
+                maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
+                broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+            else:
+                maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
+                broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
 
-for runtime in RUNTIMES:
-    for algorithm in ALGORITHMS:
-        broadcastDelay = -1
-        if algorithm == "SVMADMM":
-            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-        elif algorithm == "HOGWILDSVM":
-            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
-        else:
-            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+            results += runTest(runtime,
+                            algorithm,
+                            dataset,
+                            flightsYear = 2008,
+                            broadcastDelay = broadcastDelay)
 
-        results += runTest(runtime,
-                           algorithm,
-                           "bismarck",
-                           broadcastDelay = broadcastDelay)
-
-        output = open(PICKLED_OUTPUT, 'wb')
-        pickle.dump(results, output)
-        output.close()
-
-for runtime in RUNTIMES:
-    for algorithm in ALGORITHMS:
-        broadcastDelay = -1
-        if algorithm == "SVMADMM":
-            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-        elif algorithm == "HOGWILDSVM":
-            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
-        else:
-            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
-
-        results += runTest(runtime,
-                           algorithm,
-                           "flights",
-                           flightsYear=2008,
-                           broadcastDelay = broadcastDelay)
-
-        output = open(PICKLED_OUTPUT, 'wb')
-        pickle.dump(results, output)
-        output.close()
+            output = open(PICKLED_OUTPUT, 'wb')
+            pickle.dump(results, output)
+            output.close()
 
 for runtime in RUNTIMES:
     for dim in [2, 100]:
@@ -271,49 +250,6 @@ for runtime in RUNTIMES:
                 pickle.dump(results, output)
                 output.close()
 
-for dataset in ["forest", "dblp"]:
-    for runtime in RUNTIMES:
-        for algorithm in ALGORITHMS:
-            broadcastDelay = -1
-            if algorithm == "SVMADMM":
-                maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-            elif algorithm == "HOGWILDSVM":
-                maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-                broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
-            else:
-                maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-                broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
-
-            results += runTest(runtime,
-                            algorithm,
-                            dataset,
-                            broadcastDelay = broadcastDelay)
-
-            output = open(PICKLED_OUTPUT, 'wb')
-            pickle.dump(results, output)
-            output.close()
-
-for runtime in RUNTIMES:
-    for algorithm in ALGORITHMS:
-        broadcastDelay = -1
-        if algorithm == "SVMADMM":
-            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-        elif algorithm == "HOGWILDSVM":
-            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
-        else:
-            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
-
-        results += runTest(runtime,
-                           algorithm,
-                           "flights",
-                           flightsYear=2008,
-                           broadcastDelay = broadcastDelay)
-
-        output = open(PICKLED_OUTPUT, 'wb')
-        pickle.dump(results, output)
-        output.close()
 
 ## END OF EXPERIMENT RUNS
 
