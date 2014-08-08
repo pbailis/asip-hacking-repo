@@ -4,6 +4,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, max, norm}
 import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
 import org.apache.spark.mllib.util.MLUtils
@@ -12,7 +13,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
 import scala.util.Random
-
+import scala.util.hashing.MurmurHash3
 
 object DataLoaders {
   def loadBismark(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
@@ -37,6 +38,30 @@ object DataLoaders {
     val array = new Array[Double](dict.size)
     array(dict(value)) = 1.0
     array
+  }
+
+  def loadDBLP(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+    println("loading data!")
+    val rawData = sc.textFile(filename, params.numPartitions)
+
+    var maxFeatureID = params.inputTokenHashKernelDimension
+    if (params.inputTokenHashKernelDimension < 0) {
+      maxFeatureID = rawData.map(line => max(line.split(' ').tail.map(s => s.toInt))).max()
+    }
+
+    rawData.map(line => {
+      val splits = line.split(' ')
+      val year = splits(0).toInt
+      val label = if (year < params.dblpSplitYear) 0.0 else 1.0
+      val features: Array[Double] = Array.fill[Double](maxFeatureID)(0.0)
+      var i = 1
+      while (i < splits.length) {
+        val hc: Int = MurmurHash3.stringHash(splits(i))
+        features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
+        i += 1
+      }
+      LabeledPoint(label, new DenseVector(features))
+    })
   }
 
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
@@ -181,6 +206,8 @@ object SynchronousADMMTests {
     var pointCloudPartitionSkew: Double = 0
     var pointCloudPointsPerPartition: Int = 10000
     var pointCloudSize: Double = 1.0
+    var inputTokenHashKernelDimension: Int = 100
+    var dblpSplitYear = 2007
 
     override def toString = {
       "{" + "input: " + input + ", " +
@@ -193,7 +220,9 @@ object SynchronousADMMTests {
       "pointCloudNoise: " + pointCloudLabelNoise + ", " +
       "pointCloudSkew: " + pointCloudPartitionSkew + ", " +
       "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
-      "pointCloudSize: " + pointCloudSize + "}"
+      "pointCloudSize: " + pointCloudSize +
+      "inputTokenHashKernelDimension: " +inputTokenHashKernelDimension +
+      "dblpSplitYear: " + dblpSplitYear +"}"
     }
   }
 
@@ -228,6 +257,14 @@ object SynchronousADMMTests {
         .action { (x, c) => c.pointCloudPointsPerPartition = x; c }
       opt[Double]("pointCloudRadius")
         .action { (x, c) => c.pointCloudSize = x; c }
+
+      opt[Int]("inputTokenHashKernelDimension")
+        .text("Used to downsample the input space for several datasets (DBLP, Wikipedia); -1 means do not downsample")
+        .action { (x, c) => c.inputTokenHashKernelDimension = x; c }
+
+      opt[Int]("dblpSplitYear")
+        .text("In DBLP dataset, years less than this will be negatively labeled")
+        .action { (x, c) => c.dblpSplitYear = x; c }
 
       opt[String]("algorithm")
         .text(s"algorithm (${Algorithm.values.mkString(",")}), " +
@@ -320,6 +357,8 @@ object SynchronousADMMTests {
         params.pointCloudPartitionSkew,
         params.numPartitions,
         params.pointCloudPointsPerPartition)
+    } else if (params.format == "dblp") {
+      DataLoaders.loadDBLP(sc, params.input, params)
     } else {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
