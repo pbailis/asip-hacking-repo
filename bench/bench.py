@@ -194,6 +194,7 @@ for dataset in ["flights", "bismarck", "dblp"]:
                             algorithm,
                             dataset,
                             flightsYear = 2008,
+                            maxLocalIterations = maxLocalIterations,
                             broadcastDelay = broadcastDelay)
 
             output = open(PICKLED_OUTPUT, 'wb')
@@ -219,6 +220,7 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
+                                   maxLocalIterations = maxLocalIterations,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
@@ -244,6 +246,7 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
+                                   maxLocalIterations = maxLocalIterations,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
