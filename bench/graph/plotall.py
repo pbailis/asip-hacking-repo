@@ -25,7 +25,7 @@ print "BISMARCK"
 for alg in algs:
     alg_results = [r for r in bismarck_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -51,7 +51,7 @@ flights_results = [r for r in results if r['dataset'] == "flights"]
 for alg in algs:
     alg_results = [r for r in flights_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss'],  r['training_error']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -77,13 +77,13 @@ flights_results = [r for r in results if r['dataset'] == "dblp"]
 for alg in algs:
     alg_results = [r for r in flights_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss'], r['training_error']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
 
     for p in plot_p:
-        print alg, p[0], p[1]
+        print alg, p[0], p[1], p[2]
     
     plot(plotx, ploty, 'o-', label=alg)
 
@@ -106,7 +106,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -134,7 +134,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss'], r['command']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss'], r['command']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
@@ -163,7 +163,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss'], r['command']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss'], r['command']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
@@ -192,7 +192,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
