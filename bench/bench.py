@@ -55,7 +55,7 @@ def describe_forest(master):
     return " --input hdfs://"+master+":9000/user/root/bismarck_data/forest* "
 
 def describe_flights(master, year):
-    return " --input hdfs://"+master+":9000/user/root/flights"+str(year)+".csv"
+    return " --input hdfs://"+master+":9000/user/root/flights/"+str(year)+".csv"
 
 def describe_dblp(master):
     return " --input hdfs://"+master+":9000/user/root/dblp/binarized-year-to-title.txt"
