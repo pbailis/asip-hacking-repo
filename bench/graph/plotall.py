@@ -8,13 +8,13 @@ logLoss = True
 matplotlib.rcParams['figure.figsize'] = 6, 3#3.5, 1.7
 
 if len(argv) < 2:
-    pickle_filename = "08_06_14_newrun.pkl"
+    pickle_filename = "08_08_14_overnight.pkl"
 else:
     pickle_filename = argv[1]
 
 results = pickle.load(open(pickle_filename))
 
-results = [r for r in results if r['algorithm'] != "HOGWILDSVM"]
+results = [r for r in results if r['algorithm']]# != "HOGWILDSVM"]
 
 bismarck_results = [r for r in results if r['command'].find("bismarck") != -1]
 
@@ -35,8 +35,8 @@ for alg in algs:
     
     plot(plotx, ploty, 'o-', label=alg)
 
-if logLoss:
-    gca().set_yscale('log')
+#if logLoss:
+#    gca().set_yscale('log')
 #gca().set_xscale('log')
 
 legend()
@@ -67,6 +67,33 @@ if logLoss:
 
 legend()
 savefig("flights.pdf")
+
+cla()
+
+print "DBLP"
+
+flights_results = [r for r in results if r['dataset'] == "dblp"]
+
+for alg in algs:
+    alg_results = [r for r in flights_results if r['algorithm'] == alg]
+
+    plot_p = [(r['runtime_ms'], r['training_loss']) for r in alg_results]
+    plot_p.sort(key = lambda x: x[0])
+    plotx = [r[0] for r in plot_p]
+    ploty = [r[1] for r in plot_p]
+
+    for p in plot_p:
+        print alg, p[0], p[1]
+    
+    plot(plotx, ploty, 'o-', label=alg)
+
+#if logLoss:
+#    gca().set_yscale('log')
+#gca().set_xscale('log')
+
+legend()
+savefig("dblp.pdf")
+
 
 clf()
 
