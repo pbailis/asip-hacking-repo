@@ -13,6 +13,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
 import scala.util.Random
+import scala.util.hashing.MurmurHash3
 
 object DataLoaders {
   def loadBismark(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
@@ -55,7 +56,7 @@ object DataLoaders {
       val features: Array[Double] = Array.fill[Double](maxFeatureID)(0.0)
       var i = 1
       while (i < splits.length) {
-        val hc = splits(i).toInt.hashCode()
+        val hc: Int = MurmurHash3.stringHash(splits(i))
         features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
         i += 1
       }
