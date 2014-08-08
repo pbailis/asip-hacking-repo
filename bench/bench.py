@@ -31,6 +31,8 @@ GLOBAL_HOGWILDSVM_broadcastDelay = 1
 GLOBAL_SVMADMMAsync_maxLocalIterations = 1000
 GLOBAL_SVMADMMAsync_broadcastDelay = 100
 
+GLOBAL_inputTokenHashKernelDimension = 100
+
 ## END OF CONSTANTS
 
 
@@ -55,6 +57,9 @@ def describe_forest(master):
 def describe_flights(master, year):
     return " --input hdfs://"+master+":9000/user/root/flights"+str(year)+".csv"
 
+def describe_dblp(master):
+    return " --input hdfs://"+master+":9000/user/root/dblp/binarized-year-to-title.txt"
+
 ## END OF DATASET FORMATTING
 
 
@@ -75,6 +80,8 @@ def runTest(runtimeMS,
             cloudDim=-1,
             cloudPartitionSkew=-1,
             flightsYear = "2008",
+            dblpSplitYear = 2007,
+            inputTokenHashKernelDimension = 100,
             miscStr = ""):
     if datasetName == "bismarck":
         datasetConfigStr = describe_forest(HDFS_MASTER)
@@ -82,6 +89,8 @@ def runTest(runtimeMS,
         datasetConfigStr = describe_point_cloud(partitionSkew = cloudPartitionSkew, dimension = cloudDim)
     elif datasetName == "flights":
         datasetConfigStr = describe_flights(HDFS_MASTER, flightsYear)
+    elif datasetName == "dblp":
+        datasetConfigStr = describe_dblp(HDFS_MASTER)
     else:
         print "Unknown dataset!"
         raise
@@ -153,7 +162,9 @@ def runTest(runtimeMS,
                 "numPartitions": numPartitions,
                 "regType": regType,
                 "pointCloudDim": cloudDim,
-                "pointCloudSkew": cloudPartitionSkew
+                "pointCloudSkew": cloudPartitionSkew,
+                "inputTokenHashKernelDimension": inputTokenHashKernelDimension,
+                "dblpSplitYear": dblpSplitYear
             }
             results.append(record)
 
@@ -260,27 +271,27 @@ for runtime in RUNTIMES:
                 pickle.dump(results, output)
                 output.close()
 
-for runtime in RUNTIMES:
-    for algorithm in ALGORITHMS:
-        broadcastDelay = -1
-        if algorithm == "SVMADMM":
-            maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-        elif algorithm == "HOGWILDSVM":
-            maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-            broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
-        else:
-            maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-            broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+for dataset in ["forest", "dblp"]:
+    for runtime in RUNTIMES:
+        for algorithm in ALGORITHMS:
+            broadcastDelay = -1
+            if algorithm == "SVMADMM":
+                maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
+            elif algorithm == "HOGWILDSVM":
+                maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
+                broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+            else:
+                maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
+                broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
 
-        results += runTest(runtime,
-                           algorithm,
-                           "forest",
-                           broadcastDelay = broadcastDelay)
+            results += runTest(runtime,
+                            algorithm,
+                            dataset,
+                            broadcastDelay = broadcastDelay)
 
-        output = open(PICKLED_OUTPUT, 'wb')
-        pickle.dump(results, output)
-        output.close()
-
+            output = open(PICKLED_OUTPUT, 'wb')
+            pickle.dump(results, output)
+            output.close()
 
 for runtime in RUNTIMES:
     for algorithm in ALGORITHMS:
