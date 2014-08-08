@@ -1,10 +1,11 @@
 #!/bin/bash
 
-cd ~/spark
-sbin/stop-all.sh
+set -e
 
-cd ~
-spark-ec2/copy-dir spark
+cd /mnt/spark
+sbt/sbt assembly
 
-cd ~/spark
-sbin/start-all.sh
+cd /mnt
+/root/spark-ec2/copy-dir /mnt/spark
+
+

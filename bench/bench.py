@@ -7,7 +7,7 @@ import pickle
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM"]
+ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM", "PORKCHOP"]
 
 HDFS_MASTER = "ec2-54-184-179-190.us-west-2.compute.amazonaws.com"
 
@@ -18,8 +18,8 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 ## START OF CONSTANTS
 
-GLOBAL_ADMMepsilon = 0.000001
-GLOBAL_ADMMlocalEpsilon = 0.000001
+GLOBAL_ADMMepsilon = 0.00000001
+GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 0.5
 
@@ -28,7 +28,7 @@ GLOBAL_SVMADMM_maxLocalIterations = 1000000000
 GLOBAL_HOGWILDSVM_maxLocalIterations = 100
 GLOBAL_HOGWILDSVM_broadcastDelay = 1
 
-GLOBAL_SVMADMMAsync_maxLocalIterations = 1000
+GLOBAL_SVMADMMAsync_maxLocalIterations = 10000
 GLOBAL_SVMADMMAsync_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 100

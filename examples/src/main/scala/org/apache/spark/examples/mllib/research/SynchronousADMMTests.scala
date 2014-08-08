@@ -184,7 +184,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, SVMADMM, SVMADMMAsync, LR, LRADMM, LRADMMAsync, HOGWILDSVM = Value
+    val SVM, SVMADMM, SVMADMMAsync, PORKCHOP, LR, LRADMM, LRADMMAsync, HOGWILDSVM = Value
   }
 
   object RegType extends Enumeration {
@@ -489,6 +489,24 @@ object SynchronousADMMTests {
         println(results)
         println(algorithm.optimizer.stats)
         (model, results)
+      case PORKCHOP =>
+        // force the use of porkchop
+        params.usePorkChop = true
+        val algorithm = new SVMWithAsyncADMM(params)
+        algorithm.optimizer.consensus = consensusFun
+        val model = algorithm.run(training).clearThreshold()
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+            "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        println(results)
+        println(algorithm.optimizer.stats)
+        (model, results)
+
       case HOGWILDSVM =>
         val algorithm = new SVMWithHOGWILD(params)
         algorithm.optimizer.consensus = consensusFun
