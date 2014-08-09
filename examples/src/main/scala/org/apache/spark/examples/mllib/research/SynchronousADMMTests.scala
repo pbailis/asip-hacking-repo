@@ -1,10 +1,9 @@
 package org.apache.spark.examples.mllib.research
 
-import org.apache.log4j.{Level, Logger}
+import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, max, norm}
 import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
 import org.apache.spark.mllib.util.MLUtils
@@ -343,6 +342,8 @@ object SynchronousADMMTests {
         .action{ (x, c) => c.adaptiveRho = x; c }
       opt[Boolean]("usePorkChop")
         .action{ (x, c) => c.usePorkChop = x; c }
+      opt[Boolean]("useLineSearch")
+        .action{ (x, c) => c.useLineSearch = x; c }
       opt[Boolean]("localStats")
         .action{ (x, c) => c.displayIncrementalStats = x; c }
 

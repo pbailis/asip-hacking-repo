@@ -13,6 +13,15 @@ import org.apache.spark.rdd.RDD
 trait ObjectiveFunction extends Serializable {
   def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
   def apply(w: BV[Double], x: BV[Double], y: Double): Double = 0.0
+  def apply(w: BV[Double], data: Array[(Double, BV[Double])]): Double = {
+    var i = 0
+    var sum = 0.0
+    while (i < data.size) {
+      sum += apply(w, data(i)._2, data(i)._1)
+      i += 1
+    }
+    sum / data.size.toDouble
+  }
 }
 
 class HingeObjective extends ObjectiveFunction {
@@ -219,6 +228,7 @@ class ADMMParams extends Serializable {
   var adaptiveRho = false
   var broadcastDelayMS = 100
   var usePorkChop = false
+  var useLineSearch = false
 
   override def toString = {
     "{" +
@@ -314,9 +324,21 @@ class SGDLocalOptimizer(val subProblemId: Int,
     primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
   }
 
-//  def lineSearch(): Double = {
-//    // loss = objFun(primalVar, data(ind)._2, data(ind)._1)
-//  }
+  def lineSearch(grad: BV[Double]): Double = {
+    var etaBest = 0.0
+    var scoreBest = objFun(primalVar, data)
+    var etaProposal = 1.0e-5
+    var newScoreProposal = objFun(primalVar - grad * etaProposal, data)
+    // Try to decrease the objective as much as possible
+    while (newScoreProposal < scoreBest) {
+      etaBest = etaProposal
+      scoreBest = newScoreProposal
+      // Double eta and propose again.
+      etaProposal = 2.0 * etaBest
+      newScoreProposal = objFun(primalVar - grad * etaProposal, data)
+    }
+    etaBest
+  }
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
     residual = Double.MaxValue
@@ -339,7 +361,12 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Add the augmenting term
       axpy(rho, primalVar - primalConsensus, grad)
       // Set the learning rate
-      val eta_t = params.eta_0 / (t.toDouble + 1.0)
+      val eta_t =
+      if (params.useLineSearch) {
+        lineSearch(grad)
+      } else {
+        params.eta_0 / (t.toDouble + 1.0)
+      }
       // Do the gradient update
       // primalVar = (primalVar - grad * eta_t)
       axpy(-eta_t, grad, primalVar)
