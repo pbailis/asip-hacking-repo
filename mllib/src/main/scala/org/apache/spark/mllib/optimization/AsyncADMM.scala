@@ -181,6 +181,10 @@ class AsyncADMMWorker(subProblemId: Int,
     override def run {
       // Intialize global view of primalVars
       val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
+      var primalAvg = BV.zeros[Double](primalVar.size)
+      var dualAvg = BV.zeros[Double](dualVar.size)
+      var nTotalExamples = 0
+
       while (!done) {
         // Collect latest variables from everyone
         allVars.put(comm.selfID, (primalVar, dualVar, data.length))
@@ -195,10 +199,18 @@ class AsyncADMMWorker(subProblemId: Int,
             tiq = comm.inputQueue.poll()
           }
         }
+
         // Compute primal and dual averages
-        var (primalAvg, dualAvg, nTotalExamples) = allVars.values.iterator.map {
-          case (primal, dual, nExamples) => (primal * nExamples.toDouble, dual * nExamples.toDouble, nExamples)
-        }.reduce((a, b) => (a._1 + b._1, a._2 + b._2, a._3 + b._3))
+        primalAvg *= 0.0
+        dualAvg *= 0.0
+        nTotalExamples = 0
+        val msgIterator = allVars.values.iterator
+        while (msgIterator.hasNext) {
+          val (primal, dual, nExamples) = msgIterator.next()
+          axpy(nExamples.toDouble, primal, primalAvg)
+          axpy(nExamples.toDouble, dual, dualAvg)
+          nTotalExamples += nExamples
+        }
         primalAvg /= nTotalExamples.toDouble
         dualAvg /= nTotalExamples.toDouble
 

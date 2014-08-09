@@ -341,12 +341,12 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Set the learning rate
       val eta_t = params.eta_0 / (t.toDouble + 1.0)
       // Do the gradient update
-      primalVar = (primalVar - grad * eta_t)
-      // axpy(-eta_t, grad, primalVar)
+      // primalVar = (primalVar - grad * eta_t)
+      axpy(-eta_t, grad, primalVar)
       // Compute residual.
-      residual = eta_t * norm(grad, 2.0)
+      residual = eta_t * norm(grad, 2)
       // Update the current time every 1000 iterations
-      if (t % 100 == 0) {
+      if (t % 1000 == 0) {
         currentTime = System.currentTimeMillis()
       }
       t += 1
