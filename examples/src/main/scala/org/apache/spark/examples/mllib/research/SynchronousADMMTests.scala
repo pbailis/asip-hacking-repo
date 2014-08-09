@@ -213,7 +213,7 @@ object SynchronousADMMTests {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, SVMADMM, SVMADMMAsync, PORKCHOP, LR, LRADMM, LRADMMAsync, HOGWILDSVM = Value
+    val GD, ADMM, MiniBatchADMM, AsyncADMM, PORKCHOP, HOGWILD = Value
   }
 
   object RegType extends Enumeration {
@@ -228,7 +228,7 @@ object SynchronousADMMTests {
     var input: String = null
     var  format: String = "libsvm"
     var numPartitions: Int = -1
-    var algorithm: Algorithm = SVM
+    var algorithm: Algorithm = GD
     var regType: RegType = L2
     var pointCloudDimension: Int = 10
     var pointCloudLabelNoise: Double = .2
@@ -469,22 +469,22 @@ object SynchronousADMMTests {
     }
 
     params.algorithm match {
-      case LR =>
-        val algorithm = new LogisticRegressionWithSGD()
-        algorithm.optimizer
-          .setNumIterations(100000)
-          .setRuntime(params.runtimeMS)
-          .setStepSize(params.eta_0)
-          .setUpdater(updater)
-          .setRegParam(params.regParam)
-        val model = algorithm.run(training).clearThreshold()
-        val results = 
-          Map(
-            "iterations" -> algorithm.optimizer.getLastIterations().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        (model, results)
-      case SVM =>
+      // case LR =>
+      //   val algorithm = new LogisticRegressionWithSGD()
+      //   algorithm.optimizer
+      //     .setNumIterations(100000)
+      //     .setRuntime(params.runtimeMS)
+      //     .setStepSize(params.eta_0)
+      //     .setUpdater(updater)
+      //     .setRegParam(params.regParam)
+      //   val model = algorithm.run(training).clearThreshold()
+      //   val results = 
+      //     Map(
+      //       "iterations" -> algorithm.optimizer.getLastIterations().toString,
+      //       "runtime" -> algorithm.optimizer.totalTimeMs.toString
+      //     )
+      //   (model, results)
+      case GD =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
           .setNumIterations(100000)
@@ -500,7 +500,7 @@ object SynchronousADMMTests {
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
           )
         (model, results)
-      case SVMADMM =>
+      case ADMM => 
         val algorithm = new SVMWithADMM(params)
         algorithm.optimizer.consensus = consensusFun
         val startTime = System.nanoTime()
@@ -512,7 +512,20 @@ object SynchronousADMMTests {
             "runtime" -> algorithm.optimizer.totalTimeMs.toString
           )
         (model, results )
-      case SVMADMMAsync =>
+      case MiniBatchADMM =>
+        val algorithm = new SVMWithADMM(params)
+        algorithm.optimizer.consensus = consensusFun
+        val startTime = System.nanoTime()
+        val model = algorithm.run(training).clearThreshold()
+        val results =
+          Map(
+            "iterations" -> algorithm.optimizer.iteration.toString,
+            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+            "runtime" -> algorithm.optimizer.totalTimeMs.toString
+          )
+        (model, results )
+
+      case AsyncADMM =>
         val algorithm = new SVMWithAsyncADMM(params)
         algorithm.optimizer.consensus = consensusFun
         val model = algorithm.run(training).clearThreshold()
@@ -545,7 +558,7 @@ object SynchronousADMMTests {
         println(algorithm.optimizer.stats)
         (model, results)
 
-      case HOGWILDSVM =>
+      case HOGWILD =>
         val algorithm = new SVMWithHOGWILD(params)
         algorithm.optimizer.consensus = consensusFun
         val model = algorithm.run(training).clearThreshold()

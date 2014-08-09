@@ -7,7 +7,7 @@ import pickle
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "miniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -19,15 +19,18 @@ PICKLED_OUTPUT = "experiment.pkl"
 GLOBAL_ADMMepsilon = 0.00000001
 GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
-GLOBAL_ADMMlagrangianRho = 0.5
+GLOBAL_ADMMlagrangianRho = 1.0
 
-GLOBAL_SVMADMM_maxLocalIterations = 10000
+GLOBAL_ADMM_maxLocalIterations = 10000
 
-GLOBAL_HOGWILDSVM_maxLocalIterations = 100
-GLOBAL_HOGWILDSVM_broadcastDelay = 1
+GLOBAL_MiniBatchADMM_maxLocalIterations = 100
+GLOBAL_MiniBatchADMM_localEpsilon = 0.01
 
-GLOBAL_SVMADMMAsync_maxLocalIterations = 10000
-GLOBAL_SVMADMMAsync_broadcastDelay = 100
+GLOBAL_HOGWILD_maxLocalIterations = 10
+GLOBAL_HOGWILD_broadcastDelay = 10
+
+GLOBAL_AsyncADMM_maxLocalIterations = 10000
+GLOBAL_AsyncADMM_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 100
 
@@ -192,20 +195,24 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
-            if algorithm == "SVMADMM":
-                maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-            elif algorithm == "HOGWILDSVM":
-                maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-                broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+            if algorithm == "ADMM":
+                maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+            elif algorithm == "MiniBatchADMM":
+                maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+            elif algorithm == "HOGWILD":
+                maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
             else:
-                maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-                broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+                maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
             results += runTest(runtime,
                             algorithm,
                             dataset,
                             flightsYear = 2008,
                             ADMMmaxLocalIterations = maxLocalIterations,
+                            ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay)
 
             output = open(PICKLED_OUTPUT, 'wb')
@@ -217,14 +224,17 @@ for runtime in RUNTIMES:
         for skew in [0.0]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
-                if algorithm == "SVMADMM":
-                    maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-                elif algorithm == "HOGWILDSVM":
-                    maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-                    broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+                if algorithm == "ADMM":
+                    maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                elif algorithm == "MiniBatchADMM":
+                    maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                elif algorithm == "HOGWILD":
+                    maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                    broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
                 else:
-                    maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-                    broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+                    maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                    broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
                 results += runTest(runtime,
                                    algorithm,
@@ -232,6 +242,7 @@ for runtime in RUNTIMES:
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
                                    ADMMmaxLocalIterations = maxLocalIterations,
+                                   ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
@@ -243,14 +254,17 @@ for runtime in RUNTIMES:
         for skew in [0.0, 0.1]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
-                if algorithm == "SVMADMM":
-                    maxLocalIterations = GLOBAL_SVMADMM_maxLocalIterations
-                elif algorithm == "HOGWILDSVM":
-                    maxLocalIterations = GLOBAL_HOGWILDSVM_maxLocalIterations
-                    broadcastDelay = GLOBAL_HOGWILDSVM_broadcastDelay
+                if algorithm == "ADMM":
+                    maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                elif algorithm == "MiniBatchADMM":
+                    maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                elif algorithm == "HOGWILD":
+                    maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                    broadcastDelay = GLOBAL_HOGWILD_broadcastDelay                    
                 else:
-                    maxLocalIterations = GLOBAL_SVMADMMAsync_maxLocalIterations
-                    broadcastDelay = GLOBAL_SVMADMMAsync_broadcastDelay
+                    maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                    broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
                 results += runTest(runtime,
                                    algorithm,
@@ -258,6 +272,7 @@ for runtime in RUNTIMES:
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
                                    ADMMmaxLocalIterations = maxLocalIterations,
+                                   ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay)
 
                 output = open(PICKLED_OUTPUT, 'wb')
