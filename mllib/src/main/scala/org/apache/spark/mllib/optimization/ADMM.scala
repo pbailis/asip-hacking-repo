@@ -10,20 +10,13 @@ import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
 
-trait FastGradient extends Serializable {
-  def apply(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double])
-  def gradAndValue(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = 0.0
+trait ObjectiveFunction extends Serializable {
+  def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
+  def apply(w: BV[Double], x: BV[Double], y: Double): Double = 0.0
 }
 
-class FastHingeGradient extends FastGradient {
-  override def apply(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]) {
-    val yscaled = 2.0 * y - 1.0
-    val wdotx = w.dot(x)
-    if (yscaled * wdotx < 1.0) {
-      axpy(-yscaled, x, cumGrad)
-    }
-  }
-  override def gradAndValue(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
+class HingeObjective extends ObjectiveFunction {
+  override def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
     val yscaled = 2.0 * y - 1.0
     val wdotx = w.dot(x)
     if (yscaled * wdotx < 1.0) {
@@ -33,15 +26,50 @@ class FastHingeGradient extends FastGradient {
       0.0
     }
   }
+  override def apply(w: BV[Double], x: BV[Double], y: Double): Double = {
+    val yscaled = 2.0 * y - 1.0
+    val wdotx = w.dot(x)
+    if (yscaled * wdotx < 1.0) {
+      1.0 - yscaled * wdotx
+    } else {
+      0.0
+    }
+  }
 }
 
 
-class FastLogisticGradient extends FastGradient {
-  override def apply(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) {
+/*
+Gradient
+P(y \,|\, x,w) &= \left(1 - \sigma(w^T x) \right)^{(1-y)}  \sigma(w^T x)^{y} \\
+\log P(y \,|\, x,w) &= (1-y) \log \left(1 - \sigma(w^T x) \right) +  y \log \sigma(w^T x) \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-(1-y) \frac{1}{1 - \sigma(w^T x)} +  y  \frac{1}{\sigma(w^T x)}\right) \nabla_w \sigma(w^T x) \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-(1-y) \frac{1}{1 - \sigma(w^T x)} +  y  \frac{1}{\sigma(w^T x)}\right) \sigma(w^T x) \left(1-  \sigma(w^T x) \right) \nabla_w (w^t x) \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-(1-y) \frac{1}{1 - \sigma(w^T x)} +  y \frac{1}{\sigma(w^T x)}\right) \sigma(w^T x) \left(1-  \sigma(w^T x) \right) x \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-(1-y) \frac{\sigma(w^T x) \left(1-  \sigma(w^T x) \right)}{1 - \sigma(w^T x)} +  y \frac{\sigma(w^T x) \left(1-  \sigma(w^T x) \right)}{\sigma(w^T x)}\right)  x \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-(1-y) \sigma(w^T x) +  y \left(1-  \sigma(w^T x) \right) \right)  x \\
+\nabla_w \log P(y \,|\, x,w) &= \left(-\sigma(w^T x) + y \sigma(w^T x)  +   y -  y \sigma(w^T x)  \right)  x \\
+\nabla_w \log P(y \,|\, x,w) &= \left(y -\sigma(w^T x) \right)  x
+
+Likelihood
+P(y \,|\, x,w) &= \left(1 - \sigma(w^T x) \right)^{(1-y)}  \sigma(w^T x)^{y} \\
+\log P(y \,|\, x,w) &=  y \log \frac{1}{1 + \exp(-w^T x)} + (1-y) \log \left(1 - \frac{1}{1 + \exp(-w^T x)} \right)   \\
+\log P(y \,|\, x,w) &=  -y \log \left( 1 + \exp(-w^T x) \right) + (1-y) \log \left(\frac{\exp(-w^T x)}{1 + \exp(-w^T x)} \right) \\
+\log P(y \,|\, x,w) &=  -y \log \left( 1 + \exp(-w^T x) \right) + (1-y) \log \exp(-w^T x) - (1-y) \log \left( 1 + \exp(-w^T x) \right)  \\
+\log P(y \,|\, x,w) &=  (1 - y) (-w^T x) -\log \left( 1 + \exp(-w^T x) \right)
+ */
+class FastLogisticGradient extends ObjectiveFunction {
+  def sigmoid(x: Double) = 1.0 / (1.0 + math.exp(-x))
+  override def addGradient(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) = {
     val wdotx = w.dot(x)
-    val margin = -1.0 * wdotx
-    val gradientMultiplier = (1.0 / (1.0 + math.exp(margin))) - label
-    axpy(gradientMultiplier, x, cumGrad)
+    val gradientMultiplier = label - sigmoid(wdotx)
+    axpy(-gradientMultiplier, x, cumGrad)
+    val logLikelihood =
+      if (label > 0) {
+        -math.log1p(math.exp(-wdotx)) // log1p(x) = log(1+x)
+      } else {
+        -wdotx - math.log1p(math.exp(-wdotx))
+      }
+    -logLikelihood
   }
 }
 
@@ -82,13 +110,13 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
 
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
-    assert(false)
-    if (rho == 0.0) {
-      softThreshold(regParam, primalAvg)
-    } else {
-      // Joey: rederive this equation:
-      softThreshold(regParam / nSolvers.toDouble, primalAvg * rho + dualAvg)
-    }
+    throw new UnsupportedOperationException()
+//    if (rho == 0.0) {
+//      softThreshold(regParam, primalAvg)
+//    } else {
+//      // Joey: rederive this equation:
+//      softThreshold(regParam / nSolvers.toDouble, primalAvg * rho + dualAvg)
+//    }
   }
 }
 
@@ -103,7 +131,7 @@ class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serial
   }
   def /(d: Double) = new Interval(x / d, xMin, xMax)
 
-  override def toString() = s"[$xMin, $x, $xMax]"
+  override def toString = s"[$xMin, $x, $xMax]"
 }
 
 object WorkerStats {
@@ -156,7 +184,7 @@ case class WorkerStats(
       nWorkers = nWorkers + other.nWorkers)
   }
 
-  override def toString() = {
+  override def toString = {
     s"{primalAvg: ${primalAvg()}, dualAvg: ${dualAvg()}, " +
     s"avgMsgsSent: ${avgMsgsSent()}, avgMsgsRcvd: ${avgMsgsRcvd()} " +
     s"avgLocalIters: ${avgLocalIters()}, avgSGDIters: ${avgSGDIters()}, " +
@@ -216,7 +244,7 @@ class ADMMParams extends Serializable {
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
                         val data: Array[(Double, BV[Double])],
-                        val gradient: FastGradient,
+                        val objFun: ObjectiveFunction,
                         val params: ADMMParams) extends Serializable with Logging {
 
   val nExamples = data.length
@@ -268,7 +296,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
         var cumGrad = BDV.zeros[Double](x.length)
         var i = 0
         while (i < data.length) {
-          obj += gradient.gradAndValue(x, data(i)._2, data(i)._1, cumGrad)
+          obj += objFun.addGradient(x, data(i)._2, data(i)._1, cumGrad)
           i += 1
         }
         cumGrad /= data.length.toDouble
@@ -286,6 +314,9 @@ class SGDLocalOptimizer(val subProblemId: Int,
     primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
   }
 
+//  def lineSearch(): Double = {
+//    // loss = objFun(primalVar, data(ind)._2, data(ind)._1)
+//  }
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
     residual = Double.MaxValue
@@ -298,7 +329,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       var b = 0
       while (b < params.miniBatchSize) {
         val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-        gradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
       // Normalize the gradient to the batch size
@@ -327,7 +358,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
 
-class ADMM(val params: ADMMParams, var gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
 
 
   var iteration = 0

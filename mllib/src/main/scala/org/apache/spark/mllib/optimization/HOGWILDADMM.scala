@@ -95,12 +95,12 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
 class HOGWILDSGDWorker(subProblemId: Int,
                        data: Array[(Double, BV[Double])],
-                       gradient: FastGradient,
+                       objFun: ObjectiveFunction,
                        params: ADMMParams,
                        val consensus: ConsensusFunction,
                        val comm: HWWorkerCommunication,
                        val nSubProblems: Int)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient, params)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, objFun = objFun, params)
   with Logging {
 
   comm.optimizer = this
@@ -140,7 +140,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
       var b = 0
       while (b < params.miniBatchSize) {
         val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-        gradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
       grad /= params.miniBatchSize.toDouble
@@ -160,7 +160,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
 }
 
 
-class HOGWILDSGD(params: ADMMParams, val gradient: FastGradient, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
   var stats: WorkerStats = null
   var totalTimeMs: Long = -1
 
@@ -183,7 +183,7 @@ class HOGWILDSGD(params: ADMMParams, val gradient: FastGradient, var consensus: 
       Await.result(f, timeout.duration).asInstanceOf[String]
 
       val worker = new HOGWILDSGDWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        gradient = gradient, params = params, consensus = consensus, comm = hack.ref)
+        objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
 
       Iterator(worker)
     }.cache()
