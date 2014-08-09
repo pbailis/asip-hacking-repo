@@ -36,7 +36,7 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
   val others = new mutable.HashMap[Int, ActorSelection]
   var selfID: Int = -1
 
-  var inputQueue = new LinkedBlockingQueue[HWInternalMessages.DeltaUpdate]()
+  @volatile var optimizer: HOGWILDSGDWorker = null
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
@@ -47,7 +47,9 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     }
     case s: String => println(s)
     case d: HWInternalMessages.DeltaUpdate => {
-      inputQueue.add(d)
+      if (optimizer != null) {
+        optimizer.primalVar -= d.delta
+      }
     }
     case _ => println("hello, world!")
   }
@@ -101,10 +103,11 @@ class HOGWILDSGDWorker(subProblemId: Int,
   extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient, params)
   with Logging {
 
+  comm.optimizer = this
+
   @volatile var done = false
   @volatile var msgsSent = 0
-
-  var grad_delta: BV[Double] = BV.zeros(primalVar.size)
+  @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar, 
@@ -112,70 +115,42 @@ class HOGWILDSGDWorker(subProblemId: Int,
       dataSize = data.length)
   }
 
-
   val broadcastThread = new Thread {
     override def run {
+      val startTime = System.currentTimeMillis()
       while (!done) {
         comm.broadcastDeltaUpdate(grad_delta.copy)
         msgsSent += 1
         grad_delta *= 0.0
         Thread.sleep(params.broadcastDelayMS)
+        // Check to see if we are done
+        done = (System.currentTimeMillis() - startTime) > params.runtimeMS
       }
     }
   }
 
-
-
   def mainLoop() = {
-    done = false
+    assert(done == false)
     // Launch a thread to send the messages in the background
     broadcastThread.start()
-
-    val startTime = System.currentTimeMillis()
-
     var t = 0
     // Loop until done
     while (!done) {
-      // Reset the primal var
-
-      var tiq = comm.inputQueue.poll()
-      val receivedMsgs = tiq != null
-      while (tiq != null) {
-        primalVar -= tiq.delta
-        tiq = comm.inputQueue.poll()
+      grad *= 0.0 // Clear the gradient sum
+      var b = 0
+      while (b < params.miniBatchSize) {
+        val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+        gradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        b += 1
       }
-
-      var iter = 0
-      residual = Double.MaxValue
-      var currentTime = startTime
-      while(iter < params.maxWorkerIterations && !done) {
-        grad *= 0.0 // Clear the gradient sum
-        var b = 0
-        while (b < 1) {
-          val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
-          gradient(primalVar, data(ind)._2, data(ind)._1, grad)
-          b += 1
-        }
-        // Set the learning rate
-        val eta_t = params.eta_0 / (t.toDouble + 1.0)
-        grad *= (eta_t / params.miniBatchSize)
-
-        grad_delta += grad
-        primalVar -= grad
-
-        // Compute residual.
-        //residual = eta_t * norm(grad, 2.0)
-
-        if (t % 1000 == 0) {
-          currentTime = System.currentTimeMillis()
-        }
-
-        iter += 1
-        t += 1
-      }
-      // Check to see if we are done
-      val elapsedTime = System.currentTimeMillis() - startTime
-      done = elapsedTime > params.runtimeMS
+      grad /= params.miniBatchSize.toDouble
+      grad += primalVar * params.regParam 
+      // Set the learning rate
+      val eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
+      grad *= (eta_t / params.miniBatchSize)
+      grad_delta += grad
+      primalVar -= grad
+      t += 1
     }
     localIters = t
     primalVar
