@@ -9,8 +9,6 @@ RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
 ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM", "PORKCHOP"]
 
-HDFS_MASTER = "ec2-54-203-55-231.us-west-2.compute.amazonaws.com"
-
 PICKLED_OUTPUT = "experiment.pkl"
 
 ## END OF EXPERIMENTAL PARAMETERS
@@ -51,17 +49,17 @@ def describe_point_cloud(pointsPerPartition = 500000,
               labelNoise,
               dimension)
 
-def describe_forest(master):
-    return " --input hdfs://"+master+":9000/user/root/bismarck_data/forest* "
+def describe_forest():
+    return " --input /user/root/bismarck_data/forest* "
 
-def describe_flights(master, year):
-    return " --input hdfs://"+master+":9000/user/root/flights/"+str(year)+".csv"
+def describe_flights(year):
+    return " --input /user/root/flights/"+str(year)+".csv"
 
-def describe_dblp(master):
-    return " --input hdfs://"+master+":9000/user/root/dblp/binarized-year-to-title.txt"
+def describe_dblp():
+    return " --input /user/root/dblp/binarized-year-to-title.txt"
 
-def describe_wikipedia(master):
-    return " --input hdfs://"+master+":9000/user/root/wikipedia/en-wiki-8-7-2014-tokenized.txt"
+def describe_wikipedia():
+    return " --input /user/root/wiki/en-wiki-8-7-2014-tokenized.txt"
 
 ## END OF DATASET FORMATTING
 
@@ -88,15 +86,15 @@ def runTest(runtimeMS,
             inputTokenHashKernelDimension = 100,
             miscStr = ""):
     if datasetName == "bismarck":
-        datasetConfigStr = describe_forest(HDFS_MASTER)
+        datasetConfigStr = describe_forest()
     elif datasetName == "cloud":
         datasetConfigStr = describe_point_cloud(partitionSkew = cloudPartitionSkew, dimension = cloudDim)
     elif datasetName == "flights":
-        datasetConfigStr = describe_flights(HDFS_MASTER, flightsYear)
+        datasetConfigStr = describe_flights(flightsYear)
     elif datasetName == "dblp":
-        datasetConfigStr = describe_dblp(HDFS_MASTER)
+        datasetConfigStr = describe_dblp()
     elif datasetName == "wikipedia":
-        datasetConfigStr = describe_wikipedia(HDFS_MASTER)
+        datasetConfigStr = describe_wikipedia()
     else:
         print "Unknown dataset!"
         raise
