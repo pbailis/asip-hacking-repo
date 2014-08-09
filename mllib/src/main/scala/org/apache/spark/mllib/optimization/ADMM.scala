@@ -422,6 +422,11 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
         solver.rho = rho
+        // if ( iteration == 0 ) {
+        //   solver.rho = 0.0
+        // } else {
+        //   solver.rho = rho
+        // }
         if(params.adaptiveRho) {
           solver.dualUpdate(rho)
         } else {

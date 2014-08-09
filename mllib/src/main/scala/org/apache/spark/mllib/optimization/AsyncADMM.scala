@@ -137,6 +137,13 @@ class AsyncADMMWorker(subProblemId: Int,
         val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
 
+        // // Start at rho == 0 on the first iteration
+        // if ( localIters == 0 ) {
+        //   rho = 0.0
+        // } else {
+        //   rho = params.rho0
+        // }
+
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
         // Run the primal update
         primalUpdate()
@@ -254,6 +261,13 @@ class AsyncADMMWorker(subProblemId: Int,
     while (!done) {
       // Reset the primal var
       // primalVar = primalConsensus.copy
+
+      // // Start at rho == 0 on the first iteration
+      // if ( localIters == 0 ) {
+      //   rho = 0.0
+      // } else {
+      //   rho = params.rho0
+      // }
 
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)

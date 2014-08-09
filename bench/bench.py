@@ -7,7 +7,7 @@ import pickle
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "miniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -17,14 +17,14 @@ PICKLED_OUTPUT = "experiment.pkl"
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.00000001
-GLOBAL_ADMMlocalEpsilon = 0.0001
+GLOBAL_ADMMlocalEpsilon = 0.000001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 1.0
 
-GLOBAL_ADMM_maxLocalIterations = 10000
+GLOBAL_ADMM_maxLocalIterations = 100000
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100
-GLOBAL_MiniBatchADMM_localEpsilon = 0.01
+GLOBAL_MiniBatchADMM_localEpsilon = 0.000001
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
@@ -195,6 +195,7 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
+            localEpsilon = GLOBAL_ADMMlocalEpsilon
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
             elif algorithm == "MiniBatchADMM":
@@ -224,6 +225,7 @@ for runtime in RUNTIMES:
         for skew in [0.0]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
+                localEpsilon = GLOBAL_ADMMlocalEpsilon
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 elif algorithm == "MiniBatchADMM":
@@ -254,6 +256,7 @@ for runtime in RUNTIMES:
         for skew in [0.0, 0.1]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
+                localEpsilon = GLOBAL_ADMMlocalEpsilon
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 elif algorithm == "MiniBatchADMM":
