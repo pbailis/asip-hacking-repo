@@ -26,6 +26,15 @@ class HingeObjective extends ObjectiveFunction {
       0.0
     }
   }
+  override def apply(w: BV[Double], x: BV[Double], y: Double): Double = {
+    val yscaled = 2.0 * y - 1.0
+    val wdotx = w.dot(x)
+    if (yscaled * wdotx < 1.0) {
+      1.0 - yscaled * wdotx
+    } else {
+      0.0
+    }
+  }
 }
 
 
@@ -305,6 +314,9 @@ class SGDLocalOptimizer(val subProblemId: Int,
     primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
   }
 
+//  def lineSearch(): Double = {
+//    // loss = objFun(primalVar, data(ind)._2, data(ind)._1)
+//  }
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
     residual = Double.MaxValue
