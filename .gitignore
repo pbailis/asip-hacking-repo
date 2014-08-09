@@ -14,6 +14,7 @@ out/
 .DS_Store
 third_party/libmesos.so
 third_party/libmesos.dylib
+conf/slaves
 conf/java-opts
 conf/spark-env.sh
 conf/streaming-env.sh
