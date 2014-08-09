@@ -339,7 +339,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Add the augmenting term
       axpy(rho, primalVar - primalConsensus, grad)
       // Set the learning rate
-      val eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
+      val eta_t = params.eta_0 / (t.toDouble + 1.0)
       // Do the gradient update
       primalVar = (primalVar - grad * eta_t)
       // axpy(-eta_t, grad, primalVar)

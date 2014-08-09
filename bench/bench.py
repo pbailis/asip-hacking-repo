@@ -17,14 +17,14 @@ PICKLED_OUTPUT = "experiment.pkl"
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.00000001
-GLOBAL_ADMMlocalEpsilon = 0.000001
+GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
-GLOBAL_ADMMlagrangianRho = 1.0
+GLOBAL_ADMMlagrangianRho = 0.5
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100
-GLOBAL_MiniBatchADMM_localEpsilon = 0.000001
+GLOBAL_MiniBatchADMM_localEpsilon = 0.001
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
