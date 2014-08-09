@@ -114,6 +114,42 @@ class LogisticRegressionWithSGD private (
 
 }
 
+/**
+ * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
+ * NOTE: Labels used in SVM should be {0, 1}.
+ */
+class LRWithADMM(val params: ADMMParams)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+
+  override val optimizer: ADMM = new ADMM(params, new HingeObjective(), new L2ConsensusFunction())
+
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
+class LRWithAsyncADMM(val params: ADMMParams)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+
+  override val optimizer = new AsyncADMM(params, new LogisticObjective(), new L2ConsensusFunction())
+
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
+class LRWithHOGWILD(val params: ADMMParams)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+
+  override val optimizer = new HOGWILDSGD(params, new LogisticObjective(), new L2ConsensusFunction())
+
+  //override protected val validators = List(DataValidators.binaryLabelValidator)
+  override protected def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
 
 
 /**

@@ -2,6 +2,9 @@
 # if interrupted, run the following again, but add flag --resume
 ec2/spark-ec2 --slaves=5 --spot-price=1.0 --instance-type=m2.4xlarge --region=us-west-2 --key-pair kaiju --identity-file=/Users/pbailis/.ssh/kaiju_rsa.pub launch testing
 
+#Joey launcb
+ec2/spark-ec2 --slaves=16 --spot-price=1.0 --instance-type=m2.4xlarge --region=us-west-2 --key-pair ec2oregon --identity-file=/Users/jegonzal/ec2/berkeley_keys/ec2oregon.pem launch porkchop
+
 export MASTER=ec2-54-214-194-226.us-west-2.compute.amazonaws.com
 
 ssh root@$MASTER

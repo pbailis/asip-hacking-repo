@@ -225,9 +225,10 @@ object SynchronousADMMTests {
 
   class Params extends ADMMParams {
     var input: String = null
-    var  format: String = "libsvm"
+    var format: String = "libsvm"
     var numPartitions: Int = -1
     var algorithm: Algorithm = GD
+    var useLR: Boolean = false
     var regType: RegType = L2
     var pointCloudDimension: Int = 10
     var pointCloudLabelNoise: Double = .2
@@ -244,6 +245,7 @@ object SynchronousADMMTests {
       "format: " + format + ", " +
       "numPartitions: " + numPartitions + ", " +
       "algorithm: " + algorithm + ", " +
+      "useLR: " + useLR + ", " +
       "algParams: " + super.toString() + ", " +
       "regType: " + regType + ", " +
       "pointCloudDim: " + pointCloudDimension + ", " +
@@ -304,6 +306,10 @@ object SynchronousADMMTests {
         .text(s"algorithm (${Algorithm.values.mkString(",")}), " +
         s"default: ${defaultParams.algorithm}")
         .action { (x, c) => c.algorithm = Algorithm.withName(x); c }
+      opt[Boolean]("useLR")
+        .action { (x, c) => c.useLR = x; c }
+
+
       opt[String]("regType")
         .text(s"regularization type (${RegType.values.mkString(",")}), " +
         s"default: ${defaultParams.regType}")
@@ -486,120 +492,199 @@ object SynchronousADMMTests {
       //     )
       //   (model, results)
       case GD =>
-        val algorithm = new SVMWithSGD()
-        algorithm.optimizer
-          .setNumIterations(100000)
-          .setRuntime(params.runtimeMS)
-          .setStepSize(params.eta_0)
-          .setUpdater(updater)
-          .setRegParam(params.regParam)
-        val startTime = System.nanoTime()
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.getLastIterations().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        (model, results)
-      case ADMM => 
-        val algorithm = new SVMWithADMM(params)
-        algorithm.optimizer.consensus = consensusFun
-        val startTime = System.nanoTime()
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.iteration.toString,
-            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        (model, results )
-      case MiniBatchADMM =>
-        val algorithm = new SVMWithADMM(params)
-        algorithm.optimizer.consensus = consensusFun
-        val startTime = System.nanoTime()
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.iteration.toString,
-            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        (model, results )
+        if (params.useLR) {
+          val algorithm = new LogisticRegressionWithSGD()
+          algorithm.optimizer
+            .setNumIterations(100000)
+            .setRuntime(params.runtimeMS)
+            .setStepSize(params.eta_0)
+            .setUpdater(updater)
+            .setRegParam(params.regParam)
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.getLastIterations().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results)
+        } else {
+          val algorithm = new SVMWithSGD()
+          algorithm.optimizer
+            .setNumIterations(100000)
+            .setRuntime(params.runtimeMS)
+            .setStepSize(params.eta_0)
+            .setUpdater(updater)
+            .setRegParam(params.regParam)
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.getLastIterations().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results)
+        }
 
-      case AsyncADMM =>
-        val algorithm = new SVMWithAsyncADMM(params)
-        algorithm.optimizer.consensus = consensusFun
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-            "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        println(results)
-        println(algorithm.optimizer.stats)
-        (model, results)
-      case PORKCHOP =>
-        // force the use of porkchop
-        params.usePorkChop = true
-        val algorithm = new SVMWithAsyncADMM(params)
-        algorithm.optimizer.consensus = consensusFun
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-            "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-            "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        println(results)
-        println(algorithm.optimizer.stats)
-        (model, results)
+      case ADMM | MiniBatchADMM =>
+        if (params.useLR) {
+          val algorithm = new LRWithADMM(params)
+          algorithm.optimizer.consensus = consensusFun
+          val startTime = System.nanoTime()
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.iteration.toString,
+              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results )
+        } else {
+          val algorithm = new SVMWithADMM(params)
+          algorithm.optimizer.consensus = consensusFun
+          val startTime = System.nanoTime()
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.iteration.toString,
+              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results )
+        }
+//
+//      case MiniBatchADMM =>
+//        if (params.useLR) {
+//          val algorithm = new LRWithADMM(params)
+//          algorithm.optimizer.consensus = consensusFun
+//          val startTime = System.nanoTime()
+//          val model = algorithm.run(training).clearThreshold()
+//          val results =
+//            Map(
+//              "iterations" -> algorithm.optimizer.iteration.toString,
+//              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+//              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+//            )
+//          (model, results )
+//        } else {
+//          val algorithm = new SVMWithADMM(params)
+//          algorithm.optimizer.consensus = consensusFun
+//          val startTime = System.nanoTime()
+//          val model = algorithm.run(training).clearThreshold()
+//          val results =
+//            Map(
+//              "iterations" -> algorithm.optimizer.iteration.toString,
+//              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+//              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+//            )
+//          (model, results )
+//        }
+
+
+      case AsyncADMM | PORKCHOP =>
+        if (params.algorithm == PORKCHOP) {
+          // force the use of porkchop
+          params.usePorkChop = true
+
+        }
+        if (params.useLR) {
+          val algorithm = new LRWithAsyncADMM(params)
+          algorithm.optimizer.consensus = consensusFun
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          println(results)
+          println(algorithm.optimizer.stats)
+          (model, results)
+
+        } else {
+          val algorithm = new SVMWithAsyncADMM(params)
+          algorithm.optimizer.consensus = consensusFun
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          println(results)
+          println(algorithm.optimizer.stats)
+          (model, results)
+        }
+
+
+//      case PORKCHOP =>
+//        if (params.useLR) {
+//          // force the use of porkchop
+//          params.usePorkChop = true
+//          val algorithm = new LRWithAsyncADMM(params)
+//          algorithm.optimizer.consensus = consensusFun
+//          val model = algorithm.run(training).clearThreshold()
+//          val results =
+//            Map(
+//              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+//              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+//              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+//              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+//              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+//            )
+//          println(results)
+//          println(algorithm.optimizer.stats)
+//          (model, results)
+//        } else {
+//          // force the use of porkchop
+//          params.usePorkChop = true
+//          val algorithm = new SVMWithAsyncADMM(params)
+//          algorithm.optimizer.consensus = consensusFun
+//          val model = algorithm.run(training).clearThreshold()
+//          val results =
+//            Map(
+//              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+//              "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
+//              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+//              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+//              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+//            )
+//          println(results)
+//          println(algorithm.optimizer.stats)
+//          (model, results)
+//        }
+
 
       case HOGWILD =>
-        val algorithm = new SVMWithHOGWILD(params)
-        algorithm.optimizer.consensus = consensusFun
-        val model = algorithm.run(training).clearThreshold()
-        val results =
-          Map(
-            "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-            "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-            "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-            "runtime" -> algorithm.optimizer.totalTimeMs.toString
-          )
-        (model, results)
+        if (params.useLR) {
+          val algorithm = new LRWithHOGWILD(params)
+          algorithm.optimizer.consensus = consensusFun
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results)
+        } else {
+          val algorithm = new SVMWithHOGWILD(params)
+          algorithm.optimizer.consensus = consensusFun
+          val model = algorithm.run(training).clearThreshold()
+          val results =
+            Map(
+              "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+            )
+          (model, results)
+        }
 
-      // case LRADMM =>
-      //   val algorithm = new LRWithADMM()
-      //   algorithm.consensus = consensusFun
-      //   //        algorithm.maxGlobalIterations = iterations
-      //   algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-      //   algorithm.regParam = params.regParam
-      //   algorithm.epsilon = params.ADMMepsilon
-      //   algorithm.localEpsilon = params.ADMMLocalepsilon
-      //   algorithm.collectLocalStats = params.localStats
-      //   algorithm.runtimeMS = params.runtimeMS
-      //   algorithm.setup()
-      //   val startTime = System.nanoTime()
-      //   val model = algorithm.run(training).clearThreshold()
-      //   (model, algorithm.optimizer.iteration, algorithm.optimizer.totalTimeMs)
-      // case LRADMMAsync =>
-      //   val algorithm = new LRWithAsyncADMM()
-      //   algorithm.consensus = consensusFun
-      //   algorithm.maxLocalIterations = params.ADMMmaxLocalIterations
-      //   algorithm.regParam = params.regParam
-      //   algorithm.epsilon = params.ADMMepsilon
-      //   algorithm.localEpsilon = params.ADMMLocalepsilon
-      //   algorithm.broadcastDelayMS = 100
-      //   algorithm.runtimeMS = params.runtimeMS
-      //   algorithm.rho = params.rho
-      //   algorithm.lagrangianRho = params.lagrangianRho
-      //   algorithm.setup()
-      //   val model = algorithm.run(training).clearThreshold()
-      //   (model, algorithm.optimizer.commStages, algorithm.optimizer.totalTimeMs)
+
 
     }
   }

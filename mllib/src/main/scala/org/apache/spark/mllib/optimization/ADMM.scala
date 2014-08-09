@@ -66,12 +66,22 @@ P(y \,|\, x,w) &= \left(1 - \sigma(w^T x) \right)^{(1-y)}  \sigma(w^T x)^{y} \\
 \log P(y \,|\, x,w) &=  -y \log \left( 1 + \exp(-w^T x) \right) + (1-y) \log \exp(-w^T x) - (1-y) \log \left( 1 + \exp(-w^T x) \right)  \\
 \log P(y \,|\, x,w) &=  (1 - y) (-w^T x) -\log \left( 1 + \exp(-w^T x) \right)
  */
-class FastLogisticGradient extends ObjectiveFunction {
+class LogisticObjective extends ObjectiveFunction {
   def sigmoid(x: Double) = 1.0 / (1.0 + math.exp(-x))
   override def addGradient(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) = {
     val wdotx = w.dot(x)
     val gradientMultiplier = label - sigmoid(wdotx)
     axpy(-gradientMultiplier, x, cumGrad)
+    val logLikelihood =
+      if (label > 0) {
+        -math.log1p(math.exp(-wdotx)) // log1p(x) = log(1+x)
+      } else {
+        -wdotx - math.log1p(math.exp(-wdotx))
+      }
+    -logLikelihood
+  }
+  override def apply(w: BV[Double], x: BV[Double], label: Double) = {
+    val wdotx = w.dot(x)
     val logLikelihood =
       if (label > 0) {
         -math.log1p(math.exp(-wdotx)) // log1p(x) = log(1+x)
