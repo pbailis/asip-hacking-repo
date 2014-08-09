@@ -64,6 +64,35 @@ object DataLoaders {
     })
   }
 
+  def loadWikipedia(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+    println("loading data!")
+    val rawData = sc.textFile(filename, params.numPartitions)
+
+    var maxFeatureID = params.inputTokenHashKernelDimension
+    if (params.inputTokenHashKernelDimension < 0) {
+      maxFeatureID = rawData.map(line => max(line.split(' ').tail.map(s => s.toInt))).max()
+    }
+
+    val labelStr = params.wikipediaTargetWordToken.toString
+
+    rawData.map(line => {
+      val splits = line.split(' ')
+      val features: Array[Double] = Array.fill[Double](maxFeatureID)(0.0)
+      var i = 1
+      var labelFound = false
+      while (i < splits.length) {
+        if(splits(i).equals(labelStr)) {
+          labelFound = true
+        } else {
+          val hc: Int = MurmurHash3.stringHash(splits(i))
+          features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
+        }
+        i += 1
+      }
+      LabeledPoint(if(labelFound) 1.0 else -1.0, new DenseVector(features))
+    })
+  }
+
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
     val labels = Array("Year", "Month", "DayOfMonth", "DayOfWeek", "DepTime", "CRSDepTime", "ArrTime",
       "CRSArrTime", "UniqueCarrier", "FlightNum", "TailNum", "ActualElapsedTime", "CRSElapsedTime",
@@ -208,6 +237,8 @@ object SynchronousADMMTests {
     var pointCloudSize: Double = 1.0
     var inputTokenHashKernelDimension: Int = 100
     var dblpSplitYear = 2007
+    // 4690 == database
+    var wikipediaTargetWordToken = 4690
 
     override def toString = {
       "{" + "input: " + input + ", " +
@@ -222,6 +253,7 @@ object SynchronousADMMTests {
       "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
       "pointCloudSize: " + pointCloudSize +
       "inputTokenHashKernelDimension: " +inputTokenHashKernelDimension +
+      "wikipediaTargetWordToken: " + wikipediaTargetWordToken +
       "dblpSplitYear: " + dblpSplitYear +"}"
     }
   }
@@ -266,6 +298,9 @@ object SynchronousADMMTests {
         .text("In DBLP dataset, years less than this will be negatively labeled")
         .action { (x, c) => c.dblpSplitYear = x; c }
 
+      opt[Int]("wikipediaTargetWordToken")
+        .text("token word to try to predict in wikipedia dataset")
+        .action { (x, c) => c.wikipediaTargetWordToken; c }
       opt[String]("algorithm")
         .text(s"algorithm (${Algorithm.values.mkString(",")}), " +
         s"default: ${defaultParams.algorithm}")
@@ -359,7 +394,10 @@ object SynchronousADMMTests {
         params.pointCloudPointsPerPartition)
     } else if (params.format == "dblp") {
       DataLoaders.loadDBLP(sc, params.input, params)
-    } else {
+    } else if (params.format == "wikipedia") {
+      DataLoaders.loadWikipedia(sc, params.input, params)
+    }
+    else {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
 

@@ -60,6 +60,9 @@ def describe_flights(master, year):
 def describe_dblp(master):
     return " --input hdfs://"+master+":9000/user/root/dblp/binarized-year-to-title.txt"
 
+def describe_wikipedia(master):
+    return " --input hdfs://"+master+":9000/user/root/wikipedia/en-wiki-8-7-2014-tokenized.txt"
+
 ## END OF DATASET FORMATTING
 
 
@@ -80,6 +83,7 @@ def runTest(runtimeMS,
             cloudDim=-1,
             cloudPartitionSkew=-1,
             flightsYear = "2008",
+            wikipediaTargetWordToken = 4690,
             dblpSplitYear = 2007,
             inputTokenHashKernelDimension = 100,
             miscStr = ""):
@@ -91,6 +95,8 @@ def runTest(runtimeMS,
         datasetConfigStr = describe_flights(HDFS_MASTER, flightsYear)
     elif datasetName == "dblp":
         datasetConfigStr = describe_dblp(HDFS_MASTER)
+    elif datasetName == "wikipedia":
+        datasetConfigStr = describe_wikipedia(HDFS_MASTER)
     else:
         print "Unknown dataset!"
         raise
@@ -112,6 +118,9 @@ def runTest(runtimeMS,
           "--ADMMrho %f " \
           "--ADMMLagrangianrho %f " \
           "--broadcastDelayMs %d " \
+          "--dblpSplitYear %d " \
+          "--wikipediaTargetWordToken %d " \
+          "--inputTokenHashKernelDimension %d " \
           " %s %s " % \
           (algorithm,
            regType,
@@ -125,6 +134,9 @@ def runTest(runtimeMS,
            ADMMrho,
            ADMMlagrangianRho,
            broadcastDelay,
+           dblpSplitYear,
+           wikipediaTargetWordToken,
+           inputTokenHashKernelDimension,
            datasetConfigStr,
            miscStr)
 
@@ -164,7 +176,8 @@ def runTest(runtimeMS,
                 "pointCloudDim": cloudDim,
                 "pointCloudSkew": cloudPartitionSkew,
                 "inputTokenHashKernelDimension": inputTokenHashKernelDimension,
-                "dblpSplitYear": dblpSplitYear
+                "dblpSplitYear": dblpSplitYear,
+                "wikipediaTargetWordToken": wikipediaTargetWordToken
             }
             results.append(record)
 
@@ -177,8 +190,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-# for dataset in ["flights", "bismarck", "dblp"]:
-for dataset in ["bismarck", "dblp"]:
+for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
