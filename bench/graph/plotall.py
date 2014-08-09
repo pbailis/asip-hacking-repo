@@ -4,7 +4,7 @@ from pylab import *
 from sys import argv
 
 logLoss = True
-
+yval = 'training_loss'
 matplotlib.rcParams['figure.figsize'] = 6, 3#3.5, 1.7
 
 if len(argv) < 2:
@@ -25,7 +25,7 @@ print "BISMARCK"
 for alg in algs:
     alg_results = [r for r in bismarck_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval]) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -44,6 +44,40 @@ savefig("bismarck.pdf")
 
 cla()
 
+
+print "Wikipedia"
+
+wiki_results = [r for r in results if r['dataset'] == "wikipedia"]
+
+algs = unique([r['algorithm'] for r in results])
+
+for alg in algs:
+    alg_results = [r for r in wiki_results if r['algorithm'] == alg]
+
+    plot_p = [(r['runtime_ms'], r['training_error']) for r in alg_results]
+    plot_p.sort(key = lambda x: x[0])
+
+    for p in plot_p:
+        print alg, p[0], p[1]
+    
+    plotx = [r[0] for r in plot_p]
+    ploty = [r[1] for r in plot_p]
+    plot(plotx, ploty, 'o-', label=alg)
+
+if logLoss:
+    gca().set_yscale('log')
+
+    
+#gca().set_yscale('log')
+#gca().set_xscale('log')
+legend()
+savefig("wikipedia.pdf")
+ 
+
+cla()
+
+
+
 print "FLIGHTS"
 
 flights_results = [r for r in results if r['dataset'] == "flights"]
@@ -51,7 +85,7 @@ flights_results = [r for r in results if r['dataset'] == "flights"]
 for alg in algs:
     alg_results = [r for r in flights_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss'],  r['training_error']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval],  r['training_error']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -77,7 +111,7 @@ flights_results = [r for r in results if r['dataset'] == "dblp"]
 for alg in algs:
     alg_results = [r for r in flights_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss'], r['training_error']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval], r['training_error']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -106,7 +140,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval]) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
     plotx = [r[0] for r in plot_p]
     ploty = [r[1] for r in plot_p]
@@ -134,7 +168,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss'], r['command']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval], r['command']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
@@ -163,7 +197,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss'], r['command']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval], r['command']) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
@@ -192,7 +226,7 @@ algs = unique([r['algorithm'] for r in results])
 for alg in algs:
     alg_results = [r for r in cloud_results if r['algorithm'] == alg]
 
-    plot_p = [(r['runtime_ms'], r['total_loss']) for r in alg_results]
+    plot_p = [(r['runtime_ms'], r[yval]) for r in alg_results]
     plot_p.sort(key = lambda x: x[0])
 
     for p in plot_p:
@@ -210,3 +244,5 @@ if logLoss:
 #gca().set_xscale('log')
 legend()
 savefig("pc-dim10-skewpoint1.pdf")
+
+
