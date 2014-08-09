@@ -9,7 +9,7 @@ RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
 ALGORITHMS = ["SVMADMM", "SVMADMMAsync", "HOGWILDSVM", "SVM", "PORKCHOP"]
 
-HDFS_MASTER = "ec2-54-184-179-190.us-west-2.compute.amazonaws.com"
+HDFS_MASTER = "ec2-54-203-55-231.us-west-2.compute.amazonaws.com"
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -23,7 +23,7 @@ GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 0.5
 
-GLOBAL_SVMADMM_maxLocalIterations = 1000000000
+GLOBAL_SVMADMM_maxLocalIterations = 10000
 
 GLOBAL_HOGWILDSVM_maxLocalIterations = 100
 GLOBAL_HOGWILDSVM_broadcastDelay = 1
@@ -75,7 +75,7 @@ def runTest(runtimeMS,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
             regParam=0.0001,
-            numPartitions = 40,
+            numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
             cloudPartitionSkew=-1,
@@ -162,7 +162,6 @@ def runTest(runtimeMS,
                 "numPartitions": numPartitions,
                 "regType": regType,
                 "pointCloudDim": cloudDim,
-                "pointCloudSkew": cloudPartitionSkew
                 "pointCloudSkew": cloudPartitionSkew,
                 "inputTokenHashKernelDimension": inputTokenHashKernelDimension,
                 "dblpSplitYear": dblpSplitYear
@@ -178,7 +177,8 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["flights", "bismarck", "dblp"]:
+# for dataset in ["flights", "bismarck", "dblp"]:
+for dataset in ["bismarck", "dblp"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1

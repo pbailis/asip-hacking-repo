@@ -229,7 +229,7 @@ object SynchronousADMMTests {
   def main(args: Array[String]) {
     val defaultParams = new Params()
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    // Logger.getRootLogger.setLevel(Level.WARN)
 
     val parser = new OptionParser[Params]("BinaryClassification") {
       head("BinaryClassification: an example app for binary classification.")
