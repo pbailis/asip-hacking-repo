@@ -116,7 +116,7 @@ class SVMWithSGD private (
  */
 class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  override val optimizer: ADMM = new ADMM(params, new FastHingeGradient(), new L2ConsensusFunction())
+  override val optimizer: ADMM = new ADMM(params, new HingeObjective(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
@@ -126,7 +126,7 @@ class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVM
 
 class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  override val optimizer = new AsyncADMM(params, new FastHingeGradient(), new L2ConsensusFunction())
+  override val optimizer = new AsyncADMM(params, new HingeObjective(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {
@@ -136,7 +136,7 @@ class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorith
 
 class SVMWithHOGWILD(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
-  override val optimizer = new HOGWILDSGD(params, new FastHingeGradient(), new L2ConsensusFunction())
+  override val optimizer = new HOGWILDSGD(params, new HingeObjective(), new L2ConsensusFunction())
 
   //override protected val validators = List(DataValidators.binaryLabelValidator)
   override protected def createModel(weights: Vector, intercept: Double) = {

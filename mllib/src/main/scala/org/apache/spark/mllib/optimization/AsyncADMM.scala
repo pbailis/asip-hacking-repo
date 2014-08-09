@@ -7,7 +7,6 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
-import com.twitter.chill.{KryoPool, ScalaKryoInstantiator}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -96,12 +95,12 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
 class AsyncADMMWorker(subProblemId: Int,
                       data: Array[(Double, BV[Double])],
-                      gradient: FastGradient,
+                      objFun: ObjectiveFunction,
                       params: ADMMParams,
                       val consensus: ConsensusFunction,
                       val comm: WorkerCommunication,
                       val nSubProblems: Int)
-    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, gradient = gradient, params)
+    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, objFun = objFun, params)
     with Logging {
 
   @volatile var done = false
@@ -327,7 +326,7 @@ object SetupBlock {
 }
 
 
-class AsyncADMM(val params: ADMMParams, val gradient: FastGradient, var consensus: ConsensusFunction)
+class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var consensus: ConsensusFunction)
   extends Optimizer with Serializable with Logging {
 
   var totalTimeMs: Long = -1
@@ -353,7 +352,7 @@ class AsyncADMM(val params: ADMMParams, val gradient: FastGradient, var consensu
       Await.result(f, timeout.duration).asInstanceOf[String]
 
       val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        gradient = gradient, params = params, consensus = consensus, comm = hack.ref)
+        objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
       worker.primalVar = primal0.copy
       worker.dualVar = primal0.copy
       Iterator(worker)
@@ -376,7 +375,7 @@ class AsyncADMM(val params: ADMMParams, val gradient: FastGradient, var consensu
     // Ping Pong?  Just because?
     workers.foreach { w => w.comm.sendPingPongs() }
 
-    input.unpersist(true)
+    input.unpersist(blocking = true)
     workers.foreach( f => System.gc() )
   }
 
