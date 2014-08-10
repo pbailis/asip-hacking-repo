@@ -201,7 +201,7 @@ for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
-            miscStr = " --useLineSearch true "
+            miscStr = " --useLineSearch true --miniBatchSize 100"
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
@@ -238,7 +238,7 @@ for runtime in RUNTIMES:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
-                miscStr = " --useLineSearch true "
+                miscStr = " --useLineSearch true --miniBatchSize 100"
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                     localEpsilon = GLOBAL_ADMM_localEpsilon
