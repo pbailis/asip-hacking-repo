@@ -21,7 +21,7 @@ GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 0.5
 
-GLOBAL_ADMM_maxLocalIterations = 100000
+GLOBAL_ADMM_maxLocalIterations = 1000
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100
 GLOBAL_MiniBatchADMM_localEpsilon = 0.001
@@ -29,8 +29,12 @@ GLOBAL_MiniBatchADMM_localEpsilon = 0.001
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
 
-GLOBAL_AsyncADMM_maxLocalIterations = 10000
+GLOBAL_AsyncADMM_maxLocalIterations = 1000
 GLOBAL_AsyncADMM_broadcastDelay = 100
+
+GLOBAL_PORKCHOP_maxLocalIterations = 100
+GLOBAL_PORKCHOP_broadcastDelay = 100
+
 
 GLOBAL_inputTokenHashKernelDimension = 100
 
@@ -204,7 +208,10 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
             elif algorithm == "HOGWILD":
                 maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                 broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
-            else:
+            elif algorithm == "PORKCHOP":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+            elif algorithm == "AsyncADMM":
                 maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                 broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
@@ -234,9 +241,13 @@ for runtime in RUNTIMES:
                 elif algorithm == "HOGWILD":
                     maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                     broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
-                else:
+                elif algorithm == "PORKCHOP":
+                    maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                    broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+                
 
                 results += runTest(runtime,
                                    algorithm,
@@ -265,7 +276,10 @@ for runtime in RUNTIMES:
                 elif algorithm == "HOGWILD":
                     maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                     broadcastDelay = GLOBAL_HOGWILD_broadcastDelay                    
-                else:
+                elif algorithm == "PORKCHOP":
+                    maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                    broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
