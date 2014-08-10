@@ -24,7 +24,7 @@ trait ObjectiveFunction extends Serializable {
     sum / data.length.toDouble
   }
 
-  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, 
+  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int,
     rnd: java.util.Random): Double = {
     if (nSamples >= data.size) {
       apply(w, data)
@@ -40,7 +40,7 @@ trait ObjectiveFunction extends Serializable {
     }
   }
 
-  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, 
+  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int,
     startInd: Int): Double = {
     if (nSamples >= data.size) {
       apply(w, data)
@@ -184,7 +184,7 @@ object Interval {
 
 
 class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serializable {
-  def this(x: Double) = this(x, x, x) 
+  def this(x: Double) = this(x, x, x)
   def +(other: Interval) = {
     new Interval(x+other.x, math.min(xMin, other.xMin), math.max(xMax, other.xMax))
   }
@@ -204,14 +204,14 @@ object WorkerStats {
     residual: Double = 0.0,
     dataSize: Int = 0) = {
     new WorkerStats(
-      weightedPrimalVar = primalVar * dataSize.toDouble, 
+      weightedPrimalVar = primalVar * dataSize.toDouble,
       weightedDualVar = dualVar * dataSize.toDouble,
       msgsSent = Interval(msgsSent),
       msgsRcvd = Interval(msgsRcvd),
-      localIters = Interval(localIters), 
+      localIters = Interval(localIters),
       sgdIters = Interval(sgdIters),
       residual = Interval(residual),
-      dataSize = Interval(dataSize), 
+      dataSize = Interval(dataSize),
       nWorkers = 1)
   }
 }
@@ -240,7 +240,7 @@ case class WorkerStats(
       weightedDualVar = weightedDualVar + other.weightedDualVar,
       msgsSent = msgsSent + other.msgsSent,
       msgsRcvd = msgsRcvd + other.msgsRcvd,
-      localIters = localIters + other.localIters, 
+      localIters = localIters + other.localIters,
       sgdIters = sgdIters + other.sgdIters,
       dataSize = dataSize + other.dataSize,
       residual = residual + other.residual,
@@ -314,7 +314,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
                         val params: ADMMParams) extends Serializable with Logging {
 
   val dim = data(0)._2.size
-  val rnd = new java.util.Random(subProblemId)  
+  val rnd = new java.util.Random(subProblemId)
 
   params.miniBatchSize = math.min(params.miniBatchSize, data.size)
 
@@ -323,7 +323,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   @volatile var primalVar = BV.zeros[Double](dim)
 
   @volatile var dualVar = BV.zeros[Double](dim)
-  
+
   @volatile var grad = BV.zeros[Double](dim)
 
   @volatile var sgdIters = 0
@@ -553,7 +553,7 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         params.regParam)
 
       // Compute the residuals
-      primalResidual = solvers.map( 
+      primalResidual = solvers.map(
         s => norm(s.primalVar - primalConsensus, 2) * s.data.length.toDouble)
         .reduce(_+_) / stats.dataSize.x
       dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
