@@ -21,10 +21,10 @@ GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 0.5
 
-GLOBAL_ADMM_maxLocalIterations = 100000000
+GLOBAL_ADMM_maxLocalIterations = 10000000
 GLOBAL_ADMM_localEpsilon = 0.000001
 
-GLOBAL_MiniBatchADMM_maxLocalIterations = 100
+GLOBAL_MiniBatchADMM_maxLocalIterations = 10000
 GLOBAL_MiniBatchADMM_localEpsilon = 0.001
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
@@ -196,11 +196,12 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
+for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
+            miscStr = " --useLineSearch true "
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
@@ -223,7 +224,8 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
                             flightsYear = 2008,
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
-                            broadcastDelay = broadcastDelay)
+                            broadcastDelay = broadcastDelay,
+                            miscStr = miscStr)
 
             output = open(PICKLED_OUTPUT, 'wb')
             pickle.dump(results, output)
@@ -231,11 +233,12 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
 
 
 for runtime in RUNTIMES:
-    for dim in [2, 100]:
-        for skew in [0.0]:
+    for dim in [2, 50]:
+        for skew in [0.0, 0.1]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
+                miscStr = " --useLineSearch true "
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                     localEpsilon = GLOBAL_ADMM_localEpsilon
@@ -260,46 +263,47 @@ for runtime in RUNTIMES:
                                    cloudDim = dim,
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
-                                   broadcastDelay = broadcastDelay)
+                                   broadcastDelay = broadcastDelay,
+                                   miscStr = miscStr)
 
                 output = open(PICKLED_OUTPUT, 'wb')
                 pickle.dump(results, output)
                 output.close()
 
-for runtime in RUNTIMES:
-    for dim in [10]:
-        for skew in [0.0, 0.1]:
-            for algorithm in ALGORITHMS:
-                broadcastDelay = -1
-                localEpsilon = GLOBAL_ADMMlocalEpsilon
-                if algorithm == "ADMM":
-                    maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
-                    localEpsilon = GLOBAL_ADMM_localEpsilon
-                elif algorithm == "MiniBatchADMM":
-                    maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
-                    localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
-                elif algorithm == "HOGWILD":
-                    maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
-                    broadcastDelay = GLOBAL_HOGWILD_broadcastDelay                    
-                elif algorithm == "PORKCHOP":
-                    maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
-                    broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
-                elif algorithm == "AsyncADMM":
-                    maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
-                    broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+# for runtime in RUNTIMES:
+#     for dim in [10]:
+#         for skew in [0.0, 0.1]:
+#             for algorithm in ALGORITHMS:
+#                 broadcastDelay = -1
+#                 localEpsilon = GLOBAL_ADMMlocalEpsilon
+#                 if algorithm == "ADMM":
+#                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+#                     localEpsilon = GLOBAL_ADMM_localEpsilon
+#                 elif algorithm == "MiniBatchADMM":
+#                     maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+#                     localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+#                 elif algorithm == "HOGWILD":
+#                     maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+#                     broadcastDelay = GLOBAL_HOGWILD_broadcastDelay                    
+#                 elif algorithm == "PORKCHOP":
+#                     maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+#                     broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+#                 elif algorithm == "AsyncADMM":
+#                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+#                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
-                results += runTest(runtime,
-                                   algorithm,
-                                   "cloud",
-                                   cloudPartitionSkew = skew,
-                                   cloudDim = dim,
-                                   ADMMmaxLocalIterations = maxLocalIterations,
-                                   ADMMlocalEpsilon = localEpsilon,
-                                   broadcastDelay = broadcastDelay)
+#                 results += runTest(runtime,
+#                                    algorithm,
+#                                    "cloud",
+#                                    cloudPartitionSkew = skew,
+#                                    cloudDim = dim,
+#                                    ADMMmaxLocalIterations = maxLocalIterations,
+#                                    ADMMlocalEpsilon = localEpsilon,
+#                                    broadcastDelay = broadcastDelay)
 
-                output = open(PICKLED_OUTPUT, 'wb')
-                pickle.dump(results, output)
-                output.close()
+#                 output = open(PICKLED_OUTPUT, 'wb')
+#                 pickle.dump(results, output)
+#                 output.close()
 
 
 ## END OF EXPERIMENT RUNS
