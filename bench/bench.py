@@ -91,7 +91,7 @@ def runTest(runtimeMS,
             flightsYear = "2008",
             wikipediaTargetWordToken = 4690,
             dblpSplitYear = 2007,
-            inputTokenHashKernelDimension = 100,
+            inputTokenHashKernelDimension = GLOBAL_inputTokenHashKernelDimension,
             miscStr = ""):
     if datasetName == "bismarck":
         datasetConfigStr = describe_forest()
