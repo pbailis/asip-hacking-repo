@@ -5,9 +5,9 @@ import pickle
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000]#, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -21,7 +21,8 @@ GLOBAL_ADMMlocalEpsilon = 0.0001
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 0.5
 
-GLOBAL_ADMM_maxLocalIterations = 1000
+GLOBAL_ADMM_maxLocalIterations = 100000000
+GLOBAL_ADMM_localEpsilon = 0.000001
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100
 GLOBAL_MiniBatchADMM_localEpsilon = 0.001
@@ -36,7 +37,7 @@ GLOBAL_PORKCHOP_maxLocalIterations = 100
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 
-GLOBAL_inputTokenHashKernelDimension = 100
+GLOBAL_inputTokenHashKernelDimension = 2048
 
 ## END OF CONSTANTS
 
@@ -202,6 +203,7 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
             localEpsilon = GLOBAL_ADMMlocalEpsilon
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                localEpsilon = GLOBAL_ADMM_localEpsilon
             elif algorithm == "MiniBatchADMM":
                 maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                 localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
@@ -227,6 +229,7 @@ for dataset in ["wikipedia", "flights", "bismarck", "dblp"]:
             pickle.dump(results, output)
             output.close()
 
+
 for runtime in RUNTIMES:
     for dim in [2, 100]:
         for skew in [0.0]:
@@ -235,6 +238,7 @@ for runtime in RUNTIMES:
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_ADMM_localEpsilon
                 elif algorithm == "MiniBatchADMM":
                     maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                     localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
@@ -270,6 +274,7 @@ for runtime in RUNTIMES:
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_ADMM_localEpsilon
                 elif algorithm == "MiniBatchADMM":
                     maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                     localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
