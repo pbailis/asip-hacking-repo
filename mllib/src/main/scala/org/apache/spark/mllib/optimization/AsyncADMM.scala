@@ -150,7 +150,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
         // Run the primal update
-        primalUpdate()
+        primalUpdate(math.max(timeRemainingMS, 100))
 
         // Send the primal and dual
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
@@ -243,7 +243,7 @@ class AsyncADMMWorker(subProblemId: Int,
     startTime = System.currentTimeMillis()
     rho = params.rho0
     // broadcastThread.start()
-    val primalOptimum = 
+    val primalOptimum =
       if (params.usePorkChop) {
         mainLoopAsync()
       } else {
@@ -259,10 +259,10 @@ class AsyncADMMWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
     consumerThread.start()
-    
+
     solverLoopThread.join()
     consumerThread.join()
- 
+
     println(s"${comm.selfID}: Finished main loop.")
     // Return the primal consensus value
     primalConsensus
@@ -290,13 +290,11 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
-      primalUpdate()
-
+      primalUpdate(math.max(timeRemainingMS, 100))
 
       // Send the primal and dual
       comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
       msgsSent += 1
-
 
       // Collect latest variables from everyone
       allVars.put(comm.selfID, (primalVar, dualVar, data.length))
@@ -327,11 +325,10 @@ class AsyncADMMWorker(subProblemId: Int,
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(primalAvg, dualAvg, allVars.size, rho, params.regParam)
 
-
       if (params.adaptiveRho) {
         // Compute the residuals
         val primalResidual = allVars.values.iterator.map {
-          case (primalVar, dualVar, nExamples) => 
+          case (primalVar, dualVar, nExamples) =>
             norm(primalVar - primalConsensus, 2) * nExamples
         }.sum / nTotalExamples.toDouble
         val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
