@@ -4,8 +4,8 @@ from pylab import *
 from sys import argv
 
 logLoss = True
-yval = 'training_loss'
-matplotlib.rcParams['figure.figsize'] = 6, 3#3.5, 1.7
+yval = 'total_loss'
+matplotlib.rcParams['figure.figsize'] = 10, 7#3.5, 1.7
 
 if len(argv) < 2:
     pickle_filename = "08_08_14_overnight.pkl"
@@ -14,7 +14,7 @@ else:
 
 results = pickle.load(open(pickle_filename))
 
-results = [r for r in results if r['algorithm']]# != "HOGWILDSVM"]
+results = [r for r in results if r['algorithm'] != "GD"]
 
 bismarck_results = [r for r in results if r['command'].find("bismarck") != -1]
 
