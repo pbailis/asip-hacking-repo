@@ -139,7 +139,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < params.miniBatchSize) {
-        val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+        val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
         objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }

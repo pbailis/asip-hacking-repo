@@ -11,6 +11,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
+import org.apache.log4j.{Level, Logger}
+
+
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
@@ -252,9 +255,9 @@ object SynchronousADMMTests {
       "pointCloudNoise: " + pointCloudLabelNoise + ", " +
       "pointCloudSkew: " + pointCloudPartitionSkew + ", " +
       "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
-      "pointCloudSize: " + pointCloudSize +
-      "inputTokenHashKernelDimension: " +inputTokenHashKernelDimension +
-      "wikipediaTargetWordToken: " + wikipediaTargetWordToken +
+      "pointCloudSize: " + pointCloudSize + ", " +
+      "inputTokenHashKernelDimension: " +inputTokenHashKernelDimension + ", " +
+      "wikipediaTargetWordToken: " + wikipediaTargetWordToken + ", " +
       "dblpSplitYear: " + dblpSplitYear +"}"
     }
   }
@@ -262,7 +265,7 @@ object SynchronousADMMTests {
   def main(args: Array[String]) {
     val defaultParams = new Params()
 
-    // Logger.getRootLogger.setLevel(Level.WARN)
+    Logger.getRootLogger.setLevel(Level.WARN)
 
     val parser = new OptionParser[Params]("BinaryClassification") {
       head("BinaryClassification: an example app for binary classification.")
@@ -341,7 +344,9 @@ object SynchronousADMMTests {
       opt[Int]("broadcastDelayMs")
         .action { (x, c) => c.broadcastDelayMS = x; c }
       opt[Int]("ADMMmaxLocalIterations")
-        .action{ (x, c) => c.maxWorkerIterations =x; c }
+        .action{ (x, c) => c.maxWorkerIterations = x; c }
+      opt[Int]("miniBatchSize")
+        .action{ (x, c) => c.miniBatchSize = x; c }
       opt[Boolean]("useLBFGS")
         .action{ (x, c) => c.useLBFGS = x; c }
       opt[Boolean]("adpativeRho")
@@ -451,7 +456,7 @@ object SynchronousADMMTests {
       s"$trainingLoss\t" +
       s"$regularizationPenalty\t" +
       s"${trainingLoss + regularizationPenalty}\t" +
-      s"${model.weights.toArray.mkString(",")}\t" +
+      s"(min(w) = ${model.weights.toArray.min}, max(w) = ${model.weights.toArray.max} )\t" +
       s"${params.toString}\t" +
       "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}"
 

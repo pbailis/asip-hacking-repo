@@ -22,7 +22,25 @@ trait ObjectiveFunction extends Serializable {
     }
     sum / data.size.toDouble
   }
+  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, rnd: java.util.Random): Double = {
+    var i = 0
+    var sum = 0.0
+    if (nSamples > data.size) {
+      while (i < data.size) {
+        sum += apply(w, data(i)._2, data(i)._1)
+        i += 1
+      }
+    } else {
+      while (i < nSamples) {
+        sum += apply(w, data(rnd.nextInt(data.size))._2, data(rnd.nextInt(data.size))._1)
+        i += 1
+      }
+    }
+    sum / i.toDouble
+  }
 }
+
+
 
 class HingeObjective extends ObjectiveFunction {
   override def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
@@ -255,6 +273,7 @@ class ADMMParams extends Serializable {
       "runtimeMS: " + runtimeMS + ", " +
       "displayIncrementalStats: " + displayIncrementalStats + ", " +
       "adaptiveRho: " + adaptiveRho + ", " +
+      "useLineSearch: " + useLineSearch + ", " +
       "broadcastDelayMS: " + broadcastDelayMS + ", " +
       "usePorkChop: " + usePorkChop + "}"
   }
@@ -267,9 +286,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
                         val objFun: ObjectiveFunction,
                         val params: ADMMParams) extends Serializable with Logging {
 
-  val nExamples = data.length
   val dim = data(0)._2.size
   val rnd = new java.util.Random(subProblemId)  
+
+  params.miniBatchSize = math.min(params.miniBatchSize, data.size)
 
   @volatile var primalConsensus = BV.zeros[Double](dim)
 
@@ -335,20 +355,37 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
   def lineSearch(grad: BV[Double]): Double = {
-    var etaBest = 0.0
-    var scoreBest = objFun(primalVar, data)
-    var etaProposal = 1.0e-5
-    var newScoreProposal = objFun(primalVar - grad * etaProposal, data)
+    var etaBest = 100.0
+    var w = primalVar - grad * etaBest
+    var scoreBest = objFun.estimate(w, data, params.miniBatchSize, rnd) +
+      dualVar.dot(w - primalConsensus) +
+      (rho / 2.0) * math.pow(norm(w - primalConsensus,2), 2)
+
+    var etaProposal = etaBest / 2.0
+    w = primalVar - grad * etaProposal
+    var newScoreProposal = objFun.estimate(w, data, params.miniBatchSize, rnd) +
+      dualVar.dot(w - primalConsensus) +
+      (rho / 2.0) * math.pow(norm(w - primalConsensus,2), 2)
+
     // Try to decrease the objective as much as possible
-    while (newScoreProposal < scoreBest) {
+    while (newScoreProposal < scoreBest && etaProposal >= (params.workerTol/4.0)) {
       etaBest = etaProposal
       scoreBest = newScoreProposal
       // Double eta and propose again.
-      etaProposal = 2.0 * etaBest
-      newScoreProposal = objFun(primalVar - grad * etaProposal, data)
+      etaProposal /= 2.0
+      w = primalVar - grad * etaProposal
+      newScoreProposal = objFun.estimate(w, data, params.miniBatchSize, rnd) +
+        dualVar.dot(w - primalConsensus) +
+        (rho / 2.0) * math.pow(norm(w - primalConsensus,2),2)
     }
+
+    println(s"Eta best: $etaBest")
     etaBest
   }
+
+
+
+  var dataInd = 0
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
     residual = Double.MaxValue
@@ -359,9 +396,15 @@ class SGDLocalOptimizer(val subProblemId: Int,
       (currentTime - startTime) < remainingTimeMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
+
       while (b < params.miniBatchSize) {
-        val ind = if (params.miniBatchSize < nExamples) rnd.nextInt(nExamples) else b
+        //val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
+        if(dataInd >= data.length) {
+          dataInd = 0
+        }
+        val ind = dataInd
         objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        dataInd += 1
         b += 1
       }
       // Normalize the gradient to the batch size
@@ -372,11 +415,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
       axpy(rho, primalVar - primalConsensus, grad)
       // Set the learning rate
       val eta_t =
-      if (params.useLineSearch) {
-        lineSearch(grad)
-      } else {
-        params.eta_0 / (t.toDouble + 1.0)
-      }
+        if (params.useLineSearch) {
+          lineSearch(grad)
+        } else {
+          params.eta_0 / (t.toDouble + 1.0)
+        }
       // Do the gradient update
       // primalVar = (primalVar - grad * eta_t)
       axpy(-eta_t, grad, primalVar)
