@@ -26,12 +26,16 @@ class WorkerCommunicationHack {
   var ref: WorkerCommunication = null
 }
 
+
+
 object InternalMessages {
   class WakeupMsg
   class PingPong
   class VectorUpdateMessage(val sender: Int,
                             val primalVar: BV[Double], val dualVar: BV[Double], val nExamples: Int)
 }
+
+
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
@@ -134,7 +138,7 @@ class AsyncADMMWorker(subProblemId: Int,
   val solverLoopThread = new Thread {
     override def run {
       while (!done) {
-        val primalOld = primalVar.copy
+        // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
 
         // // Start at rho == 0 on the first iteration
@@ -192,12 +196,11 @@ class AsyncADMMWorker(subProblemId: Int,
         while (tiq != null) {
           if (tiq.nExamples == -1) {
             done = true
-            tiq = null
           } else {
             msgsRcvd += 1
             allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
-            tiq = comm.inputQueue.poll()
           }
+          tiq = comm.inputQueue.poll()
         }
 
         // Compute primal and dual averages
@@ -269,6 +272,10 @@ class AsyncADMMWorker(subProblemId: Int,
   def mainLoopSync() = {
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double], Int)]()
+    var primalAvg = BV.zeros[Double](primalVar.size)
+    var dualAvg = BV.zeros[Double](dualVar.size)
+    var nTotalExamples = 0
+
     // Loop until done
     while (!done) {
       // Reset the primal var
@@ -302,12 +309,19 @@ class AsyncADMMWorker(subProblemId: Int,
       }
 
       // Compute primal and dual averages
-      var (primalAvg, dualAvg, nTotalExamples) = allVars.values.iterator.map {
-        case (primal, dual, nExamples) =>
-          (primal * nExamples.toDouble, dual * nExamples.toDouble, nExamples)
-      }.reduce((a, b) => (a._1 + b._1, a._2 + b._2, a._3 + b._3))
+      primalAvg *= 0.0
+      dualAvg *= 0.0
+      nTotalExamples = 0
+      val msgIterator = allVars.values.iterator
+      while (msgIterator.hasNext) {
+        val (primal, dual, nExamples) = msgIterator.next()
+        axpy(nExamples.toDouble, primal, primalAvg)
+        axpy(nExamples.toDouble, dual, dualAvg)
+        nTotalExamples += nExamples
+      }
       primalAvg /= nTotalExamples.toDouble
       dualAvg /= nTotalExamples.toDouble
+
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
@@ -317,7 +331,8 @@ class AsyncADMMWorker(subProblemId: Int,
       if (params.adaptiveRho) {
         // Compute the residuals
         val primalResidual = allVars.values.iterator.map {
-          case (primalVar, dualVar, nExamples) => norm(primalVar - primalConsensus, 2) * nExamples
+          case (primalVar, dualVar, nExamples) => 
+            norm(primalVar - primalConsensus, 2) * nExamples
         }.sum / nTotalExamples.toDouble
         val dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
         // Rho update from Boyd text

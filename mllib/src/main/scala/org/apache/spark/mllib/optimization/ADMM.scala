@@ -13,30 +13,47 @@ import org.apache.spark.rdd.RDD
 trait ObjectiveFunction extends Serializable {
   def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
   def apply(w: BV[Double], x: BV[Double], y: Double): Double = 0.0
+
   def apply(w: BV[Double], data: Array[(Double, BV[Double])]): Double = {
     var i = 0
     var sum = 0.0
-    while (i < data.size) {
+    while (i < data.length) {
       sum += apply(w, data(i)._2, data(i)._1)
       i += 1
     }
-    sum / data.size.toDouble
+    sum / data.length.toDouble
   }
-  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, rnd: java.util.Random): Double = {
-    var i = 0
-    var sum = 0.0
-    if (nSamples > data.size) {
-      while (i < data.size) {
-        sum += apply(w, data(i)._2, data(i)._1)
-        i += 1
-      }
+
+  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, 
+    rnd: java.util.Random): Double = {
+    if (nSamples >= data.size) {
+      apply(w, data)
     } else {
+      var i = 0
+      var sum = 0.0
       while (i < nSamples) {
-        sum += apply(w, data(rnd.nextInt(data.size))._2, data(rnd.nextInt(data.size))._1)
+        val ind = rnd.nextInt(data.size)
+        sum += apply(w, data(ind)._2, data(ind)._1)
         i += 1
       }
+      sum / nSamples.toDouble
     }
-    sum / i.toDouble
+  }
+
+  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int, 
+    startInd: Int): Double = {
+    if (nSamples >= data.size) {
+      apply(w, data)
+    } else {
+      var i = 0
+      var sum = 0.0
+      while (i < nSamples) {
+        val ind = (i + startInd) % data.length
+        sum += apply(w, data(ind)._2, data(ind)._1)
+        i += 1
+      }
+      sum / nSamples.toDouble
+    }
   }
 }
 
@@ -123,7 +140,6 @@ trait ConsensusFunction extends Serializable {
 0 & = z (\lambda + \rho N) -  N (\bar{u} + \rho \bar{x} )  \\
 z & = \frac{ N}{\lambda + \rho N} (\bar{u} + \rho \bar{x})
 */
-
 class L2ConsensusFunction extends ConsensusFunction {
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     (primalAvg * rho + dualAvg) * (nSolvers.toDouble / (regParam + nSolvers * rho))
@@ -147,7 +163,7 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
 
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
-    throw new UnsupportedOperationException()
+    throw new UnsupportedOperationException() // Joey: Check math and re-implement
 //    if (rho == 0.0) {
 //      softThreshold(regParam, primalAvg)
 //    } else {
@@ -157,10 +173,15 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
 }
 
+
+
 object Interval {
   def apply(x: Int) = new Interval(x)
   def apply(x: Double) = new Interval(x)
 }
+
+
+
 class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serializable {
   def this(x: Double) = this(x, x, x) 
   def +(other: Interval) = {
@@ -170,6 +191,8 @@ class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serial
 
   override def toString = s"[$xMin, $x, $xMax]"
 }
+
+
 
 object WorkerStats {
   def apply(primalVar: BV[Double], dualVar: BV[Double],
@@ -191,6 +214,8 @@ object WorkerStats {
       nWorkers = 1)
   }
 }
+
+
 
 case class WorkerStats(
   weightedPrimalVar: BV[Double],
@@ -235,9 +260,9 @@ case class WorkerStats(
   def avgLocalIters() = localIters / nWorkers.toDouble
   def avgSGDIters() = sgdIters / nWorkers.toDouble
   def avgResidual() = residual / nWorkers.toDouble
-
-
 }
+
+
 
 
 class ADMMParams extends Serializable {
@@ -280,6 +305,7 @@ class ADMMParams extends Serializable {
 }
 
 
+
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
                         val data: Array[(Double, BV[Double])],
@@ -299,7 +325,6 @@ class SGDLocalOptimizer(val subProblemId: Int,
   
   @volatile var grad = BV.zeros[Double](dim)
 
-
   @volatile var sgdIters = 0
 
   @volatile var residual: Double = Double.MaxValue
@@ -307,6 +332,9 @@ class SGDLocalOptimizer(val subProblemId: Int,
   @volatile var rho = params.rho0
 
   @volatile var localIters = 0
+
+  // Current index into the data
+  @volatile var dataInd = 0
 
   def getStats() = {
     WorkerStats(primalVar, dualVar, msgsSent = 0,
@@ -354,8 +382,14 @@ class SGDLocalOptimizer(val subProblemId: Int,
     primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
   }
 
+
+  /**
+    * This line search starts at eta = 1.0 and searches backwards (by
+    * factors of two) until eta < workerTol/4.0 for the first value
+    * that causes the objective to increase.
+    */
   def lineSearch(grad: BV[Double]): Double = {
-    var etaBest = 100.0
+    var etaBest = 1.0
     var w = primalVar - grad * etaBest
     var scoreBest = objFun.estimate(w, data, params.miniBatchSize, rnd) +
       dualVar.dot(w - primalConsensus) +
@@ -379,13 +413,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
         (rho / 2.0) * math.pow(norm(w - primalConsensus,2),2)
     }
 
-    println(s"Eta best: $etaBest")
     etaBest
   }
 
 
-
-  var dataInd = 0
 
   def sgd(remainingTimeMS: Long = Long.MaxValue) {
     residual = Double.MaxValue
@@ -396,13 +427,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
       (currentTime - startTime) < remainingTimeMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
-
       while (b < params.miniBatchSize) {
-        //val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
-        if(dataInd >= data.length) {
-          dataInd = 0
-        }
-        val ind = dataInd
+        val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
         objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         dataInd += 1
         b += 1
@@ -421,8 +447,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
           params.eta_0 / (t.toDouble + 1.0)
         }
       // Do the gradient update
-      // primalVar = (primalVar - grad * eta_t)
-      axpy(-eta_t, grad, primalVar)
+      primalVar = (primalVar - grad * eta_t)
+      // axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
       // Update the current time every 1000 iterations
@@ -439,7 +465,6 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
 
 class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
-
 
   var iteration = 0
   var solvers: RDD[SGDLocalOptimizer] = null
@@ -514,13 +539,12 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         }
 
         // Do a primal update
-        solver.primalUpdate(timeRemaining)
+        //solver.primalUpdate(timeRemaining)
+        solver.primalUpdate()
 
         // Construct stats
         solver.getStats()
       }.reduce( _ + _ )
-
-      // solvers.map(s => (s.primalVar, s.dualVar)).collect().foreach(x => println(s"\t ${x._1} \t ${x._2}"))
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
@@ -528,7 +552,8 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         params.regParam)
 
       // Compute the residuals
-      primalResidual = solvers.map( s => norm(s.primalVar - primalConsensus, 2) * s.data.length)
+      primalResidual = solvers.map( 
+        s => norm(s.primalVar - primalConsensus, 2) * s.data.length.toDouble)
         .reduce(_+_) / stats.dataSize.x
       dualResidual = rho * norm(primalConsensus - primalConsensusOld, 2)
 
