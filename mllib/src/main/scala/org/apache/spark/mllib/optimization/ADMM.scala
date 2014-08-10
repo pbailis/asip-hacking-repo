@@ -106,6 +106,7 @@ class LogisticObjective extends ObjectiveFunction {
   override def addGradient(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) = {
     val wdotx = w.dot(x)
     val gradientMultiplier = label - sigmoid(wdotx)
+    // Note we negate the gradient here since we ant to minimize the negative of the likelihood
     axpy(-gradientMultiplier, x, cumGrad)
     val logLikelihood =
       if (label > 0) {
@@ -164,12 +165,12 @@ class L1ConsensusFunction extends ConsensusFunction {
 
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     throw new UnsupportedOperationException() // Joey: Check math and re-implement
-//    if (rho == 0.0) {
-//      softThreshold(regParam, primalAvg)
-//    } else {
-//      // Joey: rederive this equation:
-//      softThreshold(regParam / nSolvers.toDouble, primalAvg * rho + dualAvg)
-//    }
+   if (rho == 0.0) {
+     softThreshold(regParam, primalAvg)
+   } else {
+     // Joey: rederive this equation:
+     softThreshold(regParam / (rho * nSolvers.toDouble), primalAvg + dualAvg / rho)
+   }
   }
 }
 
@@ -539,8 +540,8 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         }
 
         // Do a primal update
-        //solver.primalUpdate(timeRemaining)
-        solver.primalUpdate()
+        solver.primalUpdate(timeRemaining)
+        //solver.primalUpdate()
 
         // Construct stats
         solver.getStats()

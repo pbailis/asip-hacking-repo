@@ -120,7 +120,7 @@ class AsyncADMMWorker(subProblemId: Int,
       dataSize = data.length)
   }
 
-/*
+
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
@@ -133,7 +133,7 @@ class AsyncADMMWorker(subProblemId: Int,
       }
     }
   }
- */
+ 
 
   val solverLoopThread = new Thread {
     override def run {

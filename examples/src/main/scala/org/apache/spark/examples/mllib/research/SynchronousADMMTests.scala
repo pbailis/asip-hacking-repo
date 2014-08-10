@@ -3,6 +3,7 @@ package org.apache.spark.examples.mllib.research
 import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
@@ -431,20 +432,36 @@ object SynchronousADMMTests {
     println("Starting test!")
 
     val (model, stats) = runTest(training, params)
+    
 
-    val trainingError = training.map{ point =>
-      val p = model.predict(point.features)
-      val y = 2.0 * point.label - 1.0
-      if (y * p <= 0.0) 1.0 else 0.0
-    }.reduce(_ + _) / numTraining.toDouble
+    training.cache()
+
+    val prediction = model.predict(training.map(_.features))
+    val predictionAndLabel = prediction.zip(training.map(_.label))
+    val metrics = new BinaryClassificationMetrics(predictionAndLabel)
+    println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
+    println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
+
+    val trainingError = 
+      if(params.useLR) {
+        training.map{ point =>
+          val p = model.predict(point.features)
+          if ( (p > 0.5) != (point.label > 0) ) 1.0 else 0.0
+        }.reduce(_ + _) / numTraining.toDouble
+      } else {
+        training.map{ point =>
+          val p = model.predict(point.features)
+          val y = 2.0 * point.label - 1.0
+          if (y * p <= 0.0) 1.0 else 0.0
+        }.reduce(_ + _) / numTraining.toDouble
+      }
 
     val trainingLoss = model.loss(training) / numTraining.toDouble
     val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
 
-
     println(s"desiredRuntime = ${params.runtimeMS}")
     println(s"Training error = ${trainingError}.")
-    println(s"Training (Loss, reg, total) = ${trainingLoss}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
+    println(s"Training (Loss, reg, total) = ${metrics.areaUnderROC}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
     println(s"Total time ${stats("runtime")}ms")
 
     val summary =
@@ -452,13 +469,15 @@ object SynchronousADMMTests {
       s"${stats("iterations")}\t" +
       s"${params.runtimeMS}\t" +
       s"${stats("runtime")}\t" +
-      s"$trainingError\t" +
+      s"${metrics.areaUnderROC()}\t" +
       s"$trainingLoss\t" +
       s"$regularizationPenalty\t" +
       s"${trainingLoss + regularizationPenalty}\t" +
       s"(min(w) = ${model.weights.toArray.min}, max(w) = ${model.weights.toArray.max} )\t" +
       s"${params.toString}\t" +
-      "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}"
+      "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}\t" +
+      s"${metrics.areaUnderPR()}\t" +
+      s"${trainingError}" 
 
     println(summary)
 
