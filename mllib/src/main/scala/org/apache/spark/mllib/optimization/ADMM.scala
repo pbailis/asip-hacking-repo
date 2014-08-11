@@ -508,7 +508,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Compute residual.
       residual = eta_t * norm(grad, 2)
       // residual = (1.0 / nDim.toDouble) * norm(grad, 2)
-      println(residual)
+      // println(residual)
       t += 1
     }
     // Save the last num
