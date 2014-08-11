@@ -3,12 +3,11 @@ package org.apache.spark.mllib.optimization
 import java.util.concurrent.TimeUnit
 
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
-import breeze.optimize.DiffFunction
+import breeze.optimize.{DiffFunction, _}
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
-import breeze.optimize._
 
 trait ObjectiveFunction extends Serializable {
   def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
@@ -140,10 +139,12 @@ trait ConsensusFunction extends Serializable {
 0 & =\lambda z - N \bar{u} - \rho N \bar{x} + \rho N z    \\
 0 & = z (\lambda + \rho N) -  N (\bar{u} + \rho \bar{x} )  \\
 z & = \frac{ N}{\lambda + \rho N} (\bar{u} + \rho \bar{x})
+z & = \frac{ \rho N}{\lambda + \rho N} (\frac{1}{\rho}\bar{u} + \bar{x})
 */
 class L2ConsensusFunction extends ConsensusFunction {
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     val nDim = dualAvg.size
+    assert(nDim > 0)
     val rhoScaled = rho / nDim.toDouble
     val regScaled = regParam / nDim.toDouble
     if (rho == 0.0) {
@@ -377,7 +378,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar = (dualVar + (primalVar - primalConsensus) * (rate/nDim.toDouble))
+    dualVar = dualVar + (primalVar - primalConsensus) * (rate/nDim.toDouble)
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
@@ -425,7 +426,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
     */
   def breezeLineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
     val ff = LineSearch.functionFromSearchDirection(breezeObjFun, 
-      primalVar.toDenseVector, (grad.toDenseVector * -1.0))
+      primalVar.toDenseVector, grad.toDenseVector * -1.0)
     val search = new StrongWolfeLineSearch(maxZoomIter = 10, maxLineSearchIter = 10) 
     val alpha = search.minimize(ff, 1.0)
     println(s"Alpha $alpha")
@@ -489,6 +490,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
           b += 1
         }
       }
+      assert(b > 0)
       // Normalize the gradient to the batch size
       grad /= b.toDouble
       // Add the lagrangian
@@ -500,10 +502,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
         if (params.useLineSearch) {
           lineSearch(grad, endByMS)
         } else {
-          params.eta_0 / (nDim.toDouble * math.pow(t + 1, 2.0 / 3.0))
+          // Breeze learning rate
+          params.eta_0 / math.pow(t + 1, 2.0 / 3.0)
         }
       // Do the gradient update
-      primalVar = (primalVar - grad * eta_t)
+      primalVar = primalVar - (grad * eta_t)
       // axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)

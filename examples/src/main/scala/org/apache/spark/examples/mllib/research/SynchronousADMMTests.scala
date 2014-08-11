@@ -1,6 +1,7 @@
 package org.apache.spark.examples.mllib.research
 
 import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
@@ -11,9 +12,6 @@ import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
-
-import org.apache.log4j.{Level, Logger}
-
 
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
@@ -465,7 +463,8 @@ object SynchronousADMMTests {
 
 
     val trainingLoss = model.loss(training) / numTraining.toDouble
-    val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
+    val scaledReg = params.regParam / model.weights.size.toDouble
+    val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm,2)
 
     val resultsMap = Map(
       "algorithm" -> ("\"" + params.algorithm.toString + "\""),
