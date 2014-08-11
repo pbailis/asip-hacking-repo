@@ -39,7 +39,7 @@ GLOBAL_PORKCHOP_maxLocalIterations = 10000
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 
-GLOBAL_inputTokenHashKernelDimension = 5000
+GLOBAL_inputTokenHashKernelDimension = 1000
 
 ## END OF CONSTANTS
 

@@ -417,14 +417,13 @@ class SGDLocalOptimizer(val subProblemId: Int,
   }
 
 
-  def lineSearch(grad: BV[Double]): Double = {
+  def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
     val rhoScaled = rho / nDim.toDouble
     var etaBest = 0.0
     var w = primalVar // - grad * etaBest
     var scoreBest = objFun.estimate(w, data, miniBatchSize, rnd) +
       dualVar.dot(w - primalConsensus) +
       (rhoScaled/ 2.0) * math.pow(norm(w - primalConsensus,2), 2)
-
     var etaProposal = 1.0e-8 / nDim.toDouble
     w = primalVar - grad * etaProposal
     var newScoreProposal = objFun.estimate(w, data, miniBatchSize, rnd) +
@@ -442,6 +441,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
         dualVar.dot(w - primalConsensus) +
         (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
       searchIters += 1
+      // // Kill the loop if we run out of search time
+      // if (System.currentTimeMillis() > endByMS) {
+      //   etaProposal = 2.0
+      //   println("Ran out of linesearch time.")
+      // }
     }
     //  println(s"$searchIters: ${norm(grad,2) / nDim.toDouble}, etaBest = $etaBest, scoreBest = $scoreBest, $newScoreProposal")
     etaBest
