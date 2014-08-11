@@ -124,9 +124,9 @@ class AsyncADMMWorker(subProblemId: Int,
   val broadcastThread = new Thread {
     override def run {
       while (!done) {
+        Thread.sleep(params.broadcastDelayMS)
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
         msgsSent += 1
-        Thread.sleep(params.broadcastDelayMS)
         // Check to see if we are done
         val elapsedTime = System.currentTimeMillis() - startTime
         done = done || (elapsedTime > params.runtimeMS)
@@ -243,9 +243,11 @@ class AsyncADMMWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
     consumerThread.start()
+    broadcastThread.start()
 
     solverLoopThread.join()
     consumerThread.join()
+    broadcastThread.join()
 
     println(s"${comm.selfID}: Finished main loop.")
     // Return the primal consensus value

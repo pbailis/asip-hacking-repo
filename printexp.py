@@ -1,5 +1,16 @@
 
 import pickle
+import pandas as pd
+results = pickle.load(open("experiment.pkl"))
 
-for r in pickle.load(open("experiment.pkl")):
-    print r['pyConfig']['dataset'], r['algorithm'][:15].ljust(15),  r['runtimeMS'], ": \t", r['iterations'], "\t", r['totalLoss'], "\t", r['trainingError'], "\t", r['roc']
+print "Keys:      ", results[0].keys()
+print "StatsKeys: ", results[0]['stats'].keys()
+
+tbl = []
+
+for r in results:
+    tbl += [(r['pyConfig']['dataset'], r['algorithm'], r['runtimeMS'], r['iterations'], r['totalLoss'],  r['trainingError'], r['roc'], r['stats']['avgSGDIters'])]
+#    print r
+
+frame = pd.DataFrame.from_records(tbl, columns=['Data', 'Alg', 'Runtime', 'Iterations', 'Loss', 'Error', 'Roc', 'SGDItres'])
+print frame
