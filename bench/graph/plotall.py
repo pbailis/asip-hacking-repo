@@ -4,7 +4,7 @@ from pylab import *
 from sys import argv
 
 logLoss = False
-yval = 'totalLoss'
+yval = 'total_loss'
 matplotlib.rcParams['figure.figsize'] = 10, 7#3.5, 1.7
 
 if len(argv) < 2:
@@ -17,10 +17,10 @@ results = pickle.load(open(pickle_filename))
 results = [r for r in results if r['algorithm'] != "GD"]
 
 print results[0].keys()
-print results[0]['pyConfig'].keys()
 
 # detect legacy data and update fields
 if "runtime_ms" not in results[0].keys():
+    print "New pyconfig keys", results[0]['pyConfig'].keys()
     for r in results:
         r['runtime_ms'] = r['runtimeMS']
         r['command'] = r['pyConfig']['command']
