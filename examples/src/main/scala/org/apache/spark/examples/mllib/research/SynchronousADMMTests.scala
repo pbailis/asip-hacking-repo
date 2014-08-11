@@ -227,6 +227,12 @@ object SynchronousADMMTests {
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Algorithm._
   import org.apache.spark.examples.mllib.research.SynchronousADMMTests.RegType._
 
+  def mapToJson(m: Map[String, Any]): String = {
+    "{" + m.iterator.map {
+      case (k,v) => "\"" + k + "\": " + v
+    }.toArray.mkString(", ") + "}"
+  }
+
   class Params extends ADMMParams {
     var input: String = null
     var format: String = "libsvm"
@@ -245,21 +251,24 @@ object SynchronousADMMTests {
     var wikipediaTargetWordToken = 4690
 
     override def toString = {
-      "{" + "input: " + input + ", " +
-      "format: " + format + ", " +
-      "numPartitions: " + numPartitions + ", " +
-      "algorithm: " + algorithm + ", " +
-      "useLR: " + useLR + ", " +
-      "algParams: " + super.toString() + ", " +
-      "regType: " + regType + ", " +
-      "pointCloudDim: " + pointCloudDimension + ", " +
-      "pointCloudNoise: " + pointCloudLabelNoise + ", " +
-      "pointCloudSkew: " + pointCloudPartitionSkew + ", " +
-      "pointCloudPoints: " + pointCloudPointsPerPartition + ", " +
-      "pointCloudSize: " + pointCloudSize + ", " +
-      "inputTokenHashKernelDimension: " +inputTokenHashKernelDimension + ", " +
-      "wikipediaTargetWordToken: " + wikipediaTargetWordToken + ", " +
-      "dblpSplitYear: " + dblpSplitYear +"}"
+      val m =  Map(
+        "input" -> ("\"" + input + "\""),
+        "format" -> ("\"" + format + "\""),
+        "numPartitions" -> numPartitions,
+        "algorithm" -> ("\"" + algorithm + "\""),
+        "useLR" -> useLR,
+        "algParams" -> super.toString(),
+        "regType" -> ("\"" + regType + "\""),
+        "pointCloudDim" -> pointCloudDimension,
+        "pointCloudNoise" -> pointCloudLabelNoise,
+        "pointCloudSkew" -> pointCloudPartitionSkew,
+        "pointCloudPoints" -> pointCloudPointsPerPartition,
+        "pointCloudSize" -> pointCloudSize,
+        "inputTokenHashKernelDimension" -> inputTokenHashKernelDimension,
+        "wikipediaTargetWordToken" -> wikipediaTargetWordToken,
+        "dblpSplitYear" -> dblpSplitYear
+      )
+      mapToJson(m)
     }
   }
 
@@ -433,14 +442,7 @@ object SynchronousADMMTests {
 
     val (model, stats) = runTest(training, params)
     
-
     training.cache()
-
-    val prediction = model.predict(training.map(_.features))
-    val predictionAndLabel = prediction.zip(training.map(_.label))
-    val metrics = new BinaryClassificationMetrics(predictionAndLabel)
-    println(s"Test areaUnderPR = ${metrics.areaUnderPR()}.")
-    println(s"Test areaUnderROC = ${metrics.areaUnderROC()}.")
 
     val trainingError = 
       if(params.useLR) {
@@ -452,38 +454,63 @@ object SynchronousADMMTests {
         training.map{ point =>
           val p = model.predict(point.features)
           val y = 2.0 * point.label - 1.0
-          if (y * p <= 0.0) 1.0 else 0.0
+          if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
+          //if (y * p <= 0.0) 1.0 else 0.0
         }.reduce(_ + _) / numTraining.toDouble
       }
+
+    val prediction = model.predict(training.map(_.features))
+    val predictionAndLabel = prediction.zip(training.map(_.label))
+    val metrics = new BinaryClassificationMetrics(predictionAndLabel)
+
 
     val trainingLoss = model.loss(training) / numTraining.toDouble
     val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
 
-    println(s"desiredRuntime = ${params.runtimeMS}")
-    println(s"Training error = ${trainingError}.")
-    println(s"Training (Loss, reg, total) = ${metrics.areaUnderROC}, ${regularizationPenalty}, ${trainingLoss + regularizationPenalty}")
-    println(s"Total time ${stats("runtime")}ms")
+    val resultsMap = Map(
+      "algorithm" -> ("\"" + params.algorithm.toString + "\""),
+      "nExamples" -> numTraining,
+      "nDim" -> model.weights.size,
+      "runtimeMS" -> stats("runtime"),
+      "iterations" -> stats("iterations"),
+      "trainingLoss" -> trainingLoss,
+      "regPenalty" -> regularizationPenalty,
+      "totalLoss" -> (trainingLoss + regularizationPenalty),
+      "trainingError" -> trainingError,
+      "roc" -> metrics.areaUnderROC(),
+      "pr" -> metrics.areaUnderPR(),
+      "minW" -> model.weights.toArray.min,
+      "maxW" -> model.weights.toArray.max,
+      "params" -> params.toString,
+      "stats" -> mapToJson(stats)
+    )
 
-    val summary =
-      s"RESULT: ${params.algorithm}\t" +
-      s"${stats("iterations")}\t" +
-      s"${params.runtimeMS}\t" +
-      s"${stats("runtime")}\t" +
-      s"${metrics.areaUnderROC()}\t" +
-      s"$trainingLoss\t" +
-      s"$regularizationPenalty\t" +
-      s"${trainingLoss + regularizationPenalty}\t" +
-      s"(min(w) = ${model.weights.toArray.min}, max(w) = ${model.weights.toArray.max} )\t" +
-      s"${params.toString}\t" +
-      "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}\t" +
-      s"${metrics.areaUnderPR()}\t" +
-      s"${trainingError}" 
 
-    println(summary)
+    println("RESULT: " + mapToJson(resultsMap))
+
+    // val summary =
+    //   s"RESULT: ${params.algorithm}\t" + 
+    //   s"${stats("iterations")}\t" +
+    //   s"${params.runtimeMS}\t" +
+    //   s"${stats("runtime")}\t" +
+    //   s"${metrics.areaUnderROC()}\t" +
+    //   s"$trainingLoss\t" +
+    //   s"$regularizationPenalty\t" +
+    //   s"${trainingLoss + regularizationPenalty}\t" +
+    //   s"(min(w) = ${model.weights.toArray.min}, max(w) = ${model.weights.toArray.max} )\t" +
+    //   s"${params.toString}\t" +
+    //   "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}\t" +
+    //   s"${metrics.areaUnderPR()}\t" +
+    //   s"${trainingError}" 
+
+    // println(summary)
 
 
     sc.stop()
   }
+
+
+
 
   def runTest(training: RDD[LabeledPoint], params: Params):
   (GeneralizedLinearModel, Map[String, String]) = {
@@ -499,6 +526,8 @@ object SynchronousADMMTests {
       case L2 => new L2ConsensusFunction()
     }
 
+    val nDim = training.take(1).head.features.size
+
     params.algorithm match {
       case GD =>
         if (params.useLR) {
@@ -508,7 +537,7 @@ object SynchronousADMMTests {
             .setRuntime(params.runtimeMS)
             .setStepSize(params.eta_0)
             .setUpdater(updater)
-            .setRegParam(params.regParam)
+            .setRegParam(params.regParam / nDim.toDouble)
           val model = algorithm.run(training).clearThreshold()
           val results =
             Map(
@@ -523,7 +552,7 @@ object SynchronousADMMTests {
             .setRuntime(params.runtimeMS)
             .setStepSize(params.eta_0)
             .setUpdater(updater)
-            .setRegParam(params.regParam)
+            .setRegParam(params.regParam / nDim.toDouble)
           val model = algorithm.run(training).clearThreshold()
           val results =
             Map(
@@ -601,7 +630,7 @@ object SynchronousADMMTests {
           val results =
             Map(
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-              "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
               "runtime" -> algorithm.optimizer.totalTimeMs.toString
             )
@@ -613,7 +642,7 @@ object SynchronousADMMTests {
           val results =
             Map(
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-              "msgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
+              "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
               "runtime" -> algorithm.optimizer.totalTimeMs.toString
             )

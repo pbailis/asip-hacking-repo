@@ -134,6 +134,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     broadcastThread.start()
     var t = 0
+    val scaledRegParam = params.regParam / primalVar.size.toDouble
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
@@ -144,7 +145,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
         b += 1
       }
       grad /= params.miniBatchSize.toDouble
-      grad += primalVar * params.regParam 
+      grad += primalVar * scaledRegParam 
       // Set the learning rate
       val eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
       grad *= (eta_t / params.miniBatchSize)

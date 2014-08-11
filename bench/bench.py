@@ -2,10 +2,12 @@
 from os import system
 from sys import exit
 import pickle
+import json
+
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000]#, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000]#, 40000, 80000, 120000]
 
 ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM"]#, "HOGWILD", "GD", "PORKCHOP"]
 
@@ -16,28 +18,28 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 ## START OF CONSTANTS
 
-GLOBAL_ADMMepsilon = 0.00000001
-GLOBAL_ADMMlocalEpsilon = 0.0001
+GLOBAL_ADMMepsilon = 0.0
+GLOBAL_ADMMlocalEpsilon = 1.0E-8
 GLOBAL_ADMMrho = 1.0
-GLOBAL_ADMMlagrangianRho = 0.5
+GLOBAL_ADMMlagrangianRho = 1.0
 
-GLOBAL_ADMM_maxLocalIterations = 10000000
-GLOBAL_ADMM_localEpsilon = 0.000001
+GLOBAL_ADMM_maxLocalIterations = 1000000
+GLOBAL_ADMM_localEpsilon = 1.0E-8
 
-GLOBAL_MiniBatchADMM_maxLocalIterations = 10000
-GLOBAL_MiniBatchADMM_localEpsilon = 0.001
+GLOBAL_MiniBatchADMM_maxLocalIterations = 100
+GLOBAL_MiniBatchADMM_localEpsilon = 1.0E-5
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
 
-GLOBAL_AsyncADMM_maxLocalIterations = 1000
+GLOBAL_AsyncADMM_maxLocalIterations = 10000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 100
+GLOBAL_PORKCHOP_maxLocalIterations = 10000
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 
-GLOBAL_inputTokenHashKernelDimension = 2048
+GLOBAL_inputTokenHashKernelDimension = 5000
 
 ## END OF CONSTANTS
 
@@ -155,17 +157,9 @@ def runTest(runtimeMS,
     # s"\t ${trainingLoss} \t  ${regularizationPenalty} \t ${trainingLoss + regularizationPenalty} \t ${model.weights}"
     for line in open("/tmp/run.out"):
         if line.find("RESULT") != -1:
-            line = line.split()
-            record = {
+            record = json.loads(line[7:])
+            pyConfig = {
                 "algorithm": algorithm,
-                "iterations": float(line[2]),
-                "expected_runtime": float(line[3]),
-                "runtime_ms": float(line[4]),
-                "training_error": float(line[5]),
-                "training_loss": float(line[6]),
-                "reg_penalty": float(line[7]),
-                "total_loss": float(line[8]),
-                "model": line[9],
                 "dataset": datasetName,
                 "datasetConfigStr": datasetConfigStr,
                 "line": line,
@@ -185,6 +179,7 @@ def runTest(runtimeMS,
                 "dblpSplitYear": dblpSplitYear,
                 "wikipediaTargetWordToken": wikipediaTargetWordToken
             }
+            record['pyConfig'] = pyConfig
             results.append(record)
 
     return results
@@ -196,12 +191,12 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
+for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
-            miscStr = " --useLineSearch true --miniBatchSize 100"
+            miscStr = " --useLineSearch true --miniBatchSize 10000000"
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
@@ -238,7 +233,7 @@ for runtime in RUNTIMES:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
-                miscStr = " --useLineSearch true --miniBatchSize 100"
+                miscStr = " --useLineSearch true --miniBatchSize 10000000"
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                     localEpsilon = GLOBAL_ADMM_localEpsilon
