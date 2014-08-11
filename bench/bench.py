@@ -19,15 +19,15 @@ PICKLED_OUTPUT = "experiment.pkl"
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.0
-GLOBAL_ADMMlocalEpsilon = 1.0E-8
+GLOBAL_ADMMlocalEpsilon = 1.0e-8
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 1.0
 
 GLOBAL_ADMM_maxLocalIterations = 1000000
-GLOBAL_ADMM_localEpsilon = 1.0E-8
+GLOBAL_ADMM_localEpsilon = 1.0e-8
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100
-GLOBAL_MiniBatchADMM_localEpsilon = 1.0E-5
+GLOBAL_MiniBatchADMM_localEpsilon = 1.0e-4
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
@@ -50,14 +50,10 @@ def describe_point_cloud(pointsPerPartition = 500000,
                          partitionSkew = 0.00,
                          labelNoise = 0.05,
                          dimension = 100):
-    return   "--pointCloudPointsPerPartition %d " \
-             "--pointCloudPartitionSkew %f " \
-             "--pointCloudLabelNoise %f " \
-             "--pointCloudDimension %d " % \
-             (pointsPerPartition,
-              partitionSkew,
-              labelNoise,
-              dimension)
+    return   "--pointCloudPointsPerPartition " + str(pointsPerPartition) + " " + \
+             "--pointCloudPartitionSkew " + str(partitionSkew) + " " + \
+             "--pointCloudLabelNoise " + str(labelNoise) + " " + \
+             "--pointCloudDimension " + str(dimension) + " " 
 
 def describe_forest():
     return " --input /user/root/bismarck_data/forest* "
@@ -114,39 +110,40 @@ def runTest(runtimeMS,
           "--driver-memory 52g " \
           "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
           "examples/target/scala-*/spark-examples-*.jar " \
-          "--algorithm %s " \
-          "--regType %s " \
-          "--regParam %f " \
-          "--format %s " \
-          "--numPartitions %d " \
-          "--runtimeMS %d " \
-          "--ADMMmaxLocalIterations %d " \
-          "--ADMMepsilon %f  " \
-          "--ADMMLocalepsilon %f " \
-          "--ADMMrho %f " \
-          "--ADMMLagrangianrho %f " \
-          "--broadcastDelayMs %d " \
-          "--dblpSplitYear %d " \
-          "--wikipediaTargetWordToken %d " \
-          "--inputTokenHashKernelDimension %d " \
-          " %s %s " % \
-          (algorithm,
-           regType,
-           regParam,
-           datasetName,
-           numPartitions,
-           runtimeMS,
-           ADMMmaxLocalIterations,
-           ADMMepsilon,
-           ADMMlocalEpsilon,
-           ADMMrho,
-           ADMMlagrangianRho,
-           broadcastDelay,
-           dblpSplitYear,
-           wikipediaTargetWordToken,
-           inputTokenHashKernelDimension,
-           datasetConfigStr,
-           miscStr)
+          "--algorithm " + str(algorithm) + " " + \
+          "--regType " + str(regType) + " " + \
+          "--regParam " + str(regParam) + " " + \
+          "--format " + str(datasetName) + " " + \
+          "--numPartitions " + str(numPartitions) + " " + \
+          "--runtimeMS " + str(runtimeMS) + " " + \
+          "--ADMMmaxLocalIterations " + str(ADMMmaxLocalIterations) + " " + \
+          "--ADMMepsilon " + str(ADMMepsilon) + " " + \
+          "--ADMMLocalepsilon " + str(ADMMlocalEpsilon) + " " + \
+          "--ADMMrho " + str(ADMMrho) + " " + \
+          "--ADMMLagrangianrho " + str(ADMMlagrangianRho) + " " + \
+          "--broadcastDelayMs " + str(broadcastDelay) + " " +  \
+          "--dblpSplitYear " + str(dblpSplitYear) + " " + \
+          "--wikipediaTargetWordToken " + str(wikipediaTargetWordToken) + " " +  \
+          "--inputTokenHashKernelDimension " + str(inputTokenHashKernelDimension) + " " + \
+          datasetConfigStr + " " + miscStr + " "
+
+           # (algorithm,
+           # regType,
+           # regParam,
+           # datasetName,
+           # numPartitions,
+           # runtimeMS,
+           # ADMMmaxLocalIterations,
+           # ADMMepsilon,
+           # ADMMlocalEpsilon,
+           # ADMMrho,
+           # ADMMlagrangianRho,
+           # broadcastDelay,
+           # dblpSplitYear,
+           # wikipediaTargetWordToken,
+           # inputTokenHashKernelDimension,
+           # datasetConfigStr,
+           # miscStr)
 
     print cmd
 
