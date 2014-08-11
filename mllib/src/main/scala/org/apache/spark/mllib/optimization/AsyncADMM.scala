@@ -140,8 +140,8 @@ class AsyncADMMWorker(subProblemId: Int,
       while (!done) {
         // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
-
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
+
         // Run the primal update
         primalUpdate(math.max(timeRemainingMS, 100))
 
@@ -156,7 +156,6 @@ class AsyncADMMWorker(subProblemId: Int,
         // Assess Termination
         val elapsedTime = System.currentTimeMillis() - startTime
         done = done || (elapsedTime > params.runtimeMS)
-
       }
 
       // Kill the consumer thread
@@ -264,7 +263,6 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Collect latest variables from everyone
       var tiq = comm.inputQueue.poll()
-      val receivedMsgs = tiq != null
       while (tiq != null) {
         allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
         tiq = comm.inputQueue.poll()
@@ -288,35 +286,11 @@ class AsyncADMMWorker(subProblemId: Int,
 
 
       // Recompute the consensus variable
-      val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
         rho = rho, regParam = params.regParam)
 
       // Do a dual update
       dualUpdate(params.lagrangianRho)
-
-
-//      if (params.adaptiveRho) {
-//        // Compute the residuals
-//        val primalResidual = (1.0/nDim.toDouble) * allVars.values.iterator.map {
-//          case (primalVar, dualVar, nExamples) =>
-//            norm(primalVar - primalConsensus, 2) * nExamples
-//        }.sum / nTotalExamples.toDouble
-//        val dualResidual = (rho/nDim.toDouble) * norm(primalConsensus - primalConsensusOld, 2)
-//        // Rho update from Boyd text
-//        if (rho == 0.0) {
-//           rho = 1.0
-//        } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-//           rho = 2.0 * rho
-//           println(s"Increasing rho: $rho")
-//        } else if (dualResidual > 10.0 * primalResidual && rho > 0.01) {
-//           rho = rho / 2.0
-//           println(s"Decreasing rho: $rho")
-//        }
-//        dualUpdate(rho)
-//      } else {
-//        dualUpdate(params.lagrangianRho)
-//      }
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
@@ -384,7 +358,7 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
     // Ping Pong?  Just because?
     workers.foreach { w => w.comm.sendPingPongs() }
 
-    input.unpersist(blocking = true)
+    // input.unpersist(blocking = true)
     workers.foreach( f => System.gc() )
   }
 

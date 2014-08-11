@@ -90,7 +90,7 @@ object DataLoaders {
         }
         i += 1
       }
-      LabeledPoint(if(labelFound) 1.0 else -1.0, new DenseVector(features))
+      LabeledPoint(if(labelFound) 1.0 else 0.0, new DenseVector(features))
     })
   }
 
@@ -381,8 +381,7 @@ object SynchronousADMMTests {
 
 
     parser.parse(args, defaultParams).map {
-      params =>
-        run(params)
+      params => run(params)
     } getOrElse {
       sys.exit(1)
     }
@@ -452,8 +451,9 @@ object SynchronousADMMTests {
         training.map{ point =>
           val p = model.predict(point.features)
           val y = 2.0 * point.label - 1.0
-          if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
-          //if (y * p <= 0.0) 1.0 else 0.0
+          assert(y != 0)
+          // if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
+          if (y * p <= 0.0) 1.0 else 0.0
         }.reduce(_ + _) / numTraining.toDouble
       }
 
