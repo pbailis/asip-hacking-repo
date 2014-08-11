@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000]#, 40000, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000] #, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -196,7 +196,7 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
-            miscStr = " --useLineSearch true --miniBatchSize 10000000"
+            miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
@@ -233,7 +233,7 @@ for runtime in RUNTIMES:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
-                miscStr = " --useLineSearch true --miniBatchSize 10000000"
+                miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                     localEpsilon = GLOBAL_ADMM_localEpsilon
