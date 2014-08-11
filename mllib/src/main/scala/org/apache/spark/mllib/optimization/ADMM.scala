@@ -441,11 +441,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
         dualVar.dot(w - primalConsensus) +
         (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
       searchIters += 1
-      // // Kill the loop if we run out of search time
-      // if (System.currentTimeMillis() > endByMS) {
-      //   etaProposal = 2.0
-      //   println("Ran out of linesearch time.")
-      // }
+      // Kill the loop if we run out of search time
+      if (System.currentTimeMillis() > endByMS) {
+        etaProposal = 2.0
+        println("Ran out of linesearch time.")
+      }
     }
     //  println(s"$searchIters: ${norm(grad,2) / nDim.toDouble}, etaBest = $etaBest, scoreBest = $scoreBest, $newScoreProposal")
     etaBest
@@ -458,10 +458,11 @@ class SGDLocalOptimizer(val subProblemId: Int,
     val rhoScaled = rho / nDim.toDouble
     residual = Double.MaxValue
     val startTime = System.currentTimeMillis()
+    val endTime = startTime + remainingTimeMS
     var t = 0
     while(t < params.maxWorkerIterations && 
       residual > params.workerTol &&
-      (System.currentTimeMillis() - startTime) < remainingTimeMS) {
+      System.currentTimeMillis() < endTime) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
@@ -478,13 +479,13 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Set the learning rate
       val eta_t =
         if (params.useLineSearch) {
-          lineSearch(grad)
+          lineSearch(grad, endTime)
         } else {
-          params.eta_0 / (t.toDouble + 1.0)
+          params.eta_0 / (nDim.toDouble + t.toDouble)
         }
       // Do the gradient update
-      primalVar = (primalVar - grad * eta_t)
-      // axpy(-eta_t, grad, primalVar)
+      // primalVar = (primalVar - grad * eta_t)
+      axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
       // residual = (1.0 / nDim.toDouble) * norm(grad, 2)

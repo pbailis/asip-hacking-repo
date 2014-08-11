@@ -141,13 +141,6 @@ class AsyncADMMWorker(subProblemId: Int,
         // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
 
-        // // Start at rho == 0 on the first iteration
-        // if ( localIters == 0 ) {
-        //   rho = 0.0
-        // } else {
-        //   rho = params.rho0
-        // }
-
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
         // Run the primal update
         primalUpdate(math.max(timeRemainingMS, 100))
@@ -219,19 +212,10 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // Recompute the consensus variable
         val primalConsensusOld = primalConsensus.copy
-        primalConsensus = consensus(primalAvg, dualAvg, allVars.size, rho, params.regParam)
-
-        // if(comm.selfID == 0) {
-        //   println(s"${comm.selfID}: consensus --> $primalConsensus \t $primalConsensusOld")
-        //   println(s"\t\t $primalAvg, $dualAvg")
-        // }
+        primalConsensus = 
+          consensus(primalAvg, dualAvg, allVars.size, rho, params.regParam)
 
         Thread.sleep(params.broadcastDelayMS)
-
-        // If the consensus changed then update the dual once (why not?)
-        //if (norm(primalConsensus - primalConsensusOld, 2) > 0.1) {
-        //  dualUpdate(params.lagrangianRho)
-        //}
       }
     }
   }
@@ -281,13 +265,6 @@ class AsyncADMMWorker(subProblemId: Int,
       // Reset the primal var
       // primalVar = primalConsensus.copy
 
-      // // Start at rho == 0 on the first iteration
-      // if ( localIters == 0 ) {
-      //   rho = 0.0
-      // } else {
-      //   rho = params.rho0
-      // }
-
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(math.max(timeRemainingMS, 100))
@@ -325,27 +302,27 @@ class AsyncADMMWorker(subProblemId: Int,
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = consensus(primalAvg, dualAvg, allVars.size, rho, params.regParam)
 
-      // if (params.adaptiveRho) {
-      //   // Compute the residuals
-      //   val primalResidual = (1.0/nDim.toDouble) * allVars.values.iterator.map {
-      //     case (primalVar, dualVar, nExamples) =>
-      //       norm(primalVar - primalConsensus, 2) * nExamples
-      //   }.sum / nTotalExamples.toDouble
-      //   val dualResidual = (rho/nDim.toDouble) * norm(primalConsensus - primalConsensusOld, 2)
-      //   // Rho update from Boyd text
-      //   if (rho == 0.0) {
-      //      rho = 1.0
-      //   } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-      //      rho = 2.0 * rho
-      //      println(s"Increasing rho: $rho")
-      //   } else if (dualResidual > 10.0 * primalResidual && rho > 0.01) {
-      //      rho = rho / 2.0
-      //      println(s"Decreasing rho: $rho")
-      //   }
-      //   dualUpdate(rho)
-      // } else {
-      //   dualUpdate(params.lagrangianRho)
-      // }
+      if (params.adaptiveRho) {
+        // Compute the residuals
+        val primalResidual = (1.0/nDim.toDouble) * allVars.values.iterator.map {
+          case (primalVar, dualVar, nExamples) =>
+            norm(primalVar - primalConsensus, 2) * nExamples
+        }.sum / nTotalExamples.toDouble
+        val dualResidual = (rho/nDim.toDouble) * norm(primalConsensus - primalConsensusOld, 2)
+        // Rho update from Boyd text
+        if (rho == 0.0) {
+           rho = 1.0
+        } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+           rho = 2.0 * rho
+           println(s"Increasing rho: $rho")
+        } else if (dualResidual > 10.0 * primalResidual && rho > 0.01) {
+           rho = rho / 2.0
+           println(s"Decreasing rho: $rho")
+        }
+        dualUpdate(rho)
+      } else {
+        dualUpdate(params.lagrangianRho)
+      }
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime
