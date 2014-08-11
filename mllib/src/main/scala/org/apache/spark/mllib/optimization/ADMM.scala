@@ -151,8 +151,8 @@ class L2ConsensusFunction extends ConsensusFunction {
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     val nDim = dualAvg.size
     assert(nDim > 0)
-    val rhoScaled = rho / nDim.toDouble
-    val regScaled = regParam / nDim.toDouble
+    val rhoScaled = rho / nDim.toDouble // SCALED TERM
+    val regScaled = regParam / nDim.toDouble // SCALED TERM
     if (rho == 0.0) {
       primalAvg 
     } else {
@@ -391,7 +391,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar = dualVar + (primalVar - primalConsensus) * (rate/nDim.toDouble)
+    dualVar = dualVar + (primalVar - primalConsensus) * (rate/nDim.toDouble) // SCALED TERM
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
@@ -401,7 +401,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
-    val rhoScaled = rho / nDim.toDouble
+    val rhoScaled = rho / nDim.toDouble // SCALED TERM
     residual = Double.MaxValue
     var t = 0
     while(t < params.maxWorkerIterations && 
@@ -419,8 +419,9 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Add the lagrangian
       grad += dualVar
       // Add the augmenting term
-      axpy(rhoScaled, primalVar - primalConsensus, grad)
+      axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
       // Set the learning rate
+      // val eta_t = params.eta_0 / (t + 1.0)
       val eta_t = params.eta_0 / math.pow(t + 1, 2.0 / 3.0)
       // Do the gradient update
       primalVar = primalVar - (grad * eta_t)
@@ -502,6 +503,7 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
 
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
+        solver.primalVar = primalConsensus.copy
         solver.rho = rho
 
         if(params.adaptiveRho) {
