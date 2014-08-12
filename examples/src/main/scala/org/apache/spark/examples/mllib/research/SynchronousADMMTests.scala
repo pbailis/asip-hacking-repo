@@ -588,7 +588,12 @@ object SynchronousADMMTests {
             Map(
               "iterations" -> algorithm.optimizer.iteration.toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results )
         }
@@ -608,7 +613,8 @@ object SynchronousADMMTests {
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         } else {
@@ -625,7 +631,9 @@ object SynchronousADMMTests {
               "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
               "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
               "consensusNorm" -> model.weights.l2Norm.toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         }
@@ -652,7 +660,8 @@ object SynchronousADMMTests {
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         }

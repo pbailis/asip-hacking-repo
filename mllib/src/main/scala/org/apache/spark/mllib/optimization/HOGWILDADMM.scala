@@ -16,6 +16,7 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import java.util.concurrent.atomic._
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -56,6 +57,7 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     case d: HWInternalMessages.DeltaUpdate => {
       if (optimizer != null) {
         optimizer.primalVar -= d.delta
+        optimizer.msgsRcvd.getAndIncrement()
       }
     }
     case _ => println("hello, world!")
@@ -114,11 +116,13 @@ class HOGWILDSGDWorker(subProblemId: Int,
 
   @volatile var done = false
   @volatile var msgsSent = 0
+  @volatile var msgsRcvd = new AtomicInteger()
   @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar, 
-      msgsSent = msgsSent, localIters = localIters, 
+      msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(), 
+      localIters = localIters,
       dataSize = data.length)
   }
 

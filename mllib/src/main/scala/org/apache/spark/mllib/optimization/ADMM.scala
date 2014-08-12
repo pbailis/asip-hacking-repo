@@ -189,6 +189,7 @@ object WorkerStats {
     msgsRcvd: Int = 0,
     localIters: Int = 0,
     sgdIters: Int = 0,
+    dualUpdates: Int = 0,
     residual: Double = 0.0,
     dataSize: Int = 0) = {
     new WorkerStats(
@@ -198,6 +199,7 @@ object WorkerStats {
       msgsRcvd = Interval(msgsRcvd),
       localIters = Interval(localIters),
       sgdIters = Interval(sgdIters),
+      dualUpdates = Interval(dualUpdates),
       residual = Interval(residual),
       dataSize = Interval(dataSize),
       nWorkers = 1)
@@ -213,13 +215,21 @@ case class WorkerStats(
   msgsRcvd: Interval,
   localIters: Interval,
   sgdIters: Interval,
+  dualUpdates: Interval,
   dataSize: Interval,
   residual: Interval,
   nWorkers: Int) extends Serializable {
 
   def withoutVars() = {
-    WorkerStats(null, null, msgsSent, msgsRcvd,
-      localIters, sgdIters, dataSize, residual, nWorkers)
+    WorkerStats(null, null, 
+      msgsSent = msgsSent, 
+      msgsRcvd = msgsRcvd,
+      localIters = localIters, 
+      sgdIters = sgdIters, 
+      dualUpdates = dualUpdates, 
+      dataSize = dataSize, 
+      residual = residual, 
+      nWorkers = nWorkers)
   }
 
   def +(other: WorkerStats) = {
@@ -230,6 +240,7 @@ case class WorkerStats(
       msgsRcvd = msgsRcvd + other.msgsRcvd,
       localIters = localIters + other.localIters,
       sgdIters = sgdIters + other.sgdIters,
+      dualUpdates = dualUpdates + other.dualUpdates,
       dataSize = dataSize + other.dataSize,
       residual = residual + other.residual,
       nWorkers = nWorkers + other.nWorkers)
@@ -242,6 +253,7 @@ case class WorkerStats(
       "avgMsgsSent" -> avgMsgsSent(),
       "avgMsgsRcvd" -> avgMsgsRcvd(),
       "avgLocalIters" -> avgLocalIters(),
+      "avgDualUpdates" -> avgDualUpdates(),
       "avgSGDIters" -> avgSGDIters(),
       "avgResidual" -> avgResidual()
     )
@@ -264,6 +276,7 @@ case class WorkerStats(
   def avgMsgsRcvd() = msgsRcvd / nWorkers.toDouble
   def avgLocalIters() = localIters / nWorkers.toDouble
   def avgSGDIters() = sgdIters / nWorkers.toDouble
+  def avgDualUpdates() = dualUpdates / nWorkers.toDouble
   def avgResidual() = residual / nWorkers.toDouble
 }
 
@@ -345,6 +358,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   @volatile var sgdIters = 0
 
+  @volatile var dualIters = 0
+
   @volatile var residual: Double = Double.MaxValue
 
   @volatile var rho = params.rho0
@@ -356,13 +371,16 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def getStats() = {
     WorkerStats(primalVar, dualVar, msgsSent = 0,
-      sgdIters = sgdIters, dataSize = data.length,
+      sgdIters = sgdIters, 
+      dualUpdates = dualIters,
+      dataSize = data.length,
       residual = residual)
   }
 
   def dualUpdate(rate: Double) {
     // Do the dual update
     dualVar = dualVar + (primalVar - primalConsensus) * rate
+    dualIters += 1
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {

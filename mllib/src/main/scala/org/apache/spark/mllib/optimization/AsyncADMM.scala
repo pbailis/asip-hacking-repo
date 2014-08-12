@@ -124,6 +124,7 @@ class AsyncADMMWorker(subProblemId: Int,
     WorkerStats(primalVar = primalVar, dualVar = dualVar,
       msgsSent = msgsSent, msgsRcvd = msgsRcvd,
       localIters = localIters, sgdIters = sgdIters,
+      dualUpdates = dualIters,
       dataSize = data.length)
   }
 
