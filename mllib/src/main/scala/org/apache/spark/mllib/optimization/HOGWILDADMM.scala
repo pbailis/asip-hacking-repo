@@ -16,6 +16,7 @@ import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import java.util.concurrent.atomic._
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -30,6 +31,13 @@ object HWInternalMessages {
 class HWWorkerCommunicationHack {
   var ref: HWWorkerCommunication = null
 }
+
+object HWSetupBlock {
+  var initialized = false
+  val workers = new Array[HOGWILDSGDWorker](128)
+
+}
+
 
 class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
@@ -49,6 +57,7 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     case d: HWInternalMessages.DeltaUpdate => {
       if (optimizer != null) {
         optimizer.primalVar -= d.delta
+        optimizer.msgsRcvd.getAndIncrement()
       }
     }
     case _ => println("hello, world!")
@@ -107,11 +116,13 @@ class HOGWILDSGDWorker(subProblemId: Int,
 
   @volatile var done = false
   @volatile var msgsSent = 0
+  @volatile var msgsRcvd = new AtomicInteger()
   @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
     WorkerStats(primalVar = primalVar, dualVar = dualVar, 
-      msgsSent = msgsSent, localIters = localIters, 
+      msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(), 
+      localIters = localIters,
       dataSize = data.length)
   }
 
@@ -134,7 +145,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     broadcastThread.start()
     var t = 0
-    val scaledRegParam = params.regParam / primalVar.size.toDouble
+    val scaledRegParam = params.regParam 
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
@@ -171,27 +182,39 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
     val nSubProblems = input.partitions.length
 
     workers = input.mapPartitionsWithIndex { (ind, iter) =>
-      val data: Array[(Double, BV[Double])] =
-        iter.map { case (label, features) => (label, features.toBreeze)}.toArray
+      if(HWSetupBlock.initialized) {
+        if (HWSetupBlock.workers(ind) != null ) {
+          Iterator(HWSetupBlock.workers(ind))
+        } else {
+          throw new RuntimeException("Worker was evicted, dying lol!")
+        }
+      } else {
+      
+       val data: Array[(Double, BV[Double])] =
+        iter.map { case (label, features) => (label, features.toBreeze) }.toArray
       val workerName = UUID.randomUUID().toString
-      val address = Worker.HACKakkaHost+workerName
+      val address = Worker.HACKakkaHost + workerName
       val hack = new HWWorkerCommunicationHack()
       logInfo(s"local address is $address")
       val aref = Worker.HACKworkerActorSystem.actorOf(Props(new HWWorkerCommunication(address, hack)), workerName)
-      implicit val timeout = Timeout(15 seconds)
+      implicit val timeout = Timeout(15000 seconds)
 
       val f = aref ? new InternalMessages.WakeupMsg
       Await.result(f, timeout.duration).asInstanceOf[String]
 
-      val worker = new HOGWILDSGDWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
-        objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
-
-      Iterator(worker)
+        val worker = new HOGWILDSGDWorker(subProblemId = ind,
+          nSubProblems = nSubProblems, data = data,
+          objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
+        worker.primalVar = primal0.copy
+        worker.dualVar = primal0.copy
+        HWSetupBlock.workers(ind) = worker
+        Iterator(worker)
+      }
     }.cache()
 
     // collect the addresses
     val addresses = workers.map {
-      if(SetupBlock.initialized) {
+      if(HWSetupBlock.initialized) {
         throw new RuntimeException("Worker was evicted, dying lol!")
       }
       w => w.comm.address
@@ -199,7 +222,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
 
     // Establish connections to all other workers
     workers.foreach { w =>
-      SetupBlock.initialized = true
+      HWSetupBlock.initialized = true
       w.comm.connectToOthers(addresses)
     }
 

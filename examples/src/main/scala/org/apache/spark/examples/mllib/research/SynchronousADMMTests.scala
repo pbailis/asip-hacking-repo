@@ -1,6 +1,7 @@
 package org.apache.spark.examples.mllib.research
 
-import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{max, norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
@@ -11,9 +12,6 @@ import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
-
-import org.apache.log4j.{Level, Logger}
-
 
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
@@ -92,7 +90,7 @@ object DataLoaders {
         }
         i += 1
       }
-      LabeledPoint(if(labelFound) 1.0 else -1.0, new DenseVector(features))
+      LabeledPoint(if(labelFound) 1.0 else 0.0, new DenseVector(features))
     })
   }
 
@@ -275,7 +273,7 @@ object SynchronousADMMTests {
   def main(args: Array[String]) {
     val defaultParams = new Params()
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    Logger.getRootLogger.setLevel(Level.INFO)
 
     val parser = new OptionParser[Params]("BinaryClassification") {
       head("BinaryClassification: an example app for binary classification.")
@@ -301,6 +299,10 @@ object SynchronousADMMTests {
         .action { (x, c) => c.pointCloudPartitionSkew = x; c }
       opt[Int]("pointCloudPointsPerPartition")
         .action { (x, c) => c.pointCloudPointsPerPartition = x; c }
+
+      opt[Int]("localTimeout")
+      .action { (x, c) => c.localTimeout = x; c}
+
       opt[Double]("pointCloudRadius")
         .action { (x, c) => c.pointCloudSize = x; c }
 
@@ -383,8 +385,7 @@ object SynchronousADMMTests {
 
 
     parser.parse(args, defaultParams).map {
-      params =>
-        run(params)
+      params => run(params)
     } getOrElse {
       sys.exit(1)
     }
@@ -395,6 +396,8 @@ object SynchronousADMMTests {
 
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
+    conf.set("spark.akka.heartbeat.interval", "20000") // in seconds?
+    conf.set("spark.locality.wait", "100000") // in milliseconds
 
     val sc = new SparkContext(conf)
 
@@ -426,7 +429,7 @@ object SynchronousADMMTests {
 //    val splits = examples.randomSplit(Array(0.8, 0.2))
 //    val training = splits(0).cache()
 //    val test = splits(1).cache()
-    val training = examples
+    val training = examples.repartition(params.numPartitions)
 
     training.cache()
     //test.repartition(params.numPartitions)
@@ -441,9 +444,7 @@ object SynchronousADMMTests {
     println("Starting test!")
 
     val (model, stats) = runTest(training, params)
-    
-    training.cache()
-
+   
     val trainingError = 
       if(params.useLR) {
         training.map{ point =>
@@ -454,8 +455,9 @@ object SynchronousADMMTests {
         training.map{ point =>
           val p = model.predict(point.features)
           val y = 2.0 * point.label - 1.0
-          if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
-          //if (y * p <= 0.0) 1.0 else 0.0
+          assert(y != 0)
+          // if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
+          if (y * p <= 0.0) 1.0 else 0.0
         }.reduce(_ + _) / numTraining.toDouble
       }
 
@@ -464,8 +466,10 @@ object SynchronousADMMTests {
     val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
 
-    val trainingLoss = model.loss(training) / numTraining.toDouble
-    val regularizationPenalty = params.regParam * math.pow(model.weights.l2Norm,2)
+    val trainingLoss = model.loss(training) 
+    val scaledReg = params.regParam / 2.0 
+    val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
+    val totalLoss = trainingLoss + regularizationPenalty
 
     val resultsMap = Map(
       "algorithm" -> ("\"" + params.algorithm.toString + "\""),
@@ -475,7 +479,7 @@ object SynchronousADMMTests {
       "iterations" -> stats("iterations"),
       "trainingLoss" -> trainingLoss,
       "regPenalty" -> regularizationPenalty,
-      "totalLoss" -> (trainingLoss + regularizationPenalty),
+      "totalLoss" -> totalLoss,
       "trainingError" -> trainingError,
       "roc" -> metrics.areaUnderROC(),
       "pr" -> metrics.areaUnderPR(),
@@ -584,7 +588,12 @@ object SynchronousADMMTests {
             Map(
               "iterations" -> algorithm.optimizer.iteration.toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results )
         }
@@ -604,7 +613,8 @@ object SynchronousADMMTests {
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         } else {
@@ -614,10 +624,16 @@ object SynchronousADMMTests {
           val results =
             Map(
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "iterInterval" -> algorithm.optimizer.stats.avgLocalIters().toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         }
@@ -644,7 +660,8 @@ object SynchronousADMMTests {
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         }

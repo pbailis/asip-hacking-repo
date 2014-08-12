@@ -4,7 +4,7 @@ from pylab import *
 from sys import argv
 
 logLoss = False
-yval = 'total_loss'
+yval = 'trainingError'
 matplotlib.rcParams['figure.figsize'] = 10, 7#3.5, 1.7
 
 if len(argv) < 2:

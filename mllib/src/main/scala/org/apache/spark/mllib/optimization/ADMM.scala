@@ -3,12 +3,10 @@ package org.apache.spark.mllib.optimization
 import java.util.concurrent.TimeUnit
 
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
-import breeze.optimize.DiffFunction
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
-import breeze.optimize._
 
 trait ObjectiveFunction extends Serializable {
   def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
@@ -21,41 +19,12 @@ trait ObjectiveFunction extends Serializable {
       sum += apply(w, data(i)._2, data(i)._1)
       i += 1
     }
-    sum / data.length.toDouble
-  }
-
-  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int,
-    rnd: java.util.Random): Double = {
-    if (nSamples >= data.size) {
-      apply(w, data)
-    } else {
-      var i = 0
-      var sum = 0.0
-      while (i < nSamples) {
-        val ind = rnd.nextInt(data.size)
-        sum += apply(w, data(ind)._2, data(ind)._1)
-        i += 1
-      }
-      sum / nSamples.toDouble
-    }
-  }
-
-  def estimate(w: BV[Double], data: Array[(Double, BV[Double])], nSamples: Int,
-    startInd: Int): Double = {
-    if (nSamples >= data.size) {
-      apply(w, data)
-    } else {
-      var i = 0
-      var sum = 0.0
-      while (i < nSamples) {
-        val ind = (i + startInd) % data.length
-        sum += apply(w, data(ind)._2, data(ind)._1)
-        i += 1
-      }
-      sum / nSamples.toDouble
-    }
+    sum 
   }
 }
+
+
+
 
 
 
@@ -80,7 +49,6 @@ class HingeObjective extends ObjectiveFunction {
     }
   }
 }
-
 
 /*
 Gradient
@@ -129,10 +97,15 @@ class LogisticObjective extends ObjectiveFunction {
 }
 
 
+
+
+
+
+
+
 trait ConsensusFunction extends Serializable {
   def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double]
 }
-
 
 /*
 0 & = \nabla_z \left( \lambda ||z||_2^2 + \sum_{i=1}^N \left( \mu_i^T (x_i - z) +  \frac{\rho}{2} ||x_i - z||_2^2 \right)  \right) \\
@@ -140,22 +113,23 @@ trait ConsensusFunction extends Serializable {
 0 & =\lambda z - N \bar{u} - \rho N \bar{x} + \rho N z    \\
 0 & = z (\lambda + \rho N) -  N (\bar{u} + \rho \bar{x} )  \\
 z & = \frac{ N}{\lambda + \rho N} (\bar{u} + \rho \bar{x})
+z & = \frac{ \rho N}{\lambda + \rho N} (\frac{1}{\rho}\bar{u} + \bar{x})
 */
 class L2ConsensusFunction extends ConsensusFunction {
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     val nDim = dualAvg.size
-    val rhoScaled = rho / nDim.toDouble
-    val regScaled = regParam / nDim.toDouble
+    assert(nDim > 0)
+    val rhoScaled = rho
+    val regScaled = regParam
+    assert(nDim.toDouble > 0)
     if (rho == 0.0) {
       primalAvg 
     } else {
-      val multiplier = (nSolvers * rhoScaled) / (regScaled + nSolvers * rhoScaled)
-      (primalAvg + dualAvg / rhoScaled) * multiplier
+      val multiplier = (nSolvers.toDouble) / (regScaled + nSolvers * rhoScaled)
+      (primalAvg * rhoScaled + dualAvg) * multiplier
     }
   }
 }
-
-
 
 class L1ConsensusFunction extends ConsensusFunction {
   def softThreshold(alpha: Double, x: BV[Double]): BV[Double] = {
@@ -173,8 +147,8 @@ class L1ConsensusFunction extends ConsensusFunction {
   }
   override def apply(primalAvg: BV[Double], dualAvg: BV[Double], nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
     val nDim = dualAvg.size
-    val rhoScaled = rho / nDim.toDouble
-    val regScaled = regParam / nDim.toDouble
+    val rhoScaled = rho
+    val regScaled = regParam
     if (rho == 0.0) {
       softThreshold(regParam, primalAvg)
     } else {
@@ -183,6 +157,10 @@ class L1ConsensusFunction extends ConsensusFunction {
     }
   }
 }
+
+
+
+
 
 
 
@@ -211,15 +189,17 @@ object WorkerStats {
     msgsRcvd: Int = 0,
     localIters: Int = 0,
     sgdIters: Int = 0,
+    dualUpdates: Int = 0,
     residual: Double = 0.0,
     dataSize: Int = 0) = {
     new WorkerStats(
-      weightedPrimalVar = primalVar * dataSize.toDouble,
-      weightedDualVar = dualVar * dataSize.toDouble,
+      weightedPrimalVar = primalVar,
+      weightedDualVar = dualVar,
       msgsSent = Interval(msgsSent),
       msgsRcvd = Interval(msgsRcvd),
       localIters = Interval(localIters),
       sgdIters = Interval(sgdIters),
+      dualUpdates = Interval(dualUpdates),
       residual = Interval(residual),
       dataSize = Interval(dataSize),
       nWorkers = 1)
@@ -235,13 +215,21 @@ case class WorkerStats(
   msgsRcvd: Interval,
   localIters: Interval,
   sgdIters: Interval,
+  dualUpdates: Interval,
   dataSize: Interval,
   residual: Interval,
   nWorkers: Int) extends Serializable {
 
   def withoutVars() = {
-    WorkerStats(null, null, msgsSent, msgsRcvd,
-      localIters, sgdIters, dataSize, residual, nWorkers)
+    WorkerStats(null, null, 
+      msgsSent = msgsSent, 
+      msgsRcvd = msgsRcvd,
+      localIters = localIters, 
+      sgdIters = sgdIters, 
+      dualUpdates = dualUpdates, 
+      dataSize = dataSize, 
+      residual = residual, 
+      nWorkers = nWorkers)
   }
 
   def +(other: WorkerStats) = {
@@ -252,6 +240,7 @@ case class WorkerStats(
       msgsRcvd = msgsRcvd + other.msgsRcvd,
       localIters = localIters + other.localIters,
       sgdIters = sgdIters + other.sgdIters,
+      dualUpdates = dualUpdates + other.dualUpdates,
       dataSize = dataSize + other.dataSize,
       residual = residual + other.residual,
       nWorkers = nWorkers + other.nWorkers)
@@ -259,15 +248,15 @@ case class WorkerStats(
 
   def toMap(): Map[String, Any] = {
     Map(
-      "primalAvg" -> primalAvg(),
-      "dualAvg" -> dualAvg(),
+      "primalAvg" -> ("[" + primalAvg().toArray.mkString(", ") + "]"),
+      "dualAvg" -> ("[" + dualAvg().toArray.mkString(", ") + "]"),
       "avgMsgsSent" -> avgMsgsSent(),
       "avgMsgsRcvd" -> avgMsgsRcvd(),
       "avgLocalIters" -> avgLocalIters(),
+      "avgDualUpdates" -> avgDualUpdates(),
       "avgSGDIters" -> avgSGDIters(),
       "avgResidual" -> avgResidual()
     )
-
   }
 
   override def toString = {
@@ -277,17 +266,23 @@ case class WorkerStats(
   }
 
   def primalAvg(): BV[Double] = {
-    if (weightedPrimalVar == null) null else weightedPrimalVar / dataSize.x
+    if (weightedPrimalVar == null) null else weightedPrimalVar / nWorkers.toDouble
   }
   def dualAvg(): BV[Double] = {
-    if (weightedDualVar == null) null else weightedDualVar / dataSize.x
+    if (weightedDualVar == null) null else weightedDualVar / nWorkers.toDouble
   }
   def avgMsgsSent() = msgsSent / nWorkers.toDouble
   def avgMsgsRcvd() = msgsRcvd / nWorkers.toDouble
   def avgLocalIters() = localIters / nWorkers.toDouble
   def avgSGDIters() = sgdIters / nWorkers.toDouble
+  def avgDualUpdates() = dualUpdates / nWorkers.toDouble
   def avgResidual() = residual / nWorkers.toDouble
 }
+
+
+
+
+
 
 
 
@@ -309,6 +304,7 @@ class ADMMParams extends Serializable {
   var broadcastDelayMS = 100
   var usePorkChop = false
   var useLineSearch = false
+  var localTimeout = Int.MaxValue
 
   def toMap(): Map[String, Any] = {
     Map(
@@ -327,7 +323,8 @@ class ADMMParams extends Serializable {
       "adaptiveRho" -> adaptiveRho,
       "useLineSearch" -> useLineSearch,
       "broadcastDelayMS" -> broadcastDelayMS,
-      "usePorkChop" -> usePorkChop
+      "usePorkChop" -> usePorkChop,
+      "localTimeout" -> localTimeout
     )
   }
   override def toString = {
@@ -360,6 +357,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   @volatile var sgdIters = 0
 
+  @volatile var dualIters = 0
+
   @volatile var residual: Double = Double.MaxValue
 
   @volatile var rho = params.rho0
@@ -371,148 +370,61 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def getStats() = {
     WorkerStats(primalVar, dualVar, msgsSent = 0,
-      sgdIters = sgdIters, dataSize = data.length,
+      sgdIters = sgdIters, 
+      dualUpdates = dualIters,
+      dataSize = data.length,
       residual = residual)
   }
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar = (dualVar + (primalVar - primalConsensus) * (rate/nDim.toDouble))
+    dualVar = dualVar + (primalVar - primalConsensus) * rate
+    dualIters += 1
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
     val endByMS = System.currentTimeMillis() + remainingTimeMS
-    if(params.useLBFGS) {
-      lbfgs(endByMS)
-    } else {
-      sgd(endByMS)
-    }
+    sgd(endByMS)
   }
 
-  val breezeObjFun = new DiffFunction[BDV[Double]] {
-    var cumGrad = BDV.zeros[Double](nDim)
-    override def calculate(x: BDV[Double]) = {
-      var obj = 0.0
-      var i = 0
-      cumGrad *= 0.0
-      val rhoScaled = rho / nDim.toDouble
-      while (i < data.length) {
-        obj += objFun.addGradient(x, data(i)._2, data(i)._1, cumGrad)
-        i += 1
-      }
-      cumGrad /= data.length.toDouble
-      obj /= data.length.toDouble
-      cumGrad += dualVar
-      obj += dualVar.dot(x - primalConsensus)
-      axpy(rhoScaled, x - primalConsensus, cumGrad)
-      obj += (rhoScaled / 2.0 ) *  math.pow(norm(x - primalConsensus, 2), 2)
-      (obj, cumGrad)
-    }
-  }
-
-  def lbfgs(endByMS: Long = Long.MaxValue) {
-    try {
-      val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](params.maxWorkerIterations,
-        tolerance = params.workerTol)
-      primalVar = lbfgs.minimize(breezeObjFun, primalConsensus.toDenseVector)
-    } catch {
-      case e: Throwable => sgd(endByMS)
-    }
-  }
-
-  /**
-    * Breeze based implementation of line search
-    */
-  def breezeLineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
-    val ff = LineSearch.functionFromSearchDirection(breezeObjFun, 
-      primalVar.toDenseVector, (grad.toDenseVector * -1.0))
-    val search = new StrongWolfeLineSearch(maxZoomIter = 10, maxLineSearchIter = 10) 
-    val alpha = search.minimize(ff, 1.0)
-    println(s"Alpha $alpha")
-    alpha
-  }
-
-
-  def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
-    val rhoScaled = rho / nDim.toDouble
-    var etaBest = 10.0
-    var w = primalVar - grad * etaBest
-    var scoreBest = objFun(w, data) + dualVar.dot(w - primalConsensus) +
-      (rhoScaled/ 2.0) * math.pow(norm(w - primalConsensus,2), 2)
-    var etaProposal = etaBest / 2.0
-    w = primalVar - grad * etaProposal
-    var newScoreProposal = objFun(w, data) +dualVar.dot(w - primalConsensus) +
-      (rhoScaled / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
-    var searchIters = 0
-    // Try to decrease the objective as much as possible
-    while (newScoreProposal < scoreBest && etaProposal >= 1e-10) {
-      etaBest = etaProposal
-      scoreBest = newScoreProposal
-      // Double eta and propose again.
-      etaProposal /= 2.0
-      w = primalVar - grad * etaProposal
-      newScoreProposal = objFun(w, data) + dualVar.dot(w - primalConsensus) +
-        (rhoScaled / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
-      searchIters += 1
-      // Kill the loop if we run out of search time
-      val currentTime = System.currentTimeMillis()
-      if (currentTime > endByMS) {
-        etaProposal = 0.0
-        println(s"Ran out of linesearch time on $searchIters: $currentTime > $endByMS")
-      }
-    }
-    etaBest
-  }
- 
-
-
+  var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
-    val rhoScaled = rho / nDim.toDouble
+    var timeOut = false
+    val rhoScaled = rho 
     residual = Double.MaxValue
-    val startTime = System.currentTimeMillis()
-    var t = 0
+    t = 0
     while(t < params.maxWorkerIterations && 
       residual > params.workerTol &&
-      System.currentTimeMillis() < endByMS) {
+      !timeOut) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
-      if (miniBatchSize < data.length) {
-        while (b < miniBatchSize) {
-          val ind = rnd.nextInt(data.length)
-          objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
-          b += 1
-        }
-      } else {  // Linear scan
-        while (b < data.length) {
-          objFun.addGradient(primalVar, data(b)._2, data(b)._1, grad)
-          b += 1
-        }
+      while (b < miniBatchSize) {
+        val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
+        objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        b += 1
       }
       // Normalize the gradient to the batch size
-      grad /= b.toDouble
+      grad /= miniBatchSize.toDouble
       // Add the lagrangian
       grad += dualVar
       // Add the augmenting term
-      axpy(rhoScaled, primalVar - primalConsensus, grad)
+      axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
       // Set the learning rate
-      val eta_t =
-        if (params.useLineSearch) {
-          lineSearch(grad, endByMS)
-        } else {
-          params.eta_0 / (nDim.toDouble * math.pow(t + 1, 2.0 / 3.0))
-        }
+      // val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
+      // math.pow(t + 1.0, 2.0 / 3.0))
+      val eta_t = params.eta_0 / (t + 1.0).toDouble
       // Do the gradient update
-      primalVar = (primalVar - grad * eta_t)
+      primalVar = primalVar - (grad * eta_t)
       // axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
-      // residual = (1.0 / nDim.toDouble) * norm(grad, 2)
       // println(residual)
       t += 1
+      timeOut = System.currentTimeMillis() > endByMS
     }
     // Save the last num
-    sgdIters += t
+    sgdIters = t
   }
 }
 
@@ -540,8 +452,8 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
       }.cache()
       solvers.count
 
-    rawData.unpersist(true)
-    solvers.foreach( f => System.gc() )
+  //   rawData.unpersist(true)
+     solvers.foreach( f => System.gc() )
   }
 
   /**
@@ -583,12 +495,9 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
 
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
+        solver.primalVar = primalConsensus.copy
         solver.rho = rho
-        // if ( iteration == 0 ) {
-        //   solver.rho = 0.0
-        // } else {
-        //   solver.rho = rho
-        // }
+
         if(params.adaptiveRho) {
           solver.dualUpdate(rho)
         } else {
@@ -596,8 +505,7 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         }
 
         // Do a primal update
-        solver.primalUpdate(timeRemaining)
-        //solver.primalUpdate()
+        solver.primalUpdate(Math.min(timeRemaining, params.localTimeout))
 
         // Construct stats
         solver.getStats()
@@ -608,29 +516,27 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
       primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho,
         params.regParam)
 
-      // Compute the residuals
-      primalResidual = (1.0/nDim.toDouble) * solvers.map(
-        s => norm(s.primalVar - primalConsensus, 2) * s.data.length.toDouble)
-        .reduce(_+_) / stats.dataSize.x
-      dualResidual = (rho/nDim.toDouble) * norm(primalConsensus - primalConsensusOld, 2)
-
-      if (params.adaptiveRho) {
-        if (rho == 0.0) {
-          rho = 1.0
-        } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-          rho = 2.0 * rho
-          println(s"Increasing rho: $rho")
-        } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
-          rho = rho / 2.0
-          println(s"Decreasing rho: $rho")
-        }
-      }
-
-      println(stats.withoutVars())
-      //println(stats)
-      //println(primalConsensus)
-      println(s"Iteration: $iteration")
-      println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
+      // // Compute the residuals
+      // primalResidual = solvers.map(
+      //   s => norm(s.primalVar - primalConsensus, 2) * s.data.length.toDouble)
+      //   .reduce(_+_) / nSolvers.toDouble
+      // dualResidual = norm(primalConsensus - primalConsensusOld, 2)
+      // if (params.adaptiveRho) {
+      //   if (rho == 0.0) {
+      //     rho = 1.0
+      //   } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
+      //     rho = 2.0 * rho
+      //     println(s"Increasing rho: $rho")
+      //   } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
+      //     rho = rho / 2.0
+      //     println(s"Decreasing rho: $rho")
+      //   }
+      // }
+      // println(stats.withoutVars())
+      // //println(stats)
+      // //println(primalConsensus)
+      // println(s"Iteration: $iteration")
+      // println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
       iteration += 1
     }
 

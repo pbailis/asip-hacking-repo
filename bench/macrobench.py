@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000] #, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -19,20 +19,23 @@ PICKLED_OUTPUT = "experiment.pkl"
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.0
-GLOBAL_ADMMlocalEpsilon = 1.0e-8
+GLOBAL_ADMMlocalEpsilon = 1.0e-5
 GLOBAL_ADMMrho = 1.0
-GLOBAL_ADMMlagrangianRho = 1.0
 
-GLOBAL_ADMM_maxLocalIterations = 1000000
-GLOBAL_ADMM_localEpsilon = 1.0e-8
+GLOBAL_ADMMlagrangianRho = 0.1
 
-GLOBAL_MiniBatchADMM_maxLocalIterations = 100
-GLOBAL_MiniBatchADMM_localEpsilon = 1.0e-4
+GLOBAL_ADMM_maxLocalIterations = 100000
+GLOBAL_ADMM_localEpsilon = 1.0e-5
+GLOBAL_ADMM_localTimeout = 100000000
+
+GLOBAL_MiniBatchADMM_maxLocalIterations = 100000000
+GLOBAL_MiniBatchADMM_localEpsilon = 1.0e-3
+GLOBAL_MiniBatchADMM_localTimeout = 500
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
 
-GLOBAL_AsyncADMM_maxLocalIterations = 10000
+GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
 GLOBAL_PORKCHOP_maxLocalIterations = 10000
@@ -81,10 +84,11 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=0.0001,
+            regParam=1.0,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
+            localTimeout = 10000000,
             cloudPartitionSkew=-1,
             flightsYear = "2008",
             wikipediaTargetWordToken = 4690,
@@ -125,6 +129,7 @@ def runTest(runtimeMS,
           "--dblpSplitYear " + str(dblpSplitYear) + " " + \
           "--wikipediaTargetWordToken " + str(wikipediaTargetWordToken) + " " +  \
           "--inputTokenHashKernelDimension " + str(inputTokenHashKernelDimension) + " " + \
+          "--localTimeout " + str(localTimeout) + " " + \
           datasetConfigStr + " " + miscStr + " "
 
            # (algorithm,
@@ -174,6 +179,7 @@ def runTest(runtimeMS,
                 "pointCloudSkew": cloudPartitionSkew,
                 "inputTokenHashKernelDimension": inputTokenHashKernelDimension,
                 "dblpSplitYear": dblpSplitYear,
+                "localTimeout": localTimeout,
                 "wikipediaTargetWordToken": wikipediaTargetWordToken
             }
             record['pyConfig'] = pyConfig
@@ -188,7 +194,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
+for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
@@ -197,9 +203,11 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
+                localTimeout = GLOBAL_ADMM_localTimeout
             elif algorithm == "MiniBatchADMM":
                 maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                 localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                localTimeout = GLOBAL_MiniBatchADMM_localTimeout
             elif algorithm == "HOGWILD":
                 maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                 broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
@@ -217,16 +225,16 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay,
-                            miscStr = miscStr)
+                               miscStr = miscStr,
+                               localTimeout = localTimeout)
 
             output = open(PICKLED_OUTPUT, 'wb')
             pickle.dump(results, output)
             output.close()
 
-
 for runtime in RUNTIMES:
-    for dim in [2, 50]:
-        for skew in [0.0, 0.1]:
+    for dim in [2, 10, 100]:
+        for skew in [0.0]:
             for algorithm in ALGORITHMS:
                 broadcastDelay = -1
                 localEpsilon = GLOBAL_ADMMlocalEpsilon
@@ -234,9 +242,11 @@ for runtime in RUNTIMES:
                 if algorithm == "ADMM":
                     maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                     localEpsilon = GLOBAL_ADMM_localEpsilon
+                    localTimeout = GLOBAL_ADMM_localTimeout
                 elif algorithm == "MiniBatchADMM":
                     maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                     localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                    localTimeout = GLOBAL_MiniBatchADMM_localTimeout
                 elif algorithm == "HOGWILD":
                     maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                     broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
@@ -256,11 +266,55 @@ for runtime in RUNTIMES:
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay,
-                                   miscStr = miscStr)
+                                   miscStr = miscStr,
+                                   localTimeout= localTimeout
+                )
 
                 output = open(PICKLED_OUTPUT, 'wb')
                 pickle.dump(results, output)
                 output.close()
+
+for runtime in RUNTIMES:
+    for dim in [10]:
+        for skew in [0.1, 0.2, 0.5]:
+            for algorithm in ALGORITHMS:
+                broadcastDelay = -1
+                localEpsilon = GLOBAL_ADMMlocalEpsilon
+                miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+                if algorithm == "ADMM":
+                    maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_ADMM_localEpsilon
+                    localTimeout = GLOBAL_ADMM_localTimeout
+                elif algorithm == "MiniBatchADMM":
+                    maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                    localTimeout = GLOBAL_MiniBatchADMM_localTimeout
+                elif algorithm == "HOGWILD":
+                    maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                    broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+                elif algorithm == "PORKCHOP":
+                    maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                    broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                elif algorithm == "AsyncADMM":
+                    maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                    broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+                
+
+                results += runTest(runtime,
+                                   algorithm,
+                                   "cloud",
+                                   cloudPartitionSkew = skew,
+                                   cloudDim = dim,
+                                   ADMMmaxLocalIterations = maxLocalIterations,
+                                   ADMMlocalEpsilon = localEpsilon,
+                                   broadcastDelay = broadcastDelay,
+                                   miscStr = miscStr,
+                                   localTimeout = localTimeout)
+
+                output = open(PICKLED_OUTPUT, 'wb')
+                pickle.dump(results, output)
+                output.close()
+
 
 # for runtime in RUNTIMES:
 #     for dim in [10]:
