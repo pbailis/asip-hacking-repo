@@ -104,12 +104,13 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
 class HOGWILDSGDWorker(subProblemId: Int,
                        nSubProblems: Int,
+                       nData: Int,
                        data: Array[(Double, BV[Double])],
                        objFun: ObjectiveFunction,
                        params: ADMMParams,
                        val consensus: ConsensusFunction,
                        val comm: HWWorkerCommunication)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, data = data, objFun = objFun, params)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, nData = nData, data = data, objFun = objFun, params)
   with Logging {
 
   comm.optimizer = this
@@ -145,7 +146,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     broadcastThread.start()
     var t = 0
-    val scaledRegParam = params.regParam / nSubProblems.toDouble
+    val scaledRegParam = params.regParam / nData.toDouble
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
@@ -180,7 +181,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
 
   def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
     val nSubProblems = input.partitions.length
-
+    val nData = input.count
     workers = input.mapPartitionsWithIndex { (ind, iter) =>
       if(HWSetupBlock.initialized) {
         if (HWSetupBlock.workers(ind) != null ) {
@@ -203,7 +204,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
       Await.result(f, timeout.duration).asInstanceOf[String]
 
         val worker = new HOGWILDSGDWorker(subProblemId = ind,
-          nSubProblems = nSubProblems, data = data,
+          nSubProblems = nSubProblems, nData = nData.toInt, data = data,
           objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
         worker.primalVar = primal0.copy
         worker.dualVar = primal0.copy

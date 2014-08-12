@@ -340,6 +340,7 @@ class ADMMParams extends Serializable {
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
                         val nSubProblems: Int,
+                        val nData: Int,
                         val data: Array[(Double, BV[Double])],
                         val objFun: ObjectiveFunction,
                         val params: ADMMParams) extends Serializable with Logging {
@@ -408,7 +409,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       }
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
-      val scaledRegParam = params.regParam / nSubProblems.toDouble
+      val scaledRegParam = params.regParam / nData.toDouble
       grad += (primalVar * scaledRegParam)
 
       // Add the lagrangian
@@ -445,12 +446,14 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
   def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
     val primal0 = initialWeights.toBreeze
     val nSubProblems = rawData.partitions.length
+    val nData = rawData.count
     solvers =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
         val data: Array[(Double, BV[Double])] = iter.map {
           case (label, features) => (label, features.toBreeze)
         }.toArray
-        val solver = new SGDLocalOptimizer(ind, nSubProblems, data, gradient, params)
+        val solver = new SGDLocalOptimizer(ind, nSubProblems = nSubProblems, 
+          nData = nData.toInt, data, gradient, params)
         // Initialize the primal variable and primal consensus
         solver.primalVar = primal0.copy
         solver.primalConsensus = primal0.copy
