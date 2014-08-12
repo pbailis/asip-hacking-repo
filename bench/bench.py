@@ -187,50 +187,51 @@ results = []
 
 
 ## START OF EXPERIMENT RUNS
-dataset = 'wikipedia'
+dataset = 'bismarck'
 #for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
 
 RUNTIMES = [10000] #, 40000, 80000] #, 80000, 120000]
-ALGORITHMS = ["PORKCHOP", "HOGWILD"] #, "HOGWILD"]#, "HOGWILD", "GD", "ADMM"]
-for lrho in [0.01, 0.1, 1, 2]:
-    for runtime in RUNTIMES:
-        for algorithm in ALGORITHMS:
-            broadcastDelay = -1
-            localEpsilon = GLOBAL_ADMMlocalEpsilon
-            miscStr = "" 
-            if algorithm == "ADMM":
-                maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
-                localEpsilon = GLOBAL_ADMM_localEpsilon
-            elif algorithm == "MiniBatchADMM":
-                maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
-                localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
-            elif algorithm == "HOGWILD":
-                maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
-                broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
-            elif algorithm == "PORKCHOP":
-                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
-                broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
-                localEpsilon = -1.0
-            elif algorithm == "AsyncADMM":
-                maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
-                broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
-
-            # Only run hogwild once
-            if algorithm != "HOGWILD" or lrho == 0.1:
-                results += runTest(runtime,
-                            algorithm,
-                            dataset,
-                            flightsYear = 2008,
-                            ADMMmaxLocalIterations = maxLocalIterations,
-                            ADMMlocalEpsilon = localEpsilon,
-                            ADMMrho = 1,
-                            ADMMlagrangianRho = lrho,
-                            broadcastDelay = broadcastDelay,
-                            miscStr = miscStr)
-
-                output = open(PICKLED_OUTPUT, 'wb')
-                pickle.dump(results, output)
-                output.close()
+ALGORITHMS = ["PORKCHOP", "MiniBatchADMM"] #, "HOGWILD"]#, "HOGWILD", "GD", "ADMM"]
+for runtime in RUNTIMES:
+    for dataset in ["bismarck", "flights"]:
+        for lrho in [0.1, 1]:
+            for algorithm in ALGORITHMS:
+                broadcastDelay = -1
+                localEpsilon = GLOBAL_ADMMlocalEpsilon
+                miscStr = "" 
+                if algorithm == "ADMM":
+                    maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_ADMM_localEpsilon
+                elif algorithm == "MiniBatchADMM":
+                    maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                    localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                elif algorithm == "HOGWILD":
+                    maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                    broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+                elif algorithm == "PORKCHOP":
+                    maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                    broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    localEpsilon = -1.0
+                elif algorithm == "AsyncADMM":
+                    maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                    broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+                    
+                    # Only run hogwild once
+                if algorithm != "MiniBatchAaDMM" or delay == 10:
+                    results += runTest(runtime,
+                                       algorithm,
+                                       dataset,
+                                       flightsYear = 2008,
+                                       ADMMmaxLocalIterations = maxLocalIterations,
+                                       ADMMlocalEpsilon = localEpsilon,
+                                       ADMMrho = 1,
+                                       ADMMlagrangianRho = lrho,
+                                       broadcastDelay = broadcastDelay,
+                                       miscStr = miscStr)
+                    
+                    output = open(PICKLED_OUTPUT, 'wb')
+                    pickle.dump(results, output)
+                    output.close()
 
 
 exit(-1)
