@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 120000]
+RUNTIMES = [5000, 40000]#1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["MiniBatchADMM", "HOGWILD", "PORKCHOP"]#,"ADMM", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -84,7 +84,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=1.0,
+            regParam=10.0,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
