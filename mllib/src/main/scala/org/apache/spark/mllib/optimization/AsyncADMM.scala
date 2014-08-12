@@ -105,13 +105,13 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
 
 class AsyncADMMWorker(subProblemId: Int,
+                      nSubProblems: Int,
                       data: Array[(Double, BV[Double])],
                       objFun: ObjectiveFunction,
                       params: ADMMParams,
                       val consensus: ConsensusFunction,
-                      val comm: WorkerCommunication,
-                      val nSubProblems: Int)
-    extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, objFun = objFun, params)
+                      val comm: WorkerCommunication)
+    extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, data = data, objFun = objFun, params)
     with Logging {
 
   @volatile var done = false

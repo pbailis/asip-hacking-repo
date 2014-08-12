@@ -103,13 +103,13 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
 
 class HOGWILDSGDWorker(subProblemId: Int,
+                       nSubProblems: Int,
                        data: Array[(Double, BV[Double])],
                        objFun: ObjectiveFunction,
                        params: ADMMParams,
                        val consensus: ConsensusFunction,
-                       val comm: HWWorkerCommunication,
-                       val nSubProblems: Int)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, objFun = objFun, params)
+                       val comm: HWWorkerCommunication)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, data = data, objFun = objFun, params)
   with Logging {
 
   comm.optimizer = this
