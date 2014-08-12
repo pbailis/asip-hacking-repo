@@ -7,7 +7,7 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000]
 
 ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
@@ -193,10 +193,58 @@ results = []
 
 
 ## START OF EXPERIMENT RUNS
-dataset = 'wikipedia'
-
 
 #ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
+
+
+
+for dataset in ["wikipedia"]:
+    for regType in ["L2"]: #, "L1"]:
+        for regParam in [0, 0.1, 1]: #10, 100]:
+            for runtime in RUNTIMES:
+                for algorithm in ALGORITHMS:
+                    broadcastDelay = -1
+                    localEpsilon = GLOBAL_ADMMlocalEpsilon
+                    miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+                    if algorithm == "ADMM":
+                        maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                        localEpsilon = GLOBAL_ADMM_localEpsilon
+                        localTimeout = GLOBAL_ADMM_localTimeout
+                    elif algorithm == "MiniBatchADMM":
+                        maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                        localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                        localTimeout = GLOBAL_MiniBatchADMM_localTimeout
+                    elif algorithm == "HOGWILD":
+                        maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                        broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+                    elif algorithm == "PORKCHOP":
+                        maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                        broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    elif algorithm == "AsyncADMM":
+                        maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                        broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+
+                    results += runTest(runtime,
+                                       algorithm,
+                                       dataset,
+                                       flightsYear = 2008,
+                                       ADMMmaxLocalIterations = maxLocalIterations,
+                                       ADMMlocalEpsilon = localEpsilon,
+                                       broadcastDelay = broadcastDelay,
+                                       regParam = regParam,
+                                       regType = regType,
+                                       miscStr = miscStr,
+                                       localTimeout = localTimeout)
+
+                    output = open(PICKLED_OUTPUT, 'wb')
+                    pickle.dump(results, output)
+                    output.close()
+
+
+
+
+
+dataset = 'wikipedia'
 
 for runtime in [10000, 20000]:
     for commDelay in [5,10,50,100,1000,5000]:
