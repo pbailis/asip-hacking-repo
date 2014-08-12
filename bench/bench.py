@@ -7,7 +7,7 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000] #, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000] #, 80000, 120000]
 
 ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
 
@@ -19,23 +19,23 @@ PICKLED_OUTPUT = "experiment.pkl"
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.0
-GLOBAL_ADMMlocalEpsilon = 1.0e-8
+GLOBAL_ADMMlocalEpsilon = 1.0e-5
 GLOBAL_ADMMrho = 1.0
 GLOBAL_ADMMlagrangianRho = 1.0
 
-GLOBAL_ADMM_maxLocalIterations = 1000000
-GLOBAL_ADMM_localEpsilon = 1.0e-8
+GLOBAL_ADMM_maxLocalIterations = 100000
+GLOBAL_ADMM_localEpsilon = 1.0e-5
 
-GLOBAL_MiniBatchADMM_maxLocalIterations = 100
-GLOBAL_MiniBatchADMM_localEpsilon = 1.0e-4
+GLOBAL_MiniBatchADMM_maxLocalIterations = 1000
+GLOBAL_MiniBatchADMM_localEpsilon = 1.0e-3
 
 GLOBAL_HOGWILD_maxLocalIterations = 10
 GLOBAL_HOGWILD_broadcastDelay = 10
 
-GLOBAL_AsyncADMM_maxLocalIterations = 10000
+GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 
@@ -81,7 +81,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=0.0001,
+            regParam=0.01,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -187,7 +187,53 @@ results = []
 
 
 ## START OF EXPERIMENT RUNS
+dataset = 'wikipedia'
+#for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
 
+RUNTIMES = [10000] #, 40000, 80000] #, 80000, 120000]
+ALGORITHMS = ["PORKCHOP", "HOGWILD"] #, "HOGWILD"]#, "HOGWILD", "GD", "ADMM"]
+for lrho in [0.01, 0.1, 1, 10]:
+    for runtime in RUNTIMES:
+        for algorithm in ALGORITHMS:
+            broadcastDelay = -1
+            localEpsilon = GLOBAL_ADMMlocalEpsilon
+            miscStr = "" 
+            if algorithm == "ADMM":
+                maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                localEpsilon = GLOBAL_ADMM_localEpsilon
+            elif algorithm == "MiniBatchADMM":
+                maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+            elif algorithm == "HOGWILD":
+                maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+            elif algorithm == "PORKCHOP":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                localEpsilon = -1.0
+            elif algorithm == "AsyncADMM":
+                maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
+
+            # Only run hogwild once
+            if algorithm != "HOGWILD" or lrho == 0.1:
+                results += runTest(runtime,
+                            algorithm,
+                            dataset,
+                            flightsYear = 2008,
+                            ADMMmaxLocalIterations = maxLocalIterations,
+                            ADMMlocalEpsilon = localEpsilon,
+                            ADMMrho = 1000,
+                            ADMMlagrangianRho = lrho,
+                            broadcastDelay = broadcastDelay,
+                            miscStr = miscStr)
+
+                output = open(PICKLED_OUTPUT, 'wb')
+                pickle.dump(results, output)
+                output.close()
+
+
+exit(-1)
 for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
@@ -223,6 +269,7 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
             pickle.dump(results, output)
             output.close()
 
+exit(-1)
 
 for runtime in RUNTIMES:
     for dim in [2, 50]:

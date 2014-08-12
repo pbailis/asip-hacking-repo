@@ -1,6 +1,6 @@
 package org.apache.spark.examples.mllib.research
 
-import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{max, norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.examples.mllib.research.SynchronousADMMTests.Params
 import org.apache.spark.mllib.classification._
@@ -273,7 +273,7 @@ object SynchronousADMMTests {
   def main(args: Array[String]) {
     val defaultParams = new Params()
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    Logger.getRootLogger.setLevel(Level.INFO)
 
     val parser = new OptionParser[Params]("BinaryClassification") {
       head("BinaryClassification: an example app for binary classification.")
@@ -392,6 +392,8 @@ object SynchronousADMMTests {
 
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
+    conf.set("spark.akka.heartbeat.interval", "20000") // in seconds?
+    conf.set("spark.locality.wait", "100000") // in milliseconds
 
     val sc = new SparkContext(conf)
 
@@ -423,7 +425,7 @@ object SynchronousADMMTests {
 //    val splits = examples.randomSplit(Array(0.8, 0.2))
 //    val training = splits(0).cache()
 //    val test = splits(1).cache()
-    val training = examples
+    val training = examples.repartition(params.numPartitions)
 
     training.cache()
     //test.repartition(params.numPartitions)
@@ -438,9 +440,7 @@ object SynchronousADMMTests {
     println("Starting test!")
 
     val (model, stats) = runTest(training, params)
-    
-    training.cache()
-
+   
     val trainingError = 
       if(params.useLR) {
         training.map{ point =>
@@ -613,9 +613,13 @@ object SynchronousADMMTests {
           val results =
             Map(
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "iterInterval" -> algorithm.optimizer.stats.avgLocalIters().toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
               "runtime" -> algorithm.optimizer.totalTimeMs.toString
             )
           (model, results)

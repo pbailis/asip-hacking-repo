@@ -153,11 +153,12 @@ class L2ConsensusFunction extends ConsensusFunction {
     assert(nDim > 0)
     val rhoScaled = rho / nDim.toDouble // SCALED TERM
     val regScaled = regParam / nDim.toDouble // SCALED TERM
+    assert(nDim.toDouble > 0)
     if (rho == 0.0) {
       primalAvg 
     } else {
-      val multiplier = (nSolvers * rhoScaled) / (regScaled + nSolvers * rhoScaled)
-      (primalAvg + dualAvg / rhoScaled) * multiplier
+      val multiplier = (nSolvers.toDouble) / (regScaled + nSolvers * rhoScaled)
+      (primalAvg * rhoScaled + dualAvg) * multiplier
     }
   }
 }
@@ -399,14 +400,16 @@ class SGDLocalOptimizer(val subProblemId: Int,
     sgd(endByMS)
   }
 
+  @volatile var timeOut = false
+  var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
     val rhoScaled = rho / nDim.toDouble // SCALED TERM
     residual = Double.MaxValue
-    var t = 0
+    assert(!timeOut)
     while(t < params.maxWorkerIterations && 
       residual > params.workerTol &&
-      System.currentTimeMillis() < endByMS) {
+      !timeOut) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
@@ -421,8 +424,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Add the augmenting term
       axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
       // Set the learning rate
-      // val eta_t = params.eta_0 / (t + 1.0)
-      val eta_t = params.eta_0 / math.pow(t + 1, 2.0 / 3.0)
+      val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
+      //val eta_t = params.eta_0 / math.pow(t + 1, 2.0 / 3.0)
       // Do the gradient update
       primalVar = primalVar - (grad * eta_t)
       // axpy(-eta_t, grad, primalVar)
@@ -430,9 +433,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
       residual = eta_t * norm(grad, 2)
       // println(residual)
       t += 1
+      timeOut = System.currentTimeMillis() > endByMS
     }
     // Save the last num
-    sgdIters += t
+    sgdIters = t
   }
 }
 

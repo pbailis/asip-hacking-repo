@@ -80,6 +80,13 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       }
       i += 1
     }
+    if(selfID == -1) {
+      println("SelfID is -1 !!!!!!!!!!!!!!")
+      println(s"Address: $address")
+      println(s"Hosts: ")
+      allHosts.foreach(x => println(s"\t $x")) 
+      throw new RuntimeException("Worker was evicted, dying not lol!")
+    }
   }
 
   def sendPingPongs() {
@@ -123,16 +130,18 @@ class AsyncADMMWorker(subProblemId: Int,
 
   val broadcastThread = new Thread {
     override def run {
+      assert(!done)
       while (!done) {
         Thread.sleep(params.broadcastDelayMS)
         comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
         msgsSent += 1
         // Check to see if we are done
         val elapsedTime = System.currentTimeMillis() - startTime
-        done = done || (elapsedTime > params.runtimeMS)
+        done = elapsedTime > params.runtimeMS
       }
     }
   }
+ 
  
 
   val solverLoopThread = new Thread {
@@ -143,21 +152,23 @@ class AsyncADMMWorker(subProblemId: Int,
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
 
         // Run the primal update
-        primalUpdate(math.max(timeRemainingMS, 100))
-
-//        // Send the primal and dual
-//        comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
-//        msgsSent += 1
-
+        primalUpdate(timeRemainingMS)
+        
         // Do a Dual update if the primal seems to be converging
-        dualUpdate(params.lagrangianRho)
+        dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
+
         localIters += 1
 
         // Assess Termination
         val elapsedTime = System.currentTimeMillis() - startTime
-        done = done || (elapsedTime > params.runtimeMS)
-      }
+        done = elapsedTime > params.runtimeMS
 
+        if(timeOut) { 
+          assert(done) 
+        }
+
+      }
+      println(s"${comm.selfID}: Sent death message ${System.currentTimeMillis()}")
       // Kill the consumer thread
       val poisonMessage = new InternalMessages.VectorUpdateMessage(-1, null, null, -1)
       comm.inputQueue.add(poisonMessage)
@@ -171,7 +182,7 @@ class AsyncADMMWorker(subProblemId: Int,
       var primalAvg = BV.zeros[Double](primalVar.size)
       var dualAvg = BV.zeros[Double](dualVar.size)
       var nTotalExamples = 0
-
+      assert(!done)
       while (!done) {
         var tiq = comm.inputQueue.take()
         while (tiq != null) {
@@ -182,6 +193,9 @@ class AsyncADMMWorker(subProblemId: Int,
             allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar, tiq.nExamples)
           }
           tiq = comm.inputQueue.poll()
+        }
+        if(done && msgsRcvd == 0) {
+          println(s"${comm.selfID}: Done without messages: ${System.currentTimeMillis()}")
         }
         // Collect latest variables from everyone
         allVars.put(comm.selfID, (primalVar, dualVar, data.length))
@@ -204,11 +218,11 @@ class AsyncADMMWorker(subProblemId: Int,
             rho = rho, regParam = params.regParam)
 
         // Do a Dual update if the primal seems to be converging
-        dualUpdate(params.lagrangianRho)
+        // dualUpdate(params.lagrangianRho)
+        
         // TODO: TRY FOLLOWING
         // primalVar = primalConsensus.copy
-
-        Thread.sleep(params.broadcastDelayMS)
+        // Thread.sleep(params.broadcastDelayMS)
       }
     }
   }
@@ -260,7 +274,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
-      primalUpdate(math.max(timeRemainingMS, 100))
+      primalUpdate(timeRemainingMS)
 
       // Send the primal and dual
       comm.broadcastDeltaUpdate(primalVar, dualVar, data.length)
@@ -310,6 +324,9 @@ class AsyncADMMWorker(subProblemId: Int,
 
 object SetupBlock {
   var initialized = false
+
+  val workers = new Array[AsyncADMMWorker](128)
+
 }
 
 
@@ -326,10 +343,18 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
     val nSubProblems = input.partitions.length
 
     workers = input.mapPartitionsWithIndex { (ind, iter) =>
-      val data: Array[(Double, BV[Double])] =
+      if(SetupBlock.initialized) {
+        if (SetupBlock.workers(ind) != null ) {
+          Iterator(SetupBlock.workers(ind))
+        } else {
+          throw new RuntimeException("Worker was evicted, dying lol!")
+        }
+      } else {
+      
+       val data: Array[(Double, BV[Double])] =
         iter.map { case (label, features) => (label, features.toBreeze) }.toArray
       val workerName = UUID.randomUUID().toString
-      val address = Worker.HACKakkaHost+workerName
+      val address = Worker.HACKakkaHost + workerName
       val hack = new WorkerCommunicationHack()
       logInfo(s"local address is $address")
       val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
@@ -338,18 +363,18 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
       val f = aref ? new InternalMessages.WakeupMsg
       Await.result(f, timeout.duration).asInstanceOf[String]
 
-      val worker = new AsyncADMMWorker(subProblemId = ind, nSubProblems = nSubProblems, data = data,
+      val worker = new AsyncADMMWorker(subProblemId = ind, 
+        nSubProblems = nSubProblems, data = data,
         objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
       worker.primalVar = primal0.copy
       worker.dualVar = primal0.copy
+      SetupBlock.workers(ind) = worker
       Iterator(worker)
+      }
      }.cache()
 
     // collect the addresses
     val addresses = workers.map {
-      if(SetupBlock.initialized) {
-        throw new RuntimeException("Worker was evicted, dying lol!")
-      }
       w => w.comm.address
     }.collect()
 
@@ -359,11 +384,16 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
       w.comm.connectToOthers(addresses)
     }
 
+    addresses.foreach( a => println(s"\t $a") )
+    println(s"Num Addresses: ${addresses.length}")
+
     // Ping Pong?  Just because?
-    workers.foreach { w => w.comm.sendPingPongs() }
+    workers.foreach { 
+      w => w.comm.sendPingPongs() 
+    }
 
     // input.unpersist(blocking = true)
-    workers.foreach( f => System.gc() )
+    // workers.foreach( f => System.gc() )
   }
 
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
@@ -379,6 +409,11 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
     }.reduce( _ + _ )
     val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, params.rho0,
       params.regParam)
+    println(stats.primalAvg())
+    println(stats.dualAvg())
+    println(finalW)
+    println(s"Final norm: ${norm(finalW, 2)}")
+
 
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
