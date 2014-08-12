@@ -146,7 +146,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     broadcastThread.start()
     var t = 0
-    val scaledRegParam = params.regParam / nData.toDouble
+    // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
+    val scaledRegParam = params.regParam // / nData.toDouble
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum

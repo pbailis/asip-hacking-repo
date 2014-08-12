@@ -409,7 +409,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
       }
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
-      val scaledRegParam = params.regParam / nData.toDouble
+      // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
+      val scaledRegParam = params.regParam // / nData.toDouble
       grad += (primalVar * scaledRegParam)
 
       // Add the lagrangian
