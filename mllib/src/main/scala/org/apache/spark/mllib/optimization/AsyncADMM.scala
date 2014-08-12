@@ -164,10 +164,6 @@ class AsyncADMMWorker(subProblemId: Int,
         val elapsedTime = System.currentTimeMillis() - startTime
         done = elapsedTime > params.runtimeMS
 
-        if(timeOut) { 
-          assert(done) 
-        }
-
       }
       println(s"${comm.selfID}: Sent death message ${System.currentTimeMillis()}")
       // Kill the consumer thread
@@ -321,7 +317,6 @@ class AsyncADMMWorker(subProblemId: Int,
 
 object SetupBlock {
   var initialized = false
-
   val workers = new Array[AsyncADMMWorker](128)
 
 }

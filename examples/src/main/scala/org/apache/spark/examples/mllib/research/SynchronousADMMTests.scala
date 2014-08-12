@@ -299,6 +299,10 @@ object SynchronousADMMTests {
         .action { (x, c) => c.pointCloudPartitionSkew = x; c }
       opt[Int]("pointCloudPointsPerPartition")
         .action { (x, c) => c.pointCloudPointsPerPartition = x; c }
+
+      opt[Int]("localTimeout")
+      .action { (x, c) => c.localTimeout = x; c}
+
       opt[Double]("pointCloudRadius")
         .action { (x, c) => c.pointCloudSize = x; c }
 

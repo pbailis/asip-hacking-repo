@@ -292,6 +292,7 @@ class ADMMParams extends Serializable {
   var broadcastDelayMS = 100
   var usePorkChop = false
   var useLineSearch = false
+  var localTimeout = Int.MaxValue
 
   def toMap(): Map[String, Any] = {
     Map(
@@ -310,7 +311,8 @@ class ADMMParams extends Serializable {
       "adaptiveRho" -> adaptiveRho,
       "useLineSearch" -> useLineSearch,
       "broadcastDelayMS" -> broadcastDelayMS,
-      "usePorkChop" -> usePorkChop
+      "usePorkChop" -> usePorkChop,
+      "localTimeout" -> localTimeout
     )
   }
   override def toString = {
@@ -368,13 +370,12 @@ class SGDLocalOptimizer(val subProblemId: Int,
     sgd(endByMS)
   }
 
-  @volatile var timeOut = false
   var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
+    var timeOut = false
     val rhoScaled = rho 
     residual = Double.MaxValue
-    assert(!timeOut)
     t = 0
     while(t < params.maxWorkerIterations && 
       residual > params.workerTol &&
@@ -487,7 +488,7 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
         }
 
         // Do a primal update
-        solver.primalUpdate(timeRemaining)
+        solver.primalUpdate(Math.min(timeRemaining, params.localTimeout))
 
         // Construct stats
         solver.getStats()
