@@ -1,7 +1,9 @@
 
 import pickle
 import pandas as pd
-results = pickle.load(open("experiment.pkl"))
+from sys import argv
+
+results = pickle.load(open(argv[1]))
 
 #print "Keys:      ", results[0].keys()
 #print "StatsKeys: ", results[0]['stats'].keys()

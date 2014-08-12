@@ -121,6 +121,7 @@ class L2ConsensusFunction extends ConsensusFunction {
     assert(nDim > 0)
     val rhoScaled = rho
     val regScaled = 0.0 // regParam
+    assert((regScaled + nSolvers * rhoScaled) > 0)
     assert(nDim.toDouble > 0)
     if (rho == 0.0) {
       primalAvg 
@@ -407,7 +408,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
       }
       // Normalize the gradient to the batch size
       grad /= miniBatchSize.toDouble
-      grad += primalVar * nSubProblems.toDouble
+      val scaledRegParam = params.regParam / nSubProblems.toDouble
+      grad += (primalVar * scaledRegParam)
 
       // Add the lagrangian
       grad += dualVar
