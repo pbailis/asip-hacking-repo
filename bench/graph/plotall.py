@@ -4,7 +4,7 @@ from pylab import *
 from sys import argv
 
 logLoss = False
-yval = 'trainingError'
+yval = 'total_loss'
 matplotlib.rcParams['figure.figsize'] = 10, 7#3.5, 1.7
 
 if len(argv) < 2:
@@ -14,7 +14,7 @@ else:
 
 results = pickle.load(open(pickle_filename))
 
-results = [r for r in results if r['algorithm'] != "GD"]
+results = [r for r in results if r['algorithm']]
 
 print results[0].keys()
 
