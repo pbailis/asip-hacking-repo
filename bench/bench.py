@@ -35,7 +35,7 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 1000
+GLOBAL_PORKCHOP_maxLocalIterations = 10000
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 
@@ -81,7 +81,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=0.01,
+            regParam=1.0,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -192,7 +192,7 @@ dataset = 'wikipedia'
 
 RUNTIMES = [10000] #, 40000, 80000] #, 80000, 120000]
 ALGORITHMS = ["PORKCHOP", "HOGWILD"] #, "HOGWILD"]#, "HOGWILD", "GD", "ADMM"]
-for lrho in [0.01, 0.1, 1, 10]:
+for lrho in [0.01, 0.1, 1, 2]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
@@ -223,7 +223,7 @@ for lrho in [0.01, 0.1, 1, 10]:
                             flightsYear = 2008,
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
-                            ADMMrho = 1000,
+                            ADMMrho = 1,
                             ADMMlagrangianRho = lrho,
                             broadcastDelay = broadcastDelay,
                             miscStr = miscStr)

@@ -155,7 +155,8 @@ class AsyncADMMWorker(subProblemId: Int,
         primalUpdate(timeRemainingMS)
         
         // Do a Dual update if the primal seems to be converging
-        dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
+        // dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
+        dualUpdate(params.lagrangianRho)
 
         localIters += 1
 
@@ -202,16 +203,14 @@ class AsyncADMMWorker(subProblemId: Int,
         // Compute primal and dual averages
         primalAvg *= 0.0
         dualAvg *= 0.0
-        nTotalExamples = 0
         val msgIterator = allVars.values.iterator
         while (msgIterator.hasNext) {
           val (primal, dual, nExamples) = msgIterator.next()
-          axpy(nExamples.toDouble, primal, primalAvg)
-          axpy(nExamples.toDouble, dual, dualAvg)
-          nTotalExamples += nExamples
+          primalAvg += primal
+          dualAvg += dual
         }
-        primalAvg /= nTotalExamples.toDouble
-        dualAvg /= nTotalExamples.toDouble
+        primalAvg /= allVars.size.toDouble
+        dualAvg /= allVars.size.toDouble
 
         // Recompute the consensus variable
         primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
@@ -292,16 +291,14 @@ class AsyncADMMWorker(subProblemId: Int,
       // Compute primal and dual averages
       primalAvg *= 0.0
       dualAvg *= 0.0
-      nTotalExamples = 0
       val msgIterator = allVars.values.iterator
       while (msgIterator.hasNext) {
         val (primal, dual, nExamples) = msgIterator.next()
-        axpy(nExamples.toDouble, primal, primalAvg)
-        axpy(nExamples.toDouble, dual, dualAvg)
-        nTotalExamples += nExamples
+        primalAvg += primal
+        dualAvg += dual
       }
-      primalAvg /= nTotalExamples.toDouble
-      dualAvg /= nTotalExamples.toDouble
+      primalAvg /= allVars.size.toDouble
+      dualAvg /= allVars.size.toDouble
 
       // Recompute the consensus variable
       primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,

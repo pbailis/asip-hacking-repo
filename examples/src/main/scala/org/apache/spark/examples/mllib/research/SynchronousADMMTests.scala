@@ -462,9 +462,10 @@ object SynchronousADMMTests {
     val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
 
-    val trainingLoss = model.loss(training) / numTraining.toDouble
-    val scaledReg = params.regParam / model.weights.size.toDouble
-    val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm,2)
+    val trainingLoss = model.loss(training) 
+    val scaledReg = params.regParam / 2.0 
+    val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
+    val totalLoss = trainingLoss + regularizationPenalty
 
     val resultsMap = Map(
       "algorithm" -> ("\"" + params.algorithm.toString + "\""),
@@ -474,7 +475,7 @@ object SynchronousADMMTests {
       "iterations" -> stats("iterations"),
       "trainingLoss" -> trainingLoss,
       "regPenalty" -> regularizationPenalty,
-      "totalLoss" -> (trainingLoss + regularizationPenalty),
+      "totalLoss" -> totalLoss,
       "trainingError" -> trainingError,
       "roc" -> metrics.areaUnderROC(),
       "pr" -> metrics.areaUnderPR(),
