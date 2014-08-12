@@ -248,8 +248,8 @@ case class WorkerStats(
 
   def toMap(): Map[String, Any] = {
     Map(
-      "primalAvg" -> primalAvg(),
-      "dualAvg" -> dualAvg(),
+      "primalAvg" -> ("[" + primalAvg().toArray.mkString(", ") + "]"),
+      "dualAvg" -> ("[" + dualAvg().toArray.mkString(", ") + "]"),
       "avgMsgsSent" -> avgMsgsSent(),
       "avgMsgsRcvd" -> avgMsgsRcvd(),
       "avgLocalIters" -> avgLocalIters(),
@@ -257,7 +257,6 @@ case class WorkerStats(
       "avgSGDIters" -> avgSGDIters(),
       "avgResidual" -> avgResidual()
     )
-
   }
 
   override def toString = {
