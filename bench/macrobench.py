@@ -9,7 +9,7 @@ import json
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -20,9 +20,9 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1.0
+GLOBAL_ADMMrho = 1000
 
-GLOBAL_ADMMlagrangianRho = 0.1
+GLOBAL_ADMMlagrangianRho = 1000
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -38,7 +38,7 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 1000
+GLOBAL_PORKCHOP_maxLocalIterations = 100000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
@@ -224,6 +224,7 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
                             algorithm,
                             dataset,
                             flightsYear = 2008,
+                            regParam = 1000,
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay,
@@ -267,6 +268,7 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
+                                   regParam = 1000,
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay,
@@ -311,6 +313,7 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
+                                   regParam = 1000,
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay,

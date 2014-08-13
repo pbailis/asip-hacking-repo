@@ -131,19 +131,19 @@ class AsyncADMMWorker(subProblemId: Int,
   }
 
 
-  val broadcastThread = new Thread {
-    override def run {
-      assert(!done)
-      while (!done) {
-        Thread.sleep(params.broadcastDelayMS)
-        comm.broadcastDeltaUpdate(primalVar, dualVar)
-        msgsSent += 1
-        // Check to see if we are done
-        val elapsedTime = System.currentTimeMillis() - startTime
-        done = elapsedTime > params.runtimeMS
-      }
-    }
-  }
+  // val broadcastThread = new Thread {
+  //   override def run {
+  //     assert(!done)
+  //     while (!done) {
+  //       Thread.sleep(params.broadcastDelayMS)
+  //       // comm.broadcastDeltaUpdate(primalVar, dualVar)
+  //       msgsSent += 1
+  //       // Check to see if we are done
+  //       val elapsedTime = System.currentTimeMillis() - startTime
+  //       done = elapsedTime > params.runtimeMS
+  //     }
+  //   }
+  // }
  
  
 
@@ -153,13 +153,19 @@ class AsyncADMMWorker(subProblemId: Int,
         // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
-
-        // Run the primal update
-        primalUpdate(timeRemainingMS)
         
+
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
         dualUpdate(params.lagrangianRho)
+
+        // Start over at primal consensus
+        primalVar = primalConsensus.copy
+        
+        // Run the primal update
+        primalUpdate(timeRemainingMS)
+        
+        comm.broadcastDeltaUpdate(primalVar, dualVar)
 
         localIters += 1
 
@@ -175,6 +181,8 @@ class AsyncADMMWorker(subProblemId: Int,
     }
   }
 
+
+
   val consumerThread = new Thread {
     override def run {
       // Intialize global view of primalVars
@@ -183,6 +191,8 @@ class AsyncADMMWorker(subProblemId: Int,
       var dualAvg = BV.zeros[Double](dualVar.size)
       assert(!done)
       while (!done) {
+        // TODO: TRY FOLLOWING
+        // Thread.sleep(params.broadcastDelayMS)
         var tiq = comm.inputQueue.take()
         while (tiq != null) {
           if (tiq.sender == -2) {
@@ -213,13 +223,9 @@ class AsyncADMMWorker(subProblemId: Int,
         // Recompute the consensus variable
         primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
             rho = rho, regParam = params.regParam)
-
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho)
         
-        // TODO: TRY FOLLOWING
-        // primalVar = primalConsensus.copy
-        // Thread.sleep(params.broadcastDelayMS)
       }
     }
   }
