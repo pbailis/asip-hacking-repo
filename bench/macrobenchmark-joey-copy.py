@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000]
+RUNTIMES = [20000]#1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP", "MiniBatchADMM", "HOGWILD", "ADMM"] # "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -41,6 +41,7 @@ GLOBAL_AsyncADMM_broadcastDelay = 100
 GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 100
+
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
