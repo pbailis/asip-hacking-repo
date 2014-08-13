@@ -466,7 +466,7 @@ object SynchronousADMMTests {
     val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
 
-    val trainingLoss = model.loss(training) 
+    val trainingLoss = model.loss(training) * numTraining.toDouble 
     val scaledReg = params.regParam / 2.0 
     val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
     val totalLoss = trainingLoss + regularizationPenalty

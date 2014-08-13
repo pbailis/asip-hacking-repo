@@ -147,8 +147,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
     broadcastThread.start()
     var t = 0
     // Assume loss is of the form  lambda/2 |reg|^2 + sum_i loss_i
-    val objScaleTerm = 1.0 / miniBatchSize.toDouble
-    val scaledRegParam = params.regParam / nData.toDouble
+    val objScaleTerm = nData.toDouble / miniBatchSize.toDouble
+    val eta0Scaled = params.eta_0 / nData.toDouble
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
@@ -158,11 +158,18 @@ class HOGWILDSGDWorker(subProblemId: Int,
         objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
+      // Scale up the gradient
       grad *= objScaleTerm
-      grad += primalVar * scaledRegParam
+
+      // Add in the regularization term
+      grad += primalVar * params.regParam
+
       // Set the learning rate
-      val eta_t = params.eta_0 / math.sqrt(t.toDouble + nDim.toDouble)
-      grad *= (eta_t / params.miniBatchSize)
+      val eta_t = eta0Scaled / math.sqrt(t.toDouble + 1.0)
+
+      // Scale the gradient
+      grad *= eta_t
+
       grad_delta += grad
       primalVar -= grad
       t += 1

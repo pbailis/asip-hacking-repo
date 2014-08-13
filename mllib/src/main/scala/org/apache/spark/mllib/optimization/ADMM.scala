@@ -397,7 +397,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
     val rhoScaled = rho
     residual = Double.MaxValue
     t = 0
-    val objScaleTerm = data.size() / (miniBatchSize * nData.toDouble)
+    val objScaleTerm = data.length.toDouble / miniBatchSize.toDouble 
+    val eta0Scaled = params.eta_0 / nData.toDouble
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       !timeOut) {
@@ -410,6 +411,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       }
       // Normalize the gradient to the batch size
       grad *= objScaleTerm
+
       // // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
       // val scaledRegParam = params.regParam // / nData.toDouble
       // grad += (primalVar * scaledRegParam)
@@ -421,7 +423,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
       axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
       // Set the learning rate
       // val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
-      val eta_t = params.eta_0 / math.pow(t + 1.0, 2.0 / 3.0))
+      val eta_t = eta0Scaled / math.pow(t + 1.0, 2.0 / 3.0)
       // Do the gradient update
       primalVar = primalVar - (grad * eta_t)
       // axpy(-eta_t, grad, primalVar)
