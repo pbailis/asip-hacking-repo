@@ -7,10 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000]
+RUNTIMES = [20000]#1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
-
+ALGORITHMS = ["PORKCHOP", "MiniBatchADMM", "HOGWILD", "ADMM"] # "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -21,9 +20,9 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1000
+GLOBAL_ADMMrho = 1.0
 
-GLOBAL_ADMMlagrangianRho = 1000
+GLOBAL_ADMMlagrangianRho = 0.1
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -39,9 +38,10 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 100000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 100
+
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
@@ -85,7 +85,6 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=10.0,
             regParam=0.1,
             numPartitions = (8*16),
             broadcastDelay = 100,
@@ -226,7 +225,6 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
                             algorithm,
                             dataset,
                             flightsYear = 2008,
-                            regParam = 1000,
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay,
@@ -236,7 +234,6 @@ for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
             output = open(PICKLED_OUTPUT, 'wb')
             pickle.dump(results, output)
             output.close()
-
 
 for runtime in RUNTIMES:
     for dim in [2, 10, 100]:
@@ -271,7 +268,6 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
-                                   regParam = 1000,
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay,
@@ -316,7 +312,6 @@ for runtime in RUNTIMES:
                                    "cloud",
                                    cloudPartitionSkew = skew,
                                    cloudDim = dim,
-                                   regParam = 1000,
                                    ADMMmaxLocalIterations = maxLocalIterations,
                                    ADMMlocalEpsilon = localEpsilon,
                                    broadcastDelay = broadcastDelay,

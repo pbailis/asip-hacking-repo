@@ -19,7 +19,7 @@ trait ObjectiveFunction extends Serializable {
       sum += apply(w, data(i)._2, data(i)._1)
       i += 1
     }
-    sum 
+    sum
   }
 }
 
@@ -121,9 +121,10 @@ class L2ConsensusFunction extends ConsensusFunction {
     assert(nDim > 0)
     val rhoScaled = rho
     val regScaled = regParam
+    assert((regScaled + nSolvers * rhoScaled) > 0)
     assert(nDim.toDouble > 0)
     if (rho == 0.0) {
-      primalAvg 
+      primalAvg
     } else {
       val multiplier = (nSolvers.toDouble) / (regScaled + nSolvers * rhoScaled)
       (primalAvg * rhoScaled + dualAvg) * multiplier
@@ -221,14 +222,14 @@ case class WorkerStats(
   nWorkers: Int) extends Serializable {
 
   def withoutVars() = {
-    WorkerStats(null, null, 
-      msgsSent = msgsSent, 
+    WorkerStats(null, null,
+      msgsSent = msgsSent,
       msgsRcvd = msgsRcvd,
-      localIters = localIters, 
-      sgdIters = sgdIters, 
-      dualUpdates = dualUpdates, 
-      dataSize = dataSize, 
-      residual = residual, 
+      localIters = localIters,
+      sgdIters = sgdIters,
+      dualUpdates = dualUpdates,
+      dataSize = dataSize,
+      residual = residual,
       nWorkers = nWorkers)
   }
 
@@ -260,8 +261,8 @@ case class WorkerStats(
   }
 
   override def toString = {
-    "{" + toMap.iterator.map { 
-      case (k,v) => "\"" + k + "\": " + v 
+    "{" + toMap.iterator.map {
+      case (k,v) => "\"" + k + "\": " + v
     }.toArray.mkString(", ") + "}"
   }
 
@@ -311,7 +312,7 @@ class ADMMParams extends Serializable {
       "eta0" -> eta_0,
       "tol" -> tol,
       "workerTol" -> workerTol,
-      "maxIterations" -> maxIterations, 
+      "maxIterations" -> maxIterations,
       "maxWorkerIterations"  -> maxWorkerIterations,
       "miniBatchSize" -> miniBatchSize,
       "useLBFGS" -> useLBFGS,
@@ -328,8 +329,8 @@ class ADMMParams extends Serializable {
     )
   }
   override def toString = {
-    "{" + toMap.iterator.map { 
-      case (k,v) => "\"" + k + "\": " + v 
+    "{" + toMap.iterator.map {
+      case (k,v) => "\"" + k + "\": " + v
     }.toArray.mkString(", ") + "}"
   }
 }
@@ -338,6 +339,8 @@ class ADMMParams extends Serializable {
 
 @DeveloperApi
 class SGDLocalOptimizer(val subProblemId: Int,
+                        val nSubProblems: Int,
+                        val nData: Int,
                         val data: Array[(Double, BV[Double])],
                         val objFun: ObjectiveFunction,
                         val params: ADMMParams) extends Serializable with Logging {
@@ -370,7 +373,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def getStats() = {
     WorkerStats(primalVar, dualVar, msgsSent = 0,
-      sgdIters = sgdIters, 
+      sgdIters = sgdIters,
       dualUpdates = dualIters,
       dataSize = data.length,
       residual = residual)
@@ -378,7 +381,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar = dualVar + (primalVar - primalConsensus) * rate
+    dualVar += (primalVar - primalConsensus) * rate
     dualIters += 1
   }
 
@@ -391,12 +394,15 @@ class SGDLocalOptimizer(val subProblemId: Int,
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
     var timeOut = false
-    val rhoScaled = rho 
+    val rhoScaled = rho
     residual = Double.MaxValue
     t = 0
-    while(t < params.maxWorkerIterations && 
+    val objScaleTerm = data.length.toDouble / miniBatchSize.toDouble 
+    val eta0Scaled = params.eta_0 / data.length.toDouble
+    var currentTime = System.currentTimeMillis()
+    while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
-      !timeOut) {
+      currentTime < endByMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
@@ -405,24 +411,35 @@ class SGDLocalOptimizer(val subProblemId: Int,
         b += 1
       }
       // Normalize the gradient to the batch size
-      grad /= miniBatchSize.toDouble
+      grad *= objScaleTerm
+
+      // // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
+      // val scaledRegParam = params.regParam // / nData.toDouble
+      // grad += (primalVar * scaledRegParam)
+
       // Add the lagrangian
       grad += dualVar
+
       // Add the augmenting term
       axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
+
       // Set the learning rate
       // val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
-      // math.pow(t + 1.0, 2.0 / 3.0))
-      val eta_t = params.eta_0 / (t + 1.0).toDouble
+      val eta_t = eta0Scaled / math.sqrt(t + 1.0)
+
       // Do the gradient update
-      primalVar = primalVar - (grad * eta_t)
-      // axpy(-eta_t, grad, primalVar)
+      //primalVar = primalVar - (grad * eta_t)
+      axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
-      // println(residual)
       t += 1
-      timeOut = System.currentTimeMillis() > endByMS
+      // more coarse grained timeing
+      if (t % 100 == 0) {
+        currentTime = System.currentTimeMillis()
+      }
+      timeOut = currentTime > endByMS
     }
+    println(s"$t \t $residual")
     // Save the last num
     sgdIters = t
   }
@@ -439,12 +456,15 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
 
   def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
     val primal0 = initialWeights.toBreeze
+    val nSubProblems = rawData.partitions.length
+    val nData = rawData.count
     solvers =
       rawData.mapPartitionsWithIndex { (ind, iter) =>
         val data: Array[(Double, BV[Double])] = iter.map {
           case (label, features) => (label, features.toBreeze)
         }.toArray
-        val solver = new SGDLocalOptimizer(ind, data, gradient, params)
+        val solver = new SGDLocalOptimizer(ind, nSubProblems = nSubProblems,
+          nData = nData.toInt, data, gradient, params)
         // Initialize the primal variable and primal consensus
         solver.primalVar = primal0.copy
         solver.primalConsensus = primal0.copy
@@ -459,9 +479,9 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
   /**
    * Solve the provided convex optimization problem.
    */
-  override def optimize(rawData: RDD[(Double, Vector)], 
+  override def optimize(rawData: RDD[(Double, Vector)],
     initialWeights: Vector): Vector = {
-    
+
     setup(rawData, initialWeights)
 
     println(params)

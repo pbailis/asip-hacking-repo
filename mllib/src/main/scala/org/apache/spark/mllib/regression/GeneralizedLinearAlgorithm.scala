@@ -81,9 +81,9 @@ abstract class GeneralizedLinearModel(val weights: Vector, val intercept: Double
     val localWeights = weights
     val localIntercept = intercept
 
-    val (count, sum) = testData.map(v => (1, pointLoss(v, localWeights, localIntercept)))
+    val (count, totalLoss) = testData.map(v => (1, pointLoss(v, localWeights, localIntercept)))
       .reduce((a,b) => (a._1 + b._1, a._2 + b._2))
-    sum
+    totalLoss / count.toDouble // Normalized loss
   }
 
   /**
