@@ -62,7 +62,7 @@ object DataLoaders {
         i += 1
       }
       LabeledPoint(label, new DenseVector(features))
-    })
+    }).repartition(params.numPartitions)
   }
 
   def loadWikipedia(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
@@ -91,7 +91,7 @@ object DataLoaders {
         i += 1
       }
       LabeledPoint(if(labelFound) 1.0 else 0.0, new DenseVector(features))
-    })
+    }).repartition(params.numPartitions)
   }
 
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
@@ -437,7 +437,7 @@ object SynchronousADMMTests {
 //    val splits = examples.randomSplit(Array(0.8, 0.2))
 //    val training = splits(0).cache()
 //    val test = splits(1).cache()
-    val training = examples.repartition(params.numPartitions)
+    val training = examples
 
     training.cache()
     //test.repartition(params.numPartitions)

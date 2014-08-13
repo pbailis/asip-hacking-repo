@@ -8,8 +8,10 @@ import json
 ## START OF EXPERIMENTAL PARAMETERS
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000]
+#RUNTIMES = [20000]
 
-ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD"] #, "HOGWILD", "GD", "PORKCHOP"]
+#ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
@@ -21,9 +23,9 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1000
+GLOBAL_ADMMrho = 100
 
-GLOBAL_ADMMlagrangianRho = 1000
+GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -40,10 +42,13 @@ GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
 GLOBAL_PORKCHOP_maxLocalIterations = 100000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
-GLOBAL_PORKCHOP_broadcastDelay = 100
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-2
+GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
+
+GLOBAL_REG_PARAM = 10
+
 
 ## END OF CONSTANTS
 
@@ -85,7 +90,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=1000,
+            regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -195,7 +200,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
+for dataset in ["dblp"]: #, "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
@@ -225,7 +230,6 @@ for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
                             algorithm,
                             dataset,
                             flightsYear = 2008,
-                            regParam = 1000,
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay,
