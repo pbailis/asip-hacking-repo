@@ -429,10 +429,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
-      // println(residual)
       t += 1
       timeOut = System.currentTimeMillis() > endByMS
     }
+    println(s"$t \t $residual")
     // Save the last num
     sgdIters = t
   }

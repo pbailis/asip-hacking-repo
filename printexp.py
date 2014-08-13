@@ -5,8 +5,8 @@ from sys import argv
 
 results = pickle.load(open(argv[1]))
 
-#print "Keys:      ", results[0].keys()
-#print "StatsKeys: ", results[0]['stats'].keys()
+print "Keys:      ", results[0].keys()
+print "StatsKeys: ", results[0]['stats'].keys()
 
 tbl = []
 
@@ -15,18 +15,22 @@ for r in results:
     tbl += [(r['algorithm'], \
              r['runtimeMS'], \
              r['pyConfig']['dataset'], \
-             r['iterations'], r['totalLoss'],  r['trainingError'], r['roc'], \
+             r['iterations'], \
+             r['totalLoss'], \
+             r['trainingLoss'], \
+             r['regPenalty'], \
+             r['trainingError'], r['roc'], \
              r['pyConfig']['ADMMlagrangianRho'], \
              r['pyConfig']['ADMMrho'], \
-             r['regPenalty'], r['trainingLoss'], \
+             r['trainingLoss'], \
              r['stats']['avgSGDIters'] if 'avgSGDIters' in r['stats'] else 0, \
              r['stats']['avgMsgsRcvd'] if 'avgMsgsRcvd' in r['stats'] else 0)]
  #, r['stats']['avgSGDIters'])]
 #    print r
 
 #print tbl
-columns = ['alg', 'Runtime', 'dataset', 'Iters', 'Loss', 'Error', \
-           'Roc', 'lrho', 'Rho', 'reg', 'trainL', 'SGDItres', 'msgsRcv']
+columns = ['alg', 'Runtime', 'dataset', 'Iters', 'Loss', 'Obj', 'Reg', 'Error', \
+           'Roc', 'lrho', 'Rho', 'trainL', 'SGDItres', 'msgsRcv']
 
 frame = pd.DataFrame.from_records(tbl, columns= columns)
 print frame.to_string()
