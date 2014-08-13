@@ -131,21 +131,38 @@ class AsyncADMMWorker(subProblemId: Int,
   }
 
 
-  // val broadcastThread = new Thread {
-  //   override def run {
-  //     assert(!done)
-  //     while (!done) {
-  //       Thread.sleep(params.broadcastDelayMS)
-  //       // comm.broadcastDeltaUpdate(primalVar, dualVar)
-  //       msgsSent += 1
-  //       // Check to see if we are done
-  //       val elapsedTime = System.currentTimeMillis() - startTime
-  //       done = elapsedTime > params.runtimeMS
-  //     }
-  //   }
-  // }
+  val broadcastThread = new Thread {
+    override def run {
+      assert(!done)
+      while (!done) {
+        Thread.sleep(params.broadcastDelayMS)
+        var primalSnapshot: BV[Double] = null
+        var dualSnapshot: BV[Double] = null
+
+        // Grab a snapshot and clear the shared variables
+        data.synchronized {
+          primalSnapshot = goodPrimal
+          dualSnapshot = goodDual
+          goodPrimal = null
+          goodDual = null
+        }
+
+        if (primalSnapshot != null && dualSnapshot != null) {
+          comm.broadcastDeltaUpdate(primalVar, dualVar)
+        }
+
+        msgsSent += 1
+        // Check to see if we are done
+        val elapsedTime = System.currentTimeMillis() - startTime
+        done = elapsedTime > params.runtimeMS
+      }
+    }
+  }
  
- 
+  @volatile var goodPrimal: BV[Double] = null
+  @volatile var goodDual: BV[Double] = null
+
+  var lastSend: Long = 0
 
   val solverLoopThread = new Thread {
     override def run {
@@ -163,14 +180,28 @@ class AsyncADMMWorker(subProblemId: Int,
         
         // Run the primal update
         primalUpdate(timeRemainingMS)
-        
-        comm.broadcastDeltaUpdate(primalVar, dualVar)
+
+
+        // data.synchronized {
+        //   goodPrimal = primalCopy
+        //   goodDual = dualCopy
+        // }
+
+        var currentTime = System.currentTimeMillis() 
+  
+        if (currentTime - lastSend > params.broadcastDelayMS) {
+          val primalCopy = primalVar.copy
+          val dualCopy = dualVar.copy
+          comm.broadcastDeltaUpdate(primalCopy, dualCopy)
+          lastSend = System.currentTimeMillis()
+          currentTime = lastSend
+        }
 
         localIters += 1
 
         // Assess Termination
-        val elapsedTime = System.currentTimeMillis() - startTime
-        done = elapsedTime > params.runtimeMS
+        val elapsedTime = currentTime - startTime
+        done = elapsedTime >= params.runtimeMS
 
       }
       println(s"${comm.selfID}: Sent death message ${System.currentTimeMillis()}")
@@ -191,7 +222,7 @@ class AsyncADMMWorker(subProblemId: Int,
       assert(!done)
       while (!done) {
         // TODO: TRY FOLLOWING
-        // Thread.sleep(params.broadcastDelayMS)
+        Thread.sleep(params.broadcastDelayMS)
         var tiq = comm.inputQueue.take()
         while (tiq != null) {
           if (tiq.sender == -2) {
@@ -251,11 +282,11 @@ class AsyncADMMWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
     consumerThread.start()
-    // broadcastThread.start()
+    //broadcastThread.start()
 
     solverLoopThread.join()
     consumerThread.join()
-    // broadcastThread.join()
+    //broadcastThread.join()
 
     println(s"${comm.selfID}: Finished main loop.")
     // Return the primal consensus value

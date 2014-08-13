@@ -381,7 +381,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar = dualVar + (primalVar - primalConsensus) * rate
+    dualVar += (primalVar - primalConsensus) * rate
     dualIters += 1
   }
 
@@ -399,9 +399,10 @@ class SGDLocalOptimizer(val subProblemId: Int,
     t = 0
     val objScaleTerm = data.length.toDouble / miniBatchSize.toDouble 
     val eta0Scaled = params.eta_0 / data.length.toDouble
+    var currentTime = System.currentTimeMillis()
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
-      !timeOut) {
+      currentTime < endByMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
       while (b < miniBatchSize) {
@@ -427,13 +428,16 @@ class SGDLocalOptimizer(val subProblemId: Int,
       val eta_t = eta0Scaled / math.sqrt(t + 1.0)
 
       // Do the gradient update
-      primalVar = primalVar - (grad * eta_t)
-
-      // axpy(-eta_t, grad, primalVar)
+      //primalVar = primalVar - (grad * eta_t)
+      axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
       t += 1
-      timeOut = System.currentTimeMillis() > endByMS
+      // more coarse grained timeing
+      if (t % 100 == 0) {
+        currentTime = System.currentTimeMillis()
+      }
+      timeOut = currentTime > endByMS
     }
     println(s"$t \t $residual")
     // Save the last num
