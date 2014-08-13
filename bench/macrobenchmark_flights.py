@@ -8,9 +8,9 @@ import json
 ## START OF EXPERIMENTAL PARAMETERS
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000]
-#RUNTIMES = [20000]
+RUNTIMES = [5000]
 
-ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD"] #, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["HOGWILD", "PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "AVG"] #, "HOGWILD", "GD", "PORKCHOP"]
 #ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM"]
 
 
@@ -23,7 +23,7 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 100
+GLOBAL_ADMMrho = .000001
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
@@ -41,13 +41,13 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 100000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-2
-GLOBAL_PORKCHOP_broadcastDelay = 10
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
+GLOBAL_PORKCHOP_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
-GLOBAL_REG_PARAM = 10
+GLOBAL_REG_PARAM = 100
 
 
 ## END OF CONSTANTS
@@ -115,12 +115,14 @@ def runTest(runtimeMS,
         print "Unknown dataset!"
         raise
 
+    calgorithm = algorithm if algorithm != "AVG" else "ADMM"
+
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
           "./bin/spark-submit " \
           "--driver-memory 52g " \
           "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
           "examples/target/scala-*/spark-examples-*.jar " \
-          "--algorithm " + str(algorithm) + " " + \
+          "--algorithm " + str(calgorithm) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
@@ -210,6 +212,16 @@ for dataset in ["flights"]: #, "bismarck", "dblp"]: #, "flights"]:
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
                 localTimeout = GLOBAL_ADMM_localTimeout
+            elif algorithm == "AVG":
+                maxLocalIterations = 1000000
+                localEpsilon = 0
+                localTimeout = 10000000
+                broadcastDelay = -1
+                GLOBAL_ADMMrho = 1.0
+            elif algorithm == "GD":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                localTimeout = -1
+                localEpsilon = -1
             elif algorithm == "MiniBatchADMM":
                 maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                 localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
@@ -217,6 +229,7 @@ for dataset in ["flights"]: #, "bismarck", "dblp"]: #, "flights"]:
             elif algorithm == "HOGWILD":
                 maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
                 broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+                localTimeout = -1
             elif algorithm == "PORKCHOP":
                 maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                 broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
