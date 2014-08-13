@@ -103,13 +103,14 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
 
 
 class HOGWILDSGDWorker(subProblemId: Int,
+                       nSubProblems: Int,
+                       nData: Int,
                        data: Array[(Double, BV[Double])],
                        objFun: ObjectiveFunction,
                        params: ADMMParams,
                        val consensus: ConsensusFunction,
-                       val comm: HWWorkerCommunication,
-                       val nSubProblems: Int)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, data = data, objFun = objFun, params)
+                       val comm: HWWorkerCommunication)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, nData = nData, data = data, objFun = objFun, params)
   with Logging {
 
   comm.optimizer = this
@@ -120,8 +121,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
   @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
-    WorkerStats(primalVar = primalVar, dualVar = dualVar, 
-      msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(), 
+    WorkerStats(primalVar = primalVar, dualVar = dualVar,
+      msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(),
       localIters = localIters,
       dataSize = data.length)
   }
@@ -145,7 +146,9 @@ class HOGWILDSGDWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     broadcastThread.start()
     var t = 0
-    val scaledRegParam = params.regParam / nSubProblems.toDouble
+    // Assume loss is of the form  lambda/2 |reg|^2 + sum_i loss_i
+    val objScaleTerm = nData.toDouble / miniBatchSize.toDouble
+    val eta0Scaled = params.eta_0 / nData.toDouble
     // Loop until done
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
@@ -155,11 +158,18 @@ class HOGWILDSGDWorker(subProblemId: Int,
         objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
-      grad /= params.miniBatchSize.toDouble
-      grad += primalVar * scaledRegParam 
+      // Scale up the gradient
+      grad *= objScaleTerm
+
+      // Add in the regularization term
+      grad += primalVar * params.regParam
+
       // Set the learning rate
-      val eta_t = params.eta_0 / math.sqrt(t.toDouble + nDim.toDouble)
-      grad *= (eta_t / params.miniBatchSize)
+      val eta_t = eta0Scaled / math.sqrt(t.toDouble + 1.0)
+
+      // Scale the gradient
+      grad *= eta_t
+
       grad_delta += grad
       primalVar -= grad
       t += 1
@@ -180,7 +190,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
 
   def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
     val nSubProblems = input.partitions.length
-
+    val nData = input.count
     workers = input.mapPartitionsWithIndex { (ind, iter) =>
       if(HWSetupBlock.initialized) {
         if (HWSetupBlock.workers(ind) != null ) {
@@ -189,7 +199,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
           throw new RuntimeException("Worker was evicted, dying lol!")
         }
       } else {
-      
+
        val data: Array[(Double, BV[Double])] =
         iter.map { case (label, features) => (label, features.toBreeze) }.toArray
       val workerName = UUID.randomUUID().toString
@@ -203,7 +213,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
       Await.result(f, timeout.duration).asInstanceOf[String]
 
         val worker = new HOGWILDSGDWorker(subProblemId = ind,
-          nSubProblems = nSubProblems, data = data,
+          nSubProblems = nSubProblems, nData = nData.toInt, data = data,
           objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
         worker.primalVar = primal0.copy
         worker.dualVar = primal0.copy
@@ -242,7 +252,7 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
     // compute the final consensus value synchronously
     val nExamples = workers.map(w=>w.data.length).reduce(_+_)
     // Collect the primal and dual averages
-    stats = 
+    stats =
       workers.map { w => w.getStats() }.reduce( _ + _ )
 
     val totalTimeNs = System.nanoTime() - startTimeNs
