@@ -5,8 +5,8 @@ from sys import argv
 
 results = pickle.load(open(argv[1]))
 
-# print "Keys:      ", results[0].keys()
-# print "StatsKeys: ", results[0]['stats'].keys()
+print "Keys:      ", results[0].keys()
+print "StatsKeys: ", results[0]['stats'].keys()
 
 tbl = []
 
@@ -22,15 +22,16 @@ for r in results:
              r['trainingError'], r['roc'], \
              r['pyConfig']['ADMMlagrangianRho'], \
              r['pyConfig']['ADMMrho'], \
-             r['trainingLoss'], \
+             r['stats']['primalAvgNorm'] if 'primalAvgNorm' in r['stats'] else -1, \
+             r['stats']['dualAvgNorm'] if 'dualAvgNorm' in r['stats'] else -1, \
              r['stats']['avgSGDIters'] if 'avgSGDIters' in r['stats'] else 0, \
              r['stats']['avgMsgsRcvd'] if 'avgMsgsRcvd' in r['stats'] else 0)]
  #, r['stats']['avgSGDIters'])]
 #    print r
 
 #print tbl
-columns = ['alg', 'Runtime', 'dataset', 'Iters', 'Loss', 'Obj', 'Reg', 'Error', \
-           'Roc', 'lrho', 'Rho', 'trainL', 'SGDItres', 'msgsRcv']
+columns = ['alg', 'Runtime', 'dataset', 'Iters', '*Obj*', 'Loss', 'Reg', 'Error', \
+           'Roc', 'lrho', 'Rho', 'primalNorm', 'dualNorm',  'SGDItres', 'msgsRcv']
 
 frame = pd.DataFrame.from_records(tbl, columns= columns)
 print frame.to_string()
