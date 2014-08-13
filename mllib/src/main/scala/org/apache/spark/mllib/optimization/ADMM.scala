@@ -398,7 +398,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
     residual = Double.MaxValue
     t = 0
     val objScaleTerm = data.length.toDouble / miniBatchSize.toDouble 
-    val eta0Scaled = params.eta_0 / nData.toDouble
+    val eta0Scaled = params.eta_0 / data.length.toDouble
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       !timeOut) {
@@ -421,11 +421,14 @@ class SGDLocalOptimizer(val subProblemId: Int,
 
       // Add the augmenting term
       axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
+
       // Set the learning rate
       // val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
-      val eta_t = eta0Scaled / math.pow(t + 1.0, 2.0 / 3.0)
+      val eta_t = eta0Scaled / math.sqrt(t + 1.0)
+
       // Do the gradient update
       primalVar = primalVar - (grad * eta_t)
+
       // axpy(-eta_t, grad, primalVar)
       // Compute residual.
       residual = eta_t * norm(grad, 2)
