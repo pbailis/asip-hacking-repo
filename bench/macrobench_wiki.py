@@ -195,7 +195,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia"]#, "bismarck", "dblp"]: #, "flights"]:
+for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
