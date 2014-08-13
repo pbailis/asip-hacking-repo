@@ -38,9 +38,9 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_broadcastDelay = 100
-
+GLOBAL_PORKCHOP_localEpsilon = 1e-3
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
@@ -196,14 +196,20 @@ results = []
 
 #ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
-regParam = 10000
+regParam = 1000
 
 expId = 0
 for dataset in ["wikipedia"]:
     for regType in ["L2"]: #, "L1"]:
-        for rho in [1000, 100, 10, 1]: # , 0.1, 0]: #10, 100]:
+        for rho in [10000, 1000, 100]: # , 0.1, 0]: #10, 100]:
             for runtime in [10000]:
-                for algorithm in ["HOGWILD", "PORKCHOP"]: #ALGORITHMS:
+              
+                algs = ["PORKCHOP"]
+
+                if rho == 10000:
+                    algs = ["HOGWILD"] + algs
+
+                for algorithm in algs: #["HOGWILD", "PORKCHOP"]: #ALGORITHMS:
                     print "Experiment: ", expId
                     expId += 1
                     broadcastDelay = -1
@@ -224,6 +230,7 @@ for dataset in ["wikipedia"]:
                     elif algorithm == "PORKCHOP":
                         maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                         broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                        localEpsilon = GLOBAL_PORKCHOP_localEpsilon
                     elif algorithm == "AsyncADMM":
                         maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                         broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
