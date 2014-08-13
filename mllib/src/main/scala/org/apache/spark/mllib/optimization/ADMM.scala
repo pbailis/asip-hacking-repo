@@ -120,7 +120,7 @@ class L2ConsensusFunction extends ConsensusFunction {
     val nDim = dualAvg.size
     assert(nDim > 0)
     val rhoScaled = rho
-    val regScaled = regParam / nSolvers.toInt
+    val regScaled = regParam 
     assert((regScaled + nSolvers * rhoScaled) > 0)
     assert(nDim.toDouble > 0)
     if (rho == 0.0) {
