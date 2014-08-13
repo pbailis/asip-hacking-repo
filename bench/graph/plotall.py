@@ -27,6 +27,7 @@ print results[0].keys()
 if "runtime_ms" not in results[0].keys():
     print "New pyconfig keys", results[0]['pyConfig'].keys()
     for r in results:
+        r['algorithm'] = r['pyConfig']['algorithm']
         r['runtime_ms'] = r['runtimeMS']
         r['command'] = r['pyConfig']['command']
         r['dataset'] = r['pyConfig']['dataset']
