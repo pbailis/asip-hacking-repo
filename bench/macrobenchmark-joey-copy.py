@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [5000]#1000, 5000, 10000, 20000, 40000, 80000, 120000]
+RUNTIMES = [20000]#1000, 5000, 10000, 20000, 40000, 80000, 120000]
 
-ALGORITHMS = ["PORKCHOP", "MiniBatchADMM", "HOGWILD"]#,"ADMM", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP", "MiniBatchADMM", "HOGWILD", "ADMM"] # "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -85,7 +85,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=1.0,
+            regParam=0.1,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -195,7 +195,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
+for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
@@ -256,6 +256,8 @@ for runtime in RUNTIMES:
                 elif algorithm == "PORKCHOP":
                     maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                     broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                    localTimeout = -1
                 elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
@@ -298,6 +300,8 @@ for runtime in RUNTIMES:
                 elif algorithm == "PORKCHOP":
                     maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                     broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                    localTimeout = -1
                 elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay

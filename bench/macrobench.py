@@ -7,9 +7,9 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000, 80000, 120000]
+RUNTIMES = [1000, 5000, 10000, 20000, 40000]
 
-ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP", "GD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "PORKCHOP"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -38,9 +38,9 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 100
-
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
@@ -84,7 +84,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=1.0,
+            regParam=0.1,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -194,7 +194,7 @@ results = []
 
 ## START OF EXPERIMENT RUNS
 
-for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
+for dataset in ["wikipedia", "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
@@ -214,6 +214,8 @@ for dataset in ["wikipedia", "bismarck", "dblp", "flights"]:
             elif algorithm == "PORKCHOP":
                 maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                 broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                localTimeout = -1
             elif algorithm == "AsyncADMM":
                 maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                 broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
@@ -253,6 +255,8 @@ for runtime in RUNTIMES:
                 elif algorithm == "PORKCHOP":
                     maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                     broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                    localTimeout = -1
                 elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
@@ -295,6 +299,8 @@ for runtime in RUNTIMES:
                 elif algorithm == "PORKCHOP":
                     maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
                     broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                    localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                    localTimeout = -1
                 elif algorithm == "AsyncADMM":
                     maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
                     broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
