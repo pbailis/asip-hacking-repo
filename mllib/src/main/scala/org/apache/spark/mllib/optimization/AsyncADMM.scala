@@ -153,18 +153,18 @@ class AsyncADMMWorker(subProblemId: Int,
         // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
-        
 
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
         dualUpdate(params.lagrangianRho)
-
+        
         // Start over at primal consensus
         primalVar = primalConsensus.copy
         
         // Run the primal update
         primalUpdate(timeRemainingMS)
         
+
         comm.broadcastDeltaUpdate(primalVar, dualVar)
 
         localIters += 1
@@ -223,6 +223,7 @@ class AsyncADMMWorker(subProblemId: Int,
         // Recompute the consensus variable
         primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
             rho = rho, regParam = params.regParam)
+        
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho)
         
@@ -251,11 +252,11 @@ class AsyncADMMWorker(subProblemId: Int,
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
     consumerThread.start()
-    broadcastThread.start()
+    // broadcastThread.start()
 
     solverLoopThread.join()
     consumerThread.join()
-    broadcastThread.join()
+    // broadcastThread.join()
 
     println(s"${comm.selfID}: Finished main loop.")
     // Return the primal consensus value
