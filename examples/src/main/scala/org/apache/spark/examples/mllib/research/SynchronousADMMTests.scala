@@ -247,6 +247,7 @@ object SynchronousADMMTests {
     var dblpSplitYear = 2007
     // 4690 == database
     var wikipediaTargetWordToken = 4690
+    var numTraining = 0L
 
     override def toString = {
       val m =  Map(
@@ -436,6 +437,7 @@ object SynchronousADMMTests {
 
     val numTraining = training.count()
     //    val numTest = test.count()
+    params.numTraining = numTraining
 
     println(s"Loaded data! Number of training examples: $numTraining")
     println(s"Number of partitions: ${training.partitions.length}")
@@ -534,14 +536,17 @@ object SynchronousADMMTests {
 
     params.algorithm match {
       case GD =>
+        // need to rescale params since gradient is scaled by 1/N
+        params.regParam /= params.numTraining.toDouble
+
         if (params.useLR) {
           val algorithm = new LogisticRegressionWithSGD()
           algorithm.optimizer
-            .setNumIterations(100000)
+            .setNumIterations(1000000)
             .setRuntime(params.runtimeMS)
             .setStepSize(params.eta_0)
             .setUpdater(updater)
-            .setRegParam(params.regParam / nDim.toDouble)
+            .setRegParam(params.regParam)
           val model = algorithm.run(training).clearThreshold()
           val results =
             Map(
@@ -552,11 +557,11 @@ object SynchronousADMMTests {
         } else {
           val algorithm = new SVMWithSGD()
           algorithm.optimizer
-            .setNumIterations(100000)
+            .setNumIterations(1000000)
             .setRuntime(params.runtimeMS)
             .setStepSize(params.eta_0)
             .setUpdater(updater)
-            .setRegParam(params.regParam / nDim.toDouble)
+            .setRegParam(params.regParam)
           val model = algorithm.run(training).clearThreshold()
           val results =
             Map(
