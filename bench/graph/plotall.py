@@ -27,6 +27,7 @@ print results[0].keys()
 if "runtime_ms" not in results[0].keys():
     print "New pyconfig keys", results[0]['pyConfig'].keys()
     for r in results:
+        r['algorithm'] = r['pyConfig']['algorithm']
         r['runtime_ms'] = r['runtimeMS']
         r['command'] = r['pyConfig']['command']
         r['dataset'] = r['pyConfig']['dataset']
@@ -68,3 +69,34 @@ for dataset in datasets:
     cla()
     clf()
 
+# POINT CLOUD PLOTS
+
+datasets = unique([r['dataset'] for r in results if r['dataset'] == 'cloud'])
+
+skews = unique([r['pointCloudSkew'] for r in results if r['dataset'] == 'cloud'])
+
+for dataset in datasets:
+    for skew in skews:
+        dataset_results = [r for r in results if r['dataset'] == dataset and r['pointCloudSkew'] == skew]
+        algs = unique([r['algorithm'] for r in dataset_results])
+        print "Dataset: " , dataset, "skew", skew
+        for alg in algs:
+            alg_results = [r for r in dataset_results if r['algorithm'] == alg]
+            plot_p = [(r['runtime_ms'], r[yval]) for r in alg_results]
+            plot_p.sort(key = lambda x: x[0])
+            plotx = [r[0] for r in plot_p]
+            ploty = [r[1] for r in plot_p]
+
+            for p in plot_p:
+                print "\t", alg, p[0], p[1]
+    
+            plot(plotx, ploty, 'o-', label=alg)
+
+        if logLoss:
+            gca().set_yscale('log')
+            #gca().set_xscale('log')
+
+        legend()
+        savefig(dataset + "-"+str(skew) +".pdf")
+        cla()
+        clf()
