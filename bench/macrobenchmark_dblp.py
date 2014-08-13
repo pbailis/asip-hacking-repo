@@ -23,7 +23,7 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1000 # 2704455 / 1000
+GLOBAL_ADMMrho = 100 # 2704455 / 1000
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho 
 
@@ -41,13 +41,13 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
-GLOBAL_PORKCHOP_broadcastDelay = 0
+GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
-GLOBAL_REG_PARAM = 1000
+GLOBAL_REG_PARAM = 10000
 
 # 
 

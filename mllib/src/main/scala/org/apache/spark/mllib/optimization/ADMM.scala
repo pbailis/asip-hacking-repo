@@ -120,7 +120,7 @@ class L2ConsensusFunction extends ConsensusFunction {
     val nDim = dualAvg.size
     assert(nDim > 0)
     val rhoScaled = rho
-    val regScaled = 0.0 // regParam
+    val regScaled = regParam / nSolvers.toInt
     assert((regScaled + nSolvers * rhoScaled) > 0)
     assert(nDim.toDouble > 0)
     if (rho == 0.0) {
@@ -414,8 +414,8 @@ class SGDLocalOptimizer(val subProblemId: Int,
       grad *= objScaleTerm
 
       // // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
-      val scaledRegParam = params.regParam // / nData.toDouble
-      grad += primalVar * scaledRegParam
+      // val scaledRegParam = params.regParam // / nData.toDouble
+      // grad += primalVar * scaledRegParam
 
       // Add the lagrangian
       grad += dualVar
