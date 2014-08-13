@@ -164,7 +164,6 @@ class AsyncADMMWorker(subProblemId: Int,
         // Run the primal update
         primalUpdate(timeRemainingMS)
         
-
         comm.broadcastDeltaUpdate(primalVar, dualVar)
 
         localIters += 1
