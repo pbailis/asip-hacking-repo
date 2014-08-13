@@ -460,13 +460,6 @@ object SynchronousADMMTests {
 
     val (model, stats) = runTest(training, params)
 
-    // unscale the params
-    if (params.scaled) {
-      params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
-      params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
-      params.regParam /= numTraining.toDouble
-    }
-
     val trainingError = 
       if(params.useLR) {
         training.map{ point =>
@@ -494,6 +487,14 @@ object SynchronousADMMTests {
     val scaledReg = params.regParam / 2.0
     val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
     val totalLoss = trainingLoss + regularizationPenalty
+
+    // unscale the params to be saved in original form
+    if (params.scaled) {
+      params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
+      params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
+      params.regParam /= numTraining.toDouble
+    }
+
 
     val resultsMap = Map(
       "algorithm" -> ("\"" + params.algorithm.toString + "\""),
