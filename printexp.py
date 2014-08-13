@@ -5,6 +5,8 @@ from sys import argv
 
 results = pickle.load(open(argv[1]))
 
+
+
 print "Keys:      ", results[0].keys()
 print "StatsKeys: ", results[0]['stats'].keys()
 
@@ -12,7 +14,7 @@ tbl = []
 
 for r in results:
     #    tbl += [(r['pyConfig']['dataset'], r['algorithm'], r['runtimeMS'], \
-    tbl += [(r['algorithm'], \
+    tbl += [(r['pyConfig']['algorithm'], \
              r['runtimeMS'], \
              r['pyConfig']['dataset'], \
              r['iterations'], \
