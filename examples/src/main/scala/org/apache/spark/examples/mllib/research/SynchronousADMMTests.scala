@@ -248,6 +248,7 @@ object SynchronousADMMTests {
     // 4690 == database
     var wikipediaTargetWordToken = 4690
     var numTraining = 0L
+    var scaled = false
 
     override def toString = {
       val m =  Map(
@@ -265,7 +266,9 @@ object SynchronousADMMTests {
         "pointCloudSize" -> pointCloudSize,
         "inputTokenHashKernelDimension" -> inputTokenHashKernelDimension,
         "wikipediaTargetWordToken" -> wikipediaTargetWordToken,
-        "dblpSplitYear" -> dblpSplitYear
+        "dblpSplitYear" -> dblpSplitYear,
+        "scaled" -> scaled,
+        "numTraining" -> numTraining
       )
       mapToJson(m)
     }
@@ -371,6 +374,10 @@ object SynchronousADMMTests {
       opt[Boolean]("localStats")
         .action{ (x, c) => c.displayIncrementalStats = x; c }
 
+      // Scale the constants by N so that they can be all set to 0.01 or something robust
+      opt[Boolean]("scaled")
+        .action { (x, c) => c.scaled = x; c }
+
 
       note(
         """
@@ -439,6 +446,12 @@ object SynchronousADMMTests {
     //    val numTest = test.count()
     params.numTraining = numTraining
 
+    if (params.scaled) {
+      params.lagrangianRho *= numTraining.toDouble // / params.numPartitions.toDouble
+      params.rho0 *= numTraining.toDouble // / params.numPartitions.toDouble
+      params.regParam *= numTraining.toDouble
+    }
+
     println(s"Loaded data! Number of training examples: $numTraining")
     println(s"Number of partitions: ${training.partitions.length}")
 
@@ -446,7 +459,14 @@ object SynchronousADMMTests {
     println("Starting test!")
 
     val (model, stats) = runTest(training, params)
-   
+
+    // unscale the params
+    if (params.scaled) {
+      params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
+      params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
+      params.regParam /= numTraining.toDouble
+    }
+
     val trainingError = 
       if(params.useLR) {
         training.map{ point =>
@@ -463,13 +483,15 @@ object SynchronousADMMTests {
         }.reduce(_ + _) / numTraining.toDouble
       }
 
+
+
     val prediction = model.predict(training.map(_.features))
     val predictionAndLabel = prediction.zip(training.map(_.label))
     val metrics = new BinaryClassificationMetrics(predictionAndLabel)
 
 
-    val trainingLoss = model.loss(training) * numTraining.toDouble 
-    val scaledReg = params.regParam / 2.0 
+    val trainingLoss = model.loss(training) * numTraining.toDouble
+    val scaledReg = params.regParam / 2.0
     val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
     val totalLoss = trainingLoss + regularizationPenalty
 
@@ -581,7 +603,12 @@ object SynchronousADMMTests {
             Map(
               "iterations" -> algorithm.optimizer.iteration.toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results )
         } else {
@@ -615,9 +642,14 @@ object SynchronousADMMTests {
           val results =
             Map(
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
+              "iterInterval" -> algorithm.optimizer.stats.avgLocalIters().toString,
               "avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
+              "primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
+              "dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
+              "consensusNorm" -> model.weights.l2Norm.toString,
+              "dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
               "runtime" -> algorithm.optimizer.totalTimeMs.toString,
               "stats" -> algorithm.optimizer.stats.toString
             )
@@ -653,7 +685,8 @@ object SynchronousADMMTests {
               "iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
               "avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
               "avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-              "runtime" -> algorithm.optimizer.totalTimeMs.toString
+              "runtime" -> algorithm.optimizer.totalTimeMs.toString,
+              "stats" -> algorithm.optimizer.stats.toString
             )
           (model, results)
         } else {
