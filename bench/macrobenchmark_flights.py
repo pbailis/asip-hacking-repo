@@ -43,7 +43,7 @@ GLOBAL_AsyncADMM_broadcastDelay = 100
 
 GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
-GLOBAL_PORKCHOP_broadcastDelay = 100
+GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
