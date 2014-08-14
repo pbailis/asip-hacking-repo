@@ -11,6 +11,9 @@ RUNTIMES = [1000, 5000, 10000, 20000, 40000]
 
 ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD", "AVG"]#, "HOGWILD", "GD", "PORKCHOP"]
 
+ALGORITHMS=["PORKCHOP", "ADMM"]
+RUNTIMES = [10000]
+
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -23,7 +26,7 @@ GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
 GLOBAL_ADMMrho = 1000
 
-GLOBAL_ADMMlagrangianRho = 1000
+GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -39,11 +42,13 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 100000
+GLOBAL_PORKCHOP_maxLocalIterations = 100
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
-GLOBAL_PORKCHOP_broadcastDelay = 100
+GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
+
+GLOBAL_REG_PARAM_FACTOR = 1.0
 
 ## END OF CONSTANTS
 
@@ -85,7 +90,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
-            regParam=1000,
+            regParam=100,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -202,11 +207,11 @@ for dataset in ["wikipedia"]: #, "bismarck", "dblp"]: #, "flights"]:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
-            miscStr = " --useLR true " # " --useLineSearch true --miniBatchSize 10000000"
+            miscStr = " --useLR true --admmRegFactor "+str(GLOBAL_REG_PARAM_FACTOR) # " --useLineSearch true --miniBatchSize 10000000"" # " --useLineSearch true --miniBatchSize 10000000"
             if algorithm == "ADMM":
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
-                localTimeout = GLOBAL_ADMM_localTimeou
+                localTimeout = GLOBAL_ADMM_localTimeout
             elif algorithm == "AVG":
                 maxLocalIterations = 1000000
                 localEpsilon = 0

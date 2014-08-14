@@ -44,6 +44,8 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
   var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
 
+  var worker: AsyncADMMWorker = null
+
   def receive = {
     case ppm: InternalMessages.PingPong => {
       logInfo("new message from " + sender)
@@ -53,7 +55,9 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     }
     case s: String => println(s)
     case d: InternalMessages.VectorUpdateMessage => {
-      inputQueue.add(d)
+      if(worker != null) {
+        worker.receiveMsg(d.sender, d.primalVar, d.dualVar)
+      }
     }
     case _ => println("hello, world!")
   }
@@ -115,6 +119,7 @@ class AsyncADMMWorker(subProblemId: Int,
     extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, nData = nData, 
       data = data, objFun = objFun, params)
     with Logging {
+  comm.worker = this
 
   @volatile var done = false
   @volatile var startTime = 0L
@@ -169,15 +174,15 @@ class AsyncADMMWorker(subProblemId: Int,
       while (!done) {
         // val primalOld = primalVar.copy
         // val dualOld = dualVar.copy
-        val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
 
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho / (localIters + 1.0).toDouble )
         dualUpdate(params.lagrangianRho)
         
         // Start over at primal consensus
-        primalVar = primalConsensus.copy
-        
+        primalVar = primalConsensus.copy  // this was there before
+
+        val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)        
         // Run the primal update
         primalUpdate(timeRemainingMS)
 
@@ -211,55 +216,81 @@ class AsyncADMMWorker(subProblemId: Int,
     }
   }
 
+  val lastMsg = new Array[(BV[Double], BV[Double])](256)
+  @volatile var primalSum = BV.zeros[Double](primalVar.size)
+  @volatile var dualSum = BV.zeros[Double](dualVar.size)
+  @volatile var sumTerms = 0
 
-
-  val consumerThread = new Thread {
-    override def run {
-      // Intialize global view of primalVars
-      val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
-      var primalAvg = BV.zeros[Double](primalVar.size)
-      var dualAvg = BV.zeros[Double](dualVar.size)
-      assert(!done)
-      while (!done) {
-        // TODO: TRY FOLLOWING
-        Thread.sleep(params.broadcastDelayMS)
-        var tiq = comm.inputQueue.take()
-        while (tiq != null) {
-          if (tiq.sender == -2) {
-            done = true
-          } else {
-            msgsRcvd += 1
-            allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
-          }
-          tiq = comm.inputQueue.poll()
-        }
-        if(done && msgsRcvd == 0) {
-          println(s"${comm.selfID}: Done without messages: ${System.currentTimeMillis()}")
-        }
-        // Collect latest variables from everyone
-        allVars.put(comm.selfID, (primalVar, dualVar))
-        // Compute primal and dual averages
-        primalAvg *= 0.0
-        dualAvg *= 0.0
-        val msgIterator = allVars.values.iterator
-        while (msgIterator.hasNext) {
-          val (primal, dual) = msgIterator.next()
-          primalAvg += primal
-          dualAvg += dual
-        }
-        primalAvg /= allVars.size.toDouble
-        dualAvg /= allVars.size.toDouble
-
-        // Recompute the consensus variable
-        primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
-            rho = rho, regParam = regParamScaled)
-        
-        // Do a Dual update if the primal seems to be converging
-        // dualUpdate(params.lagrangianRho)
-        
+  def receiveMsg(srcId: Int, newPrimal: BV[Double], newDual: BV[Double]) {
+    lastMsg.synchronized {
+      if (lastMsg(srcId) != null) {
+        val (oldPrimal, oldDual) = lastMsg(srcId)
+        primalSum += (newPrimal - oldPrimal)
+        dualSum += (newDual - oldDual)
+        lastMsg(srcId) = (newPrimal, newDual)
+      } else {
+        sumTerms += 1
+        lastMsg(srcId) = (newPrimal, newDual)
+        primalSum += newPrimal
+        dualSum += newDual
       }
+      msgsRcvd += 1
+      val primalAvg = primalSum/sumTerms.toDouble
+      val dualAvg = dualSum/sumTerms.toDouble
+      // Recompute the consensus variable
+      primalConsensus = consensus(primalAvg, dualAvg, nSolvers = sumTerms,
+        rho = rho, regParam = regParamScaled)
     }
   }
+
+
+  // val consumerThread = new Thread {
+  //   override def run {
+  //     // Intialize global view of primalVars
+  //     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
+  //     var primalAvg = BV.zeros[Double](primalVar.size)
+  //     var dualAvg = BV.zeros[Double](dualVar.size)
+  //     assert(!done)
+  //     while (!done) {
+  //       // TODO: TRY FOLLOWING
+  //       Thread.sleep(params.broadcastDelayMS)
+  //       var tiq = comm.inputQueue.take()
+  //       while (tiq != null) {
+  //         if (tiq.sender == -2) {
+  //           done = true
+  //         } else {
+  //           msgsRcvd += 1
+  //           allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
+  //         }
+  //         tiq = comm.inputQueue.poll()
+  //       }
+  //       if(done && msgsRcvd == 0) {
+  //         println(s"${comm.selfID}: Done without messages: ${System.currentTimeMillis()}")
+  //       }
+  //       // Collect latest variables from everyone
+  //       allVars.put(comm.selfID, (primalVar, dualVar))
+  //       // Compute primal and dual averages
+  //       primalAvg *= 0.0
+  //       dualAvg *= 0.0
+  //       val msgIterator = allVars.values.iterator
+  //       while (msgIterator.hasNext) {
+  //         val (primal, dual) = msgIterator.next()
+  //         primalAvg += primal
+  //         dualAvg += dual
+  //       }
+  //       primalAvg /= allVars.size.toDouble
+  //       dualAvg /= allVars.size.toDouble
+
+  //       // Recompute the consensus variable
+  //       primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
+  //           rho = rho, regParam = regParamScaled)
+        
+  //       // Do a Dual update if the primal seems to be converging
+  //       // dualUpdate(params.lagrangianRho)
+        
+  //     }
+  //   }
+  // }
 
   def mainLoop() = {
     assert(!done)
@@ -281,11 +312,11 @@ class AsyncADMMWorker(subProblemId: Int,
     println(s"${comm.selfID}: Starting the main loop.")
     // Launch a thread to send the messages in the background
     solverLoopThread.start()
-    consumerThread.start()
+    //consumerThread.start()
     //broadcastThread.start()
 
     solverLoopThread.join()
-    consumerThread.join()
+    //consumerThread.join()
     //broadcastThread.join()
 
     println(s"${comm.selfID}: Finished main loop.")
@@ -308,6 +339,10 @@ class AsyncADMMWorker(subProblemId: Int,
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(timeRemainingMS)
+
+      // Do a dual update
+      dualUpdate(params.lagrangianRho)
+
 
       // Send the primal and dual
       comm.broadcastDeltaUpdate(primalVar, dualVar)
