@@ -268,7 +268,7 @@ object SynchronousADMMTests {
         "wikipediaTargetWordToken" -> wikipediaTargetWordToken,
         "dblpSplitYear" -> dblpSplitYear,
         "scaled" -> scaled,
-        "numTraining" -> numTraining
+        "numTraining" -> numTraining        
       )
       mapToJson(m)
     }
@@ -337,6 +337,13 @@ object SynchronousADMMTests {
       opt[Double]("regParam")
         .text(s"regularization parameter, default: ${defaultParams.regParam}")
         .action { (x, c) => c.regParam = x; c }
+
+      opt[Double]("admmRegFactor")
+        .text(s"scales the regularization parameter for ADMM: ${defaultParams.admmRegFactor}")
+        .action { (x, c) => c.regParam = x; c }
+
+
+
       opt[Int]("numPartitions")
         .action { (x, c) => c.numPartitions = x; c }
       opt[String]("input")
@@ -375,6 +382,7 @@ object SynchronousADMMTests {
         .action{ (x, c) => c.displayIncrementalStats = x; c }
 
       // Scale the constants by N so that they can be all set to 0.01 or something robust
+      // don't use this yet!
       opt[Boolean]("scaled")
         .action { (x, c) => c.scaled = x; c }
 
@@ -446,11 +454,11 @@ object SynchronousADMMTests {
     //    val numTest = test.count()
     params.numTraining = numTraining
 
-    if (params.scaled) {
-      params.lagrangianRho *= numTraining.toDouble // / params.numPartitions.toDouble
-      params.rho0 *= numTraining.toDouble // / params.numPartitions.toDouble
-      params.regParam *= numTraining.toDouble
-    }
+    // if (params.scaled) {
+    //   params.lagrangianRho *= numTraining.toDouble // / params.numPartitions.toDouble
+    //   params.rho0 *= numTraining.toDouble // / params.numPartitions.toDouble
+    //   params.regParam *= numTraining.toDouble
+    // }
 
     println(s"Loaded data! Number of training examples: $numTraining")
     println(s"Number of partitions: ${training.partitions.length}")
@@ -471,7 +479,6 @@ object SynchronousADMMTests {
           val p = model.predict(point.features)
           val y = 2.0 * point.label - 1.0
           assert(y != 0)
-          // if ( ((p > 0) && (y < 0)) || ((p < 0) && (y > 0)) ) 1.0 else 0.0
           if (y * p <= 0.0) 1.0 else 0.0
         }.reduce(_ + _) / numTraining.toDouble
       }
@@ -489,11 +496,11 @@ object SynchronousADMMTests {
     val totalLoss = trainingLoss + regularizationPenalty
 
     // unscale the params to be saved in original form
-    if (params.scaled) {
-      params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
-      params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
-      params.regParam /= numTraining.toDouble
-    }
+    // if (params.scaled) {
+    //   params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
+    //   params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
+    //   params.regParam /= numTraining.toDouble
+    // }
 
 
     val resultsMap = Map(

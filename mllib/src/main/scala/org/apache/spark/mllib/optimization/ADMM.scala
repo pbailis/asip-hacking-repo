@@ -306,6 +306,7 @@ class ADMMParams extends Serializable {
   var usePorkChop = false
   var useLineSearch = false
   var localTimeout = Int.MaxValue
+  var admmRegFactor = 1.0
 
   def toMap(): Map[String, Any] = {
     Map(
@@ -325,7 +326,8 @@ class ADMMParams extends Serializable {
       "useLineSearch" -> useLineSearch,
       "broadcastDelayMS" -> broadcastDelayMS,
       "usePorkChop" -> usePorkChop,
-      "localTimeout" -> localTimeout
+      "localTimeout" -> localTimeout,
+      "admmRegFactor" -> admmRegFactor
     )
   }
   override def toString = {
@@ -349,6 +351,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   val rnd = new java.util.Random(subProblemId)
 
   val miniBatchSize = math.min(params.miniBatchSize, data.size)
+  val regParamScaled = params.regParam * params.admmRegFactor
 
   @volatile var primalConsensus = BV.zeros[Double](nDim)
 
@@ -395,11 +398,12 @@ class SGDLocalOptimizer(val subProblemId: Int,
     assert(miniBatchSize <= data.size)
     var timeOut = false
     val rhoScaled = rho
-    residual = Double.MaxValue
-    t = 0
     val objScaleTerm = nData.toDouble / miniBatchSize.toDouble
     val eta0Scaled = params.eta_0 / data.length.toDouble
+
     var currentTime = System.currentTimeMillis()
+    residual = Double.MaxValue
+    t = 0
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       currentTime < endByMS) {
@@ -533,8 +537,9 @@ class ADMM(val params: ADMMParams, var gradient: ObjectiveFunction, var consensu
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
+      val regParamScaled = params.regParam * params.admmRegFactor
       primalConsensus = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, rho,
-        params.regParam)
+        regParam = regParamScaled)
 
       // // Compute the residuals
       // primalResidual = solvers.map(
