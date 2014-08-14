@@ -252,7 +252,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // Recompute the consensus variable
         primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
-            rho = rho, regParam = params.regParam)
+            rho = rho, regParam = regParamScaled)
         
         // Do a Dual update if the primal seems to be converging
         // dualUpdate(params.lagrangianRho)
@@ -336,7 +336,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
       // Recompute the consensus variable
       primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
-        rho = rho, regParam = params.regParam)
+        rho = rho, regParam = regParamScaled)
 
       // Reset the primal var
       primalVar = primalConsensus.copy
@@ -437,8 +437,10 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
       w => w.mainLoop()
       w.getStats()
     }.reduce( _ + _ )
+    
+    val regParamScaled = params.regParam * params.admmRegFactor
     val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, params.rho0,
-      params.regParam)
+      regParam = regParamScaled)
     println(stats.primalAvg())
     println(stats.dualAvg())
     println(finalW)

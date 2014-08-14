@@ -7,8 +7,8 @@ results = pickle.load(open(argv[1]))
 
 
 
-print "Keys:      ", results[0].keys()
-print "StatsKeys: ", results[0]['stats'].keys()
+# print "Keys:      ", results[0].keys()
+# print "StatsKeys: ", results[0]['stats'].keys()
 
 tbl = []
 
