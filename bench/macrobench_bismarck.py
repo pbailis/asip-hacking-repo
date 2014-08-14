@@ -10,7 +10,7 @@ import json
 RUNTIMES = [1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AsyncADMM"] #, "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AsyncADMM", "AVG", "GD"] #, "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
@@ -113,12 +113,14 @@ def runTest(runtimeMS,
         print "Unknown dataset!"
         raise
 
+    calgorithm = algorithm if algorithm != "AVG" else "ADMM"
+
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
           "./bin/spark-submit " \
           "--driver-memory 52g " \
           "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
           "examples/target/scala-*/spark-examples-*.jar " \
-          "--algorithm " + str(algorithm) + " " + \
+          "--algorithm " + str(calgorithm) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
@@ -207,6 +209,16 @@ for dataset in ["bismarck"]:
                 maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
                 localEpsilon = GLOBAL_ADMM_localEpsilon
                 localTimeout = GLOBAL_ADMM_localTimeout
+            elif algorithm == "AVG":
+                maxLocalIterations = 1000000
+                localEpsilon = 0
+                localTimeout = 10000000
+                broadcastDelay = -1
+                GLOBAL_ADMMrho = 1.0
+            elif algorithm == "GD":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                localTimeout = -1
+                localEpsilon = -1
             elif algorithm == "MiniBatchADMM":
                 maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
                 localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
