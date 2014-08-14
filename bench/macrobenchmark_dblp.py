@@ -8,10 +8,10 @@ import json
 ## START OF EXPERIMENTAL PARAMETERS
 
 RUNTIMES = [1000, 5000, 10000, 20000, 40000]
-#RUNTIMES = [20000]
+RUNTIMES = [1000, 40000]
 
 ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM", "AsyncADMM", "HOGWILD", "GD"] #, "HOGWILD", "GD", "PORKCHOP"]
-#ALGORITHMS = ["PORKCHOP", "ADMM", "MiniBatchADMM"]
+ALGORITHMS = ["PORKCHOP", "HOGWILD"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
@@ -23,9 +23,9 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 100
+GLOBAL_ADMMrho = 100 # 2704455 / 1000
 
-GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
+GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho 
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -41,14 +41,15 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 100000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-2
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
-GLOBAL_REG_PARAM = 10
+GLOBAL_REG_PARAM = 10000
 
+# 
 
 ## END OF CONSTANTS
 
@@ -204,6 +205,7 @@ for dataset in ["dblp"]: #, "bismarck", "dblp"]: #, "flights"]:
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
+            localTimeout = -1
             localEpsilon = GLOBAL_ADMMlocalEpsilon
             miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
             if algorithm == "ADMM":
