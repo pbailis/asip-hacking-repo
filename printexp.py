@@ -24,6 +24,7 @@ for r in results:
              r['trainingError'], r['roc'], \
              r['pyConfig']['ADMMlagrangianRho'], \
              r['pyConfig']['ADMMrho'], \
+             r['stats']['consensusNorm'] if 'consensusNorm' in r['stats'] else -1, \
              r['stats']['primalAvgNorm'] if 'primalAvgNorm' in r['stats'] else -1, \
              r['stats']['dualAvgNorm'] if 'dualAvgNorm' in r['stats'] else -1, \
              r['stats']['avgSGDIters'] if 'avgSGDIters' in r['stats'] else 0, \
@@ -33,7 +34,7 @@ for r in results:
 
 #print tbl
 columns = ['alg', 'Runtime', 'dataset', 'Iters', '*Obj*', 'Loss', 'Reg', 'Error', \
-           'Roc', 'lrho', 'Rho', 'primalNorm', 'dualNorm',  'SGDItres', 'msgsRcv']
+           'Roc', 'lrho', 'Rho', 'consensusNorm', 'primalNorm', 'dualNorm',  'SGDItres', 'msgsRcv']
 
 frame = pd.DataFrame.from_records(tbl, columns= columns)
 print frame.to_string()

@@ -70,27 +70,50 @@ P(y \,|\, x,w) &= \left(1 - \sigma(w^T x) \right)^{(1-y)}  \sigma(w^T x)^{y} \\
 \log P(y \,|\, x,w) &=  (1 - y) (-w^T x) -\log \left( 1 + \exp(-w^T x) \right)
  */
 class LogisticObjective extends ObjectiveFunction {
-  def sigmoid(x: Double) = 1.0 / (1.0 + math.exp(-x))
+  def sigmoid(x: Double) = {
+    1.0 / (1.0 + math.exp(-x))
+  }
   override def addGradient(w: BV[Double], x: BV[Double], label: Double, cumGrad: BV[Double]) = {
     val wdotx = w.dot(x)
     val gradientMultiplier = label - sigmoid(wdotx)
     // Note we negate the gradient here since we ant to minimize the negative of the likelihood
     axpy(-gradientMultiplier, x, cumGrad)
+    val margin = -1.0 * wdotx
+    val logExpMargin = // mathematically stable approximation of log(1 + exp(w dot x))
+      if (margin > 20) { 
+        margin
+      } else if (margin < -20) {
+        0
+      } else {
+        math.log1p(math.exp(margin))
+      }
+
     val logLikelihood =
       if (label > 0) {
-        -math.log1p(math.exp(-wdotx)) // log1p(x) = log(1+x)
+        -logExpMargin // log1p(x) = log(1+x)
       } else {
-        -wdotx - math.log1p(math.exp(-wdotx))
+        margin - logExpMargin
       }
     -logLikelihood
   }
+
   override def apply(w: BV[Double], x: BV[Double], label: Double) = {
     val wdotx = w.dot(x)
+    val margin = -1.0 * wdotx
+    val logExpMargin = // mathematically stable approximation of log(1 + exp(w dot x))
+      if (margin > 20) {
+        margin
+      } else if (margin < -20) {
+        0
+      } else {
+        math.log1p(math.exp(margin))
+      }
+
     val logLikelihood =
       if (label > 0) {
-        -math.log1p(math.exp(-wdotx)) // log1p(x) = log(1+x)
+        -logExpMargin // log1p(x) = log(1+x)
       } else {
-        -wdotx - math.log1p(math.exp(-wdotx))
+        margin - logExpMargin
       }
     -logLikelihood
   }

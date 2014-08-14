@@ -73,11 +73,19 @@ class LogisticRegressionModel (
     val brzData = point.features.toBreeze
     val brzWeights = weightMatrix.toBreeze
     val margin: Double = -1.0 * brzWeights.dot(brzData) - intercept
+    val logExpMargin = // mathematically stable approximation of log(1 + exp(w dot x)) 
+      if (margin > 20) { 
+        margin
+      } else if (margin < -20) {
+        0
+      } else {
+        math.log1p(math.exp(margin))
+      }
     val loss =
       if (point.label > 0) {
-        math.log1p(math.exp(margin)) // log1p is log(1+p) but more accurate for small p
+        logExpMargin // log1p is log(1+p) but more accurate for small p
       } else {
-        math.log1p(math.exp(margin)) - margin
+        logExpMargin - margin
       }
     loss
   }
