@@ -104,6 +104,7 @@
     <module>external/zeromq</module>
     <module>external/mqtt</module>
     <module>examples</module>
+    <module>emerson</module>
   </modules>
 
   <properties>

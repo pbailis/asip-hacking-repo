@@ -30,10 +30,10 @@ object BuildCommons {
 
   private val buildLocation = file(".").getAbsoluteFile.getParentFile
 
-  val allProjects@Seq(bagel, catalyst, core, graphx, hive, hiveThriftServer, mllib, repl, spark,
+  val allProjects@Seq(bagel, catalyst, core, graphx, emerson, hive, hiveThriftServer, mllib, repl, spark,
   sql, streaming, streamingFlumeSink, streamingFlume, streamingKafka, streamingMqtt,
   streamingTwitter, streamingZeromq) =
-    Seq("bagel", "catalyst", "core", "graphx", "hive", "hive-thriftserver", "mllib", "repl",
+    Seq("bagel", "catalyst", "core", "graphx", "emerson", "hive", "hive-thriftserver", "mllib", "repl",
       "spark", "sql", "streaming", "streaming-flume-sink", "streaming-flume", "streaming-kafka",
       "streaming-mqtt", "streaming-twitter", "streaming-zeromq").map(ProjectRef(buildLocation, _))
 
@@ -284,9 +284,9 @@ object Unidoc {
     publish := {},
 
     unidocProjectFilter in(ScalaUnidoc, unidoc) :=
-      inAnyProject -- inProjects(repl, examples, tools, catalyst, yarn, yarnAlpha),
+      inAnyProject -- inProjects(repl, examples, emerson, tools, catalyst, yarn, yarnAlpha),
     unidocProjectFilter in(JavaUnidoc, unidoc) :=
-      inAnyProject -- inProjects(repl, bagel, graphx, examples, tools, catalyst, yarn, yarnAlpha),
+      inAnyProject -- inProjects(repl, bagel, graphx, examples, emerson, tools, catalyst, yarn, yarnAlpha),
 
     // Skip class names containing $ and some internal packages in Javadocs
     unidocAllSources in (JavaUnidoc, unidoc) := {

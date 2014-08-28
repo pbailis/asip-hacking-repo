@@ -110,41 +110,6 @@ class SVMWithSGD private (
   }
 }
 
-/**
- * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
- * NOTE: Labels used in SVM should be {0, 1}.
- */
-class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-
-  override val optimizer: ADMM = new ADMM(params, new HingeObjective(), new L2ConsensusFunction())
-
-  //override protected val validators = List(DataValidators.binaryLabelValidator)
-  override protected def createModel(weights: Vector, intercept: Double) = {
-    new SVMModel(weights, intercept)
-  }
-}
-
-class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-
-  override val optimizer = new AsyncADMM(params, new HingeObjective(), new L2ConsensusFunction())
-
-  //override protected val validators = List(DataValidators.binaryLabelValidator)
-  override protected def createModel(weights: Vector, intercept: Double) = {
-    new SVMModel(weights, intercept)
-  }
-}
-
-class SVMWithHOGWILD(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
-
-  override val optimizer = new HOGWILDSGD(params, new HingeObjective(), new L2ConsensusFunction())
-
-  //override protected val validators = List(DataValidators.binaryLabelValidator)
-  override protected def createModel(weights: Vector, intercept: Double) = {
-    new SVMModel(weights, intercept)
-  }
-}
-
-
 
 /**
  * Top-level methods for calling SVM. NOTE: Labels used in SVM should be {0, 1}.

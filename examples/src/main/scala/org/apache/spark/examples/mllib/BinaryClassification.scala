@@ -21,10 +21,10 @@ import org.apache.log4j.{Level, Logger}
 import scopt.OptionParser
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.classification.{SVMWithADMM, LogisticRegressionWithSGD, SVMWithSGD}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.mllib.optimization.{ADMMParams, SquaredL2Updater, L1Updater}
+import org.apache.spark.mllib.optimization.{SquaredL2Updater, L1Updater}
 
 /**
  * An example app for binary classification. Run with
@@ -38,7 +38,7 @@ object BinaryClassification {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val SVM, LR, SVMADMM = Value
+    val SVM, LR = Value
   }
 
   object RegType extends Enumeration {
@@ -142,12 +142,6 @@ object BinaryClassification {
           .setStepSize(params.stepSize)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        algorithm.run(training).clearThreshold()
-      case SVMADMM =>
-        val admmParams = new ADMMParams()
-        admmParams.maxIterations = params.numIterations
-        admmParams.regParam = params.regParam
-        val algorithm = new SVMWithADMM(admmParams)
         algorithm.run(training).clearThreshold()
     }
 

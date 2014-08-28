@@ -1,4 +1,6 @@
-package org.apache.spark.mllib.optimization
+package edu.berkeley.emerson
+
+import edu.berkeley.emerson.InternalMessages.VectorUpdateMessage
 
 import java.util.UUID
 import java.util.concurrent._
@@ -10,7 +12,7 @@ import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.optimization.InternalMessages.VectorUpdateMessage
+import org.apache.spark.mllib.optimization.Optimizer
 import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
@@ -112,12 +114,12 @@ class AsyncADMMWorker(subProblemId: Int,
                       nSubProblems: Int,
                       nData: Int, 
                       data: Array[(Double, BV[Double])],
-                      objFun: ObjectiveFunction,
+                      lossFun: LossFunction,
                       params: ADMMParams,
-                      val consensus: ConsensusFunction,
+                      val regularizer: Regularizer,
                       val comm: WorkerCommunication)
     extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, nData = nData, 
-      data = data, objFun = objFun, params)
+      data = data, lossFun = lossFun, params)
     with Logging {
   comm.worker = this
 
@@ -238,8 +240,10 @@ class AsyncADMMWorker(subProblemId: Int,
       val primalAvg = primalSum/sumTerms.toDouble
       val dualAvg = dualSum/sumTerms.toDouble
       // Recompute the consensus variable
-      primalConsensus = consensus(primalAvg, dualAvg, nSolvers = sumTerms,
-        rho = rho, regParam = regParamScaled)
+      primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
+					      nSolvers = sumTerms,
+					      rho = rho, 
+					      regParam = regParamScaled)
     }
   }
 
@@ -370,8 +374,10 @@ class AsyncADMMWorker(subProblemId: Int,
       dualAvg /= allVars.size.toDouble
 
       // Recompute the consensus variable
-      primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
-        rho = rho, regParam = regParamScaled)
+      primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
+					      nSolvers = allVars.size,
+					      rho = rho, 
+					      regParam = regParamScaled)
 
       // Reset the primal var
       primalVar = primalConsensus.copy
@@ -395,7 +401,8 @@ object SetupBlock {
 }
 
 
-class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var consensus: ConsensusFunction)
+class AsyncADMM(val params: ADMMParams, val lossFun: LossFunction,
+		var regularizer: Regularizer)
   extends Optimizer with Serializable with Logging {
 
   var totalTimeMs: Long = -1
@@ -430,7 +437,7 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
 
       val worker = new AsyncADMMWorker(subProblemId = ind, 
         nSubProblems = nSubProblems, nData = nData.toInt , data = data,
-        objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
+        lossFun = lossFun, params = params, regularizer = regularizer, comm = hack.ref)
       worker.primalVar = primal0.copy
       worker.dualVar = primal0.copy
       SetupBlock.workers(ind) = worker
@@ -474,8 +481,10 @@ class AsyncADMM(val params: ADMMParams, val objFun: ObjectiveFunction, var conse
     }.reduce( _ + _ )
     
     val regParamScaled = params.regParam * params.admmRegFactor
-    val finalW = consensus(stats.primalAvg, stats.dualAvg, stats.nWorkers, params.rho0,
-      regParam = regParamScaled)
+    val finalW = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
+				       stats.nWorkers, 
+				       params.rho0,
+				       regParam = regParamScaled)
     println(stats.primalAvg())
     println(stats.dualAvg())
     println(finalW)

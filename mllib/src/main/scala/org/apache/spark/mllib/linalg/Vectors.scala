@@ -60,7 +60,7 @@ trait Vector extends Serializable {
   /**
    * Converts the instance to a breeze vector.
    */
-  private[mllib] def toBreeze: BV[Double]
+  def toBreeze: BV[Double]
 
   /**
    * Gets the value of the ith element.
@@ -153,7 +153,7 @@ object Vectors {
   /**
    * Creates a vector instance from a breeze vector.
    */
-  private[mllib] def fromBreeze(breezeVector: BV[Double]): Vector = {
+  def fromBreeze(breezeVector: BV[Double]): Vector = {
     breezeVector match {
       case v: BDV[Double] =>
         if (v.offset == 0 && v.stride == 1) {
@@ -184,7 +184,7 @@ class DenseVector(val values: Array[Double]) extends Vector {
 
   override def toArray: Array[Double] = values
 
-  private[mllib] override def toBreeze: BV[Double] = new BDV[Double](values)
+  override def toBreeze: BV[Double] = new BDV[Double](values)
 
   override def apply(i: Int) = values(i)
 }
@@ -217,5 +217,5 @@ class SparseVector(
     data
   }
 
-  private[mllib] override def toBreeze: BV[Double] = new BSV[Double](indices, values, size)
+  override def toBreeze: BV[Double] = new BSV[Double](indices, values, size)
 }

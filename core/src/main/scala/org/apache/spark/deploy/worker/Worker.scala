@@ -39,7 +39,7 @@ import org.apache.spark.util.{AkkaUtils, SignalLogger, Utils}
 /**
   * @param masterUrls Each url should look like spark://host:port.
   */
-private[spark] class Worker(
+class Worker(
     host: String,
     port: Int,
     webUiPort: Int,
@@ -370,7 +370,7 @@ private[spark] class Worker(
   }
 }
 
-private[spark] object Worker extends Logging {
+object Worker extends Logging {
   var HACKworkerActorSystem: ActorSystem = null
   var HACKakkaHost: String = null
 

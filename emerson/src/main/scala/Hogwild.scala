@@ -1,7 +1,9 @@
-package org.apache.spark.mllib.optimization
+package edu.berkeley.emerson
 
 import java.util.UUID
 import java.util.concurrent._
+
+import org.apache.spark.mllib.optimization.Optimizer
 
 import akka.actor._
 import akka.pattern.ask
@@ -106,11 +108,12 @@ class HOGWILDSGDWorker(subProblemId: Int,
                        nSubProblems: Int,
                        nData: Int,
                        data: Array[(Double, BV[Double])],
-                       objFun: ObjectiveFunction,
+                       lossFun: LossFunction,
                        params: ADMMParams,
-                       val consensus: ConsensusFunction,
+                       val regularizer: Regularizer,
                        val comm: HWWorkerCommunication)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, nData = nData, data = data, objFun = objFun, params)
+  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, 
+			    nData = nData, data = data, lossFun = lossFun, params)
   with Logging {
 
   comm.optimizer = this
@@ -147,7 +150,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
     broadcastThread.start()
     var t = 0
     // Assume loss is of the form  lambda/2 |reg|^2 + sum_i loss_i
-    val objScaleTerm = nData.toDouble / miniBatchSize.toDouble
+    val lossScaleTerm = nData.toDouble / miniBatchSize.toDouble
     val eta0Scaled = params.eta_0 / nData.toDouble
     // Loop until done
     while (!done) {
@@ -155,13 +158,14 @@ class HOGWILDSGDWorker(subProblemId: Int,
       var b = 0
       while (b < params.miniBatchSize) {
         val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
-        objFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
+        lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
       // Scale up the gradient
-      grad *= objScaleTerm
+      grad *= lossScaleTerm
 
       // Add in the regularization term
+      // TODO: USE REGULARIZER to add gradient term
       grad += primalVar * params.regParam
 
       // Set the learning rate
@@ -169,6 +173,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
 
       // Scale the gradient
       grad *= eta_t
+      
 
       grad_delta += grad
       primalVar -= grad
@@ -182,7 +187,9 @@ class HOGWILDSGDWorker(subProblemId: Int,
 }
 
 
-class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensus: ConsensusFunction) extends Optimizer with Serializable with Logging {
+class HOGWILDSGD(params: ADMMParams, val lossFun: LossFunction, 
+		 var regularizer: Regularizer) 
+extends Optimizer with Serializable with Logging {
   var stats: WorkerStats = null
   var totalTimeMs: Long = -1
 
@@ -214,7 +221,8 @@ class HOGWILDSGD(params: ADMMParams, val objFun: ObjectiveFunction, var consensu
 
         val worker = new HOGWILDSGDWorker(subProblemId = ind,
           nSubProblems = nSubProblems, nData = nData.toInt, data = data,
-          objFun = objFun, params = params, consensus = consensus, comm = hack.ref)
+          lossFun = lossFun, params = params, regularizer = regularizer, 
+          comm = hack.ref)
         worker.primalVar = primal0.copy
         worker.dualVar = primal0.copy
         HWSetupBlock.workers(ind) = worker
