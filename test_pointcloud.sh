@@ -1,37 +1,20 @@
 #!/bin/bash
 
-itStart=1
-itEnd=32
-itStep=2
-regParam=0.0001
+mainclass="edu.berkeley.emerson.Emerson"
+emersonjar="emerson/target/scala-2.10/spark-emerson_2.10-1.1.0-SNAPSHOT.jar"
+scoptjar="examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar"
 
+# export SPARK_PREPEND_CLASSES=true
 
-export SPARK_PREPEND_CLASSES=true
+echo "./bin/spark-submit --class $mainclass $emersonjar "
 
-# cd ~/spark;
-
-#
-#cd ~/spark;
-#
-#sbt/sbt assembly;
-#cd ~;
-#spark-ec2/copy-dir spark;
-#cd spark;
-#sbin/stop-all.sh;
-#
-#sleep 5;
-#
-#sbin/start-all.sh
-
-
-./bin/spark-submit --class org.apache.spark.examples.mllib.research.SynchronousADMMTests \
-    examples/target/scala-*/spark-examples-*.jar \
+./bin/spark-submit --class $mainclass $emersonjar \
     --algorithm SVMADMM \
     --regType L2 \
     --regParam $regParam \
     --format cloud \
-    --numPartitions 40 \
-    --pointCloudPointsPerPartition 1000000 \
+    --numPartitions 128 \
+    --pointCloudPointsPerPartition 10000 \
     --pointCloudPartitionSkew 0.0 \
     --pointCloudLabelNoise 0.2 \
     --pointCloudDimension 100 \
