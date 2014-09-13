@@ -20,7 +20,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   val rnd = new java.util.Random(subProblemId)
 
   val miniBatchSize = math.min(params.miniBatchSize, data.size)
-  val regParamScaled = params.regParam * params.admmRegFactor
+  val regParamScaled = params.regParam 
 
   @volatile var primalConsensus = BV.zeros[Double](nDim)
 
@@ -65,10 +65,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
-    var timeOut = false
-    val rhoScaled = rho
-    val lossScaleTerm = nData.toDouble / miniBatchSize.toDouble
-    val eta0Scaled = params.eta_0 / data.length.toDouble
+    val lossScaleTerm = 1.0 / miniBatchSize.toDouble
 
     var currentTime = System.currentTimeMillis()
     residual = Double.MaxValue
@@ -94,23 +91,22 @@ class SGDLocalOptimizer(val subProblemId: Int,
       grad += dualVar
 
       // Add the augmenting term
-      axpy(rhoScaled, primalVar - primalConsensus, grad)  // SCALED TERM
+      axpy(rho, primalVar - primalConsensus, grad)
 
       // Set the learning rate
-      // val eta_t = params.eta_0 / ( nDim.toDouble * (t + 1.0) * norm(grad, 2) )
-      val eta_t = eta0Scaled / math.sqrt(t + 1.0)
+      val eta_t = params.eta_0 / math.sqrt(t + 1.0)
 
-      // Do the gradient update
-      //primalVar = primalVar - (grad * eta_t)
+      // Take a negative gradient step with step size eta
       axpy(-eta_t, grad, primalVar)
-      // Compute residual.
+
+      // Compute residual
       residual = eta_t * norm(grad, 2)
+
       t += 1
       // more coarse grained timeing
       if (t % 100 == 0) {
         currentTime = System.currentTimeMillis()
       }
-      timeOut = currentTime > endByMS
     }
     println(s"$t \t $residual")
     // Save the last num
@@ -147,9 +143,10 @@ class ADMM(val params: ADMMParams, var gradient: LossFunction,
       }.cache()
       solvers.count
 
-  //   rawData.unpersist(true)
-     solvers.foreach( f => System.gc() )
+    // rawData.unpersist(true)
+    solvers.foreach( f => System.gc() )
   }
+
 
   /**
    * Solve the provided convex optimization problem.
@@ -208,7 +205,7 @@ class ADMM(val params: ADMMParams, var gradient: LossFunction,
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
-      val regParamScaled = params.regParam * params.admmRegFactor
+      val regParamScaled = params.regParam // * params.admmRegFactor
       primalConsensus = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
 					      stats.nWorkers, rho,
 					      regParam = regParamScaled)
@@ -229,10 +226,9 @@ class ADMM(val params: ADMMParams, var gradient: LossFunction,
       //     println(s"Decreasing rho: $rho")
       //   }
       // }
-      // println(stats.withoutVars())
-      // //println(stats)
-      // //println(primalConsensus)
-      // println(s"Iteration: $iteration")
+
+      println(s"Iteration: $iteration")
+      println(stats)
       // println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
       iteration += 1
     }

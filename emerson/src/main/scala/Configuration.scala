@@ -27,7 +27,7 @@ class ADMMParams extends Serializable {
   var usePorkChop = false
   var useLineSearch = false
   var localTimeout = Int.MaxValue
-  var admmRegFactor = 1.0
+  //  var admmRegFactor = 1.0
 
   def toMap(): Map[String, Any] = {
     Map(
@@ -47,8 +47,8 @@ class ADMMParams extends Serializable {
       "useLineSearch" -> useLineSearch,
       "broadcastDelayMS" -> broadcastDelayMS,
       "usePorkChop" -> usePorkChop,
-      "localTimeout" -> localTimeout,
-      "admmRegFactor" -> admmRegFactor
+      "localTimeout" -> localTimeout
+      //  "admmRegFactor" -> admmRegFactor
     )
   }
   override def toString = {

@@ -480,7 +480,7 @@ class AsyncADMM(val params: ADMMParams, val lossFun: LossFunction,
       w.getStats()
     }.reduce( _ + _ )
     
-    val regParamScaled = params.regParam * params.admmRegFactor
+    val regParamScaled = params.regParam // * params.admmRegFactor
     val finalW = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
 				       stats.nWorkers, 
 				       params.rho0,

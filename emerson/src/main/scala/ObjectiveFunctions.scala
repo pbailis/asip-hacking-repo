@@ -22,7 +22,6 @@ trait LossFunction extends Serializable {
   def apply(w: BV[Double], x: BV[Double], y: Double): Double = 
     addGradient(w, x, y, null)
 
-
   /**
    * Evaluate the loss on a collection of data points
    */
