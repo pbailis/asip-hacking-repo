@@ -62,14 +62,24 @@ class SGDLocalOptimizer(val subProblemId: Int,
     sgd(endByMS)
   }
 
-  var t = 0
+  // var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
+    // The lossScaleTerm is composed to several parts:
+    //                   Scale up sample to machine  *  Loss Scale Term
+    // lossScaleTerm = (dataOnMachine  * (1/miniBatch))  *  (1/N) 
+    //
+    // The Loss scale term comes from that fact that the total loss has
+    // the form:
+    //
+    //    Regularizer              Loss Term
+    //  lambda * reg(w)  +  1/N \sum_{i=1}^N f(x_i, w)
+    //
     val lossScaleTerm = data.size.toDouble / (nData.toDouble * miniBatchSize.toDouble)
 
     var currentTime = System.currentTimeMillis()
     residual = Double.MaxValue
-    t = 0
+    var t = 0
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       currentTime < endByMS) {
