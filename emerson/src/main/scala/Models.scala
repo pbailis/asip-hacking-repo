@@ -9,7 +9,7 @@ import org.apache.spark.mllib.linalg.{Vector, Vectors}
  * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
  * NOTE: Labels used in SVM should be {0, 1}.
  */
-class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
+class SVMWithADMM(val params: EmersonParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
   override val optimizer: ADMM = new ADMM(params, new HingeLoss(), new L2Regularizer())
 
@@ -20,7 +20,7 @@ class SVMWithADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVM
 }
 
 
-class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
+class SVMWithAsyncADMM(val params: EmersonParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
   override val optimizer = new AsyncADMM(params, new HingeLoss(), new L2Regularizer())
 
@@ -31,7 +31,7 @@ class SVMWithAsyncADMM(val params: ADMMParams) extends GeneralizedLinearAlgorith
 }
 
 
-class SVMWithHOGWILD(val params: ADMMParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
+class SVMWithHOGWILD(val params: EmersonParams) extends GeneralizedLinearAlgorithm[SVMModel] with Serializable {
 
   override val optimizer = new HOGWILDSGD(params, new HingeLoss(), new L2Regularizer())
 
@@ -46,7 +46,7 @@ class SVMWithHOGWILD(val params: ADMMParams) extends GeneralizedLinearAlgorithm[
  * Train a Support Vector Machine (SVM) using Stochastic Gradient Descent.
  * NOTE: Labels used in SVM should be {0, 1}.
  */
-class LRWithADMM(val params: ADMMParams)
+class LRWithADMM(val params: EmersonParams)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   override val optimizer: ADMM = new ADMM(params, new LogisticLoss(), 
@@ -58,7 +58,7 @@ class LRWithADMM(val params: ADMMParams)
   }
 }
 
-class LRWithAsyncADMM(val params: ADMMParams)
+class LRWithAsyncADMM(val params: EmersonParams)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   override val optimizer = new AsyncADMM(params, new LogisticLoss(), 
@@ -70,7 +70,7 @@ class LRWithAsyncADMM(val params: ADMMParams)
   }
 }
 
-class LRWithHOGWILD(val params: ADMMParams)
+class LRWithHOGWILD(val params: EmersonParams)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   override val optimizer = new HOGWILDSGD(params, new LogisticLoss(), 

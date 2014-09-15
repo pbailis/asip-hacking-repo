@@ -1,15 +1,15 @@
 package edu.berkeley.emerson
 
 import java.util.concurrent.TimeUnit
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.Logging
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.mllib.optimization.{Optimizer}
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
+import org.apache.spark.mllib.optimization.Optimizer
 import org.apache.spark.rdd.RDD
 
 
-class ADMM(val params: EmersonParams, var gradient: LossFunction,
+class DualDecomp(val params: EmersonParams, var gradient: LossFunction,
 	   var regularizer: Regularizer) 
   extends Optimizer with Serializable with Logging {
 

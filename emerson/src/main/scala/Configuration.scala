@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 
 
 
-class ADMMParams extends Serializable {
+class EmersonParams extends Serializable {
   var eta_0 = 1.0
   var tol = 1.0e-5
   var workerTol = 1.0e-5

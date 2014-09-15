@@ -43,7 +43,7 @@ object Emerson {
     }.toArray.mkString(", ") + "}"
   }
 
-  class Params extends ADMMParams {
+  class Params extends EmersonParams {
     var input: String = null
     var format: String = "libsvm"
     var numPartitions: Int = -1

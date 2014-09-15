@@ -115,10 +115,10 @@ class AsyncADMMWorker(subProblemId: Int,
                       nData: Int, 
                       data: Array[(Double, BV[Double])],
                       lossFun: LossFunction,
-                      params: ADMMParams,
+                      params: EmersonParams,
                       val regularizer: Regularizer,
                       val comm: WorkerCommunication)
-    extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, nData = nData, 
+    extends ADMMLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, nData = nData,
       data = data, lossFun = lossFun, params)
     with Logging {
   comm.worker = this
@@ -401,7 +401,7 @@ object SetupBlock {
 }
 
 
-class AsyncADMM(val params: ADMMParams, val lossFun: LossFunction,
+class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
 		var regularizer: Regularizer)
   extends Optimizer with Serializable with Logging {
 

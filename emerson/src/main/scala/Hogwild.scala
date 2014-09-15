@@ -109,10 +109,10 @@ class HOGWILDSGDWorker(subProblemId: Int,
                        nData: Int,
                        data: Array[(Double, BV[Double])],
                        lossFun: LossFunction,
-                       params: ADMMParams,
+                       params: EmersonParams,
                        val regularizer: Regularizer,
                        val comm: HWWorkerCommunication)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, 
+  extends ADMMLocalOptimizer(subProblemId = subProblemId, nSubProblems,
 			    nData = nData, data = data, lossFun = lossFun, params)
   with Logging {
 
@@ -187,7 +187,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
 }
 
 
-class HOGWILDSGD(params: ADMMParams, val lossFun: LossFunction, 
+class HOGWILDSGD(params: EmersonParams, val lossFun: LossFunction,
 		 var regularizer: Regularizer) 
 extends Optimizer with Serializable with Logging {
   var stats: WorkerStats = null
