@@ -65,7 +65,7 @@ class SGDLocalOptimizer(val subProblemId: Int,
   var t = 0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
-    val lossScaleTerm = 1.0 / miniBatchSize.toDouble
+    val lossScaleTerm = data.size.toDouble / (nData.toDouble * miniBatchSize.toDouble)
 
     var currentTime = System.currentTimeMillis()
     residual = Double.MaxValue
@@ -190,11 +190,13 @@ class ADMM(val params: ADMMParams, var gradient: LossFunction,
         solver.primalVar = primalConsensus.copy
         solver.rho = rho
 
-        if(params.adaptiveRho) {
-          solver.dualUpdate(rho)
-        } else {
-          solver.dualUpdate(solver.params.lagrangianRho)
-        }
+        // if(params.adaptiveRho) {
+        //   solver.dualUpdate(rho)
+        // } else {
+        //   solver.dualUpdate(solver.params.lagrangianRho)
+        // }
+
+        solver.dualUpdate(solver.params.lagrangianRho)
 
         // Do a primal update
         solver.primalUpdate(Math.min(timeRemaining, params.localTimeout))

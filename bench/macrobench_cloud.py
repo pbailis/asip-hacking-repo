@@ -23,11 +23,9 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 ## START OF CONSTANTS
 
-GLOBAL_ADMMepsilon = 0.0
-GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 10000
-
-GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
+GLOBAL_ADMMepsilon = 1.0
+GLOBAL_ADMMlocalEpsilon = 1.0
+GLOBAL_ADMMrho = 1.0
 
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
@@ -91,6 +89,7 @@ def runTest(runtimeMS,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             regType="L2",
+            objective="SVM",
             regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
             broadcastDelay = 100,
@@ -119,9 +118,11 @@ def runTest(runtimeMS,
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
           "./bin/spark-submit " \
           "--driver-memory 52g " \
-          "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
-          "examples/target/scala-*/spark-examples-*.jar " \
+          "--class edu.berkeley.emerson.Emerson " \
+          "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
+          "emerson/target/scala-2.10/spark-emerson_* " \
           "--algorithm " + str(algorithm) + " " + \
+          "--objective " + str(objective) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
