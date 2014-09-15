@@ -112,13 +112,16 @@ class SGDLocalOptimizer(val subProblemId: Int,
       // Compute residual
       residual = eta_t * norm(grad, 2)
 
+      // Increment iteration counter
       t += 1
+
       // more coarse grained timeing
       if (t % 100 == 0) {
         currentTime = System.currentTimeMillis()
       }
     }
     println(s"$t \t $residual")
+   
     // Save the last num
     sgdIters = t
   }
