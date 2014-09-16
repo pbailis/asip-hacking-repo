@@ -15,7 +15,7 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
 
   var iteration = 0
   var solvers: RDD[ADMMLocalOptimizer] = null
-  var stats: WorkerStats = null
+  var stats: Stats = null
   var totalTimeMs: Long = -1
 
   def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {

@@ -44,7 +44,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   @volatile var dataInd = 0
 
   def getStats() = {
-    WorkerStats(primalVar, dualVar, msgsSent = 0,
+    Stats(primalVar, dualVar, msgsSent = 0,
       sgdIters = sgdIters,
       dualUpdates = dualIters,
       dataSize = data.length,

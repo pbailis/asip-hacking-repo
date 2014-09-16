@@ -3,6 +3,21 @@ package edu.berkeley.emerson
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
+import org.apache.spark.rdd.RDD
+
+
+trait EmersonOptimizer {
+  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector
+}
+
+
+abstract class EmersonModel(val loss: LossFunction, val regularizer: Regularizer) {
+  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector
+
+  def loss(data: RDD[(Double, Vector)], w: Vector): Double = {
+    0.0
+  }
+}
 
 
 /**

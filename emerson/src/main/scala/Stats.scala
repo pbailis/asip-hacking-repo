@@ -8,24 +8,9 @@ import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
 
-object Interval {
-  def apply(x: Int) = new Interval(x)
-  def apply(x: Double) = new Interval(x)
-}
 
 
-class Interval(val x: Double, val xMin: Double, val xMax: Double) extends Serializable {
-  def this(x: Double) = this(x, x, x)
-  def +(other: Interval) = {
-    new Interval(x+other.x, math.min(xMin, other.xMin), math.max(xMax, other.xMax))
-  }
-  def /(d: Double) = new Interval(x / d, xMin, xMax)
-
-  override def toString = s"[$xMin, $x, $xMax]"
-}
-
-
-object WorkerStats {
+object Stats {
   def apply(primalVar: BV[Double], dualVar: BV[Double],
     msgsSent: Int = 0,
     msgsRcvd: Int = 0,
@@ -34,7 +19,7 @@ object WorkerStats {
     dualUpdates: Int = 0,
     residual: Double = 0.0,
     dataSize: Int = 0) = {
-    new WorkerStats(
+    new Stats(
       weightedPrimalVar = primalVar,
       weightedDualVar = dualVar,
       msgsSent = Interval(msgsSent),
@@ -49,7 +34,7 @@ object WorkerStats {
 }
 
 
-case class WorkerStats(
+case class Stats(
   weightedPrimalVar: BV[Double],
   weightedDualVar: BV[Double],
   msgsSent: Interval,
@@ -62,7 +47,7 @@ case class WorkerStats(
   nWorkers: Int) extends Serializable {
 
   def withoutVars() = {
-    WorkerStats(null, null,
+    Stats(null, null,
       msgsSent = msgsSent,
       msgsRcvd = msgsRcvd,
       localIters = localIters,
@@ -73,8 +58,8 @@ case class WorkerStats(
       nWorkers = nWorkers)
   }
 
-  def +(other: WorkerStats) = {
-    new WorkerStats(
+  def +(other: Stats) = {
+    new Stats(
       weightedPrimalVar = weightedPrimalVar + other.weightedPrimalVar,
       weightedDualVar = weightedDualVar + other.weightedDualVar,
       msgsSent = msgsSent + other.msgsSent,

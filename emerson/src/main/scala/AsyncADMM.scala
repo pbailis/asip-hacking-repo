@@ -130,7 +130,7 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var ranOnce = false
 
   override def getStats() = {
-    WorkerStats(primalVar = primalVar, dualVar = dualVar,
+    Stats(primalVar = primalVar, dualVar = dualVar,
       msgsSent = msgsSent, msgsRcvd = msgsRcvd,
       localIters = localIters, sgdIters = sgdIters,
       dualUpdates = dualIters,
@@ -407,7 +407,7 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
 
   var totalTimeMs: Long = -1
 
-  var stats: WorkerStats = null
+  var stats: Stats = null
 
   @transient var workers : RDD[AsyncADMMWorker] = null
 

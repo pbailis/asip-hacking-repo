@@ -110,6 +110,21 @@ class LogisticLoss extends LossFunction {
 
 trait Regularizer extends Serializable {
 
+  /**
+   * Evaluate the cost of the regularizer at a point
+   */
+  def apply(w: BV[Double], regParam: Double): Double =
+    addGradient(w, regParam, null)
+
+  /**
+   * Add the gradient of the regularizer
+   * @param w
+   * @param regParam
+   * @param cumGrad
+   * @return
+   */
+  def addGradient(w: BV[Double], regParam: Double, cumGrad: BV[Double]): Double
+
   def consensus(primalAvg: BV[Double], dualAvg: BV[Double], 
 		nSolvers: Int, rho: Double, 
 		regParam: Double): BV[Double]
@@ -131,6 +146,11 @@ z & = \frac{ N}{\lambda + \rho N} (\bar{u} + \rho \bar{x})
 z & = \frac{ \rho N}{\lambda + \rho N} (\frac{1}{\rho}\bar{u} + \bar{x})
 */
 class L2Regularizer extends Regularizer {
+
+  override def addGradient(w: BV[Double], regParam: Double, cumGrad: BV[Double]): Double = {
+    if (cumGrad != null) { axpy(regParam, w, cumGrad) }
+    math.pow(norm(w,2),2) * (regParam / 2.0)
+  }
 
   override def consensus(primalAvg: BV[Double], dualAvg: BV[Double], 
 			 nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
@@ -173,10 +193,21 @@ class L1Regularizer extends Regularizer {
       } else if (x(i) > alpha) {
         out(i) = x(i) - alpha
       } else {
-	out(i) = 0.0
+      	out(i) = 0.0
       }
       i += 1
     }
+  }
+
+  override def addGradient(w: BV[Double], regParam: Double, cumGrad: BV[Double]): Double = {
+    if(cumGrad != null) {
+      var i = 0
+      while (i < w.size) {
+        cumGrad(i) += math.signum(w(i)) * regParam
+        i += 1
+      }
+    }
+    regParam * norm(w, 1)
   }
 
 
@@ -190,7 +221,6 @@ class L1Regularizer extends Regularizer {
     }
   }
 
-  
   override def gradientStep(w: BV[Double], regParam: Double, stepSize: Double, 
 			    cumGrad: BV[Double]) {
     // Subtract the gradeint and threshold
