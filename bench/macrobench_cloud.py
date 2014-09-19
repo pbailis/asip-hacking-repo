@@ -27,6 +27,8 @@ GLOBAL_ADMMepsilon = 1.0
 GLOBAL_ADMMlocalEpsilon = 1.0
 GLOBAL_ADMMrho = 1.0
 
+GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
+
 GLOBAL_ADMM_maxLocalIterations = 100000
 GLOBAL_ADMM_localEpsilon = 1.0e-5
 GLOBAL_ADMM_localTimeout = 100000000
