@@ -171,6 +171,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
   var lastSend: Long = 0
 
+  // PORKCHOP
   val solverLoopThread = new Thread {
     override def run {
       while (!done) {
@@ -204,6 +205,9 @@ class AsyncADMMWorker(subProblemId: Int,
           currentTime = lastSend
         }
 
+        receiveMsg(comm.selfID, primalVar, dualVar)
+        primalConsensus = receivedPrimalConsensus
+
         localIters += 1
 
         // Assess Termination
@@ -221,6 +225,7 @@ class AsyncADMMWorker(subProblemId: Int,
   val lastMsg = new Array[(BV[Double], BV[Double])](256)
   @volatile var primalSum = BV.zeros[Double](primalVar.size)
   @volatile var dualSum = BV.zeros[Double](dualVar.size)
+  @volatile var receivedPrimalConsensus = BV.zeros[Double](primalConsensus.size)
   @volatile var sumTerms = 0
 
   def receiveMsg(srcId: Int, newPrimal: BV[Double], newDual: BV[Double]) {
@@ -240,61 +245,12 @@ class AsyncADMMWorker(subProblemId: Int,
       val primalAvg = primalSum/sumTerms.toDouble
       val dualAvg = dualSum/sumTerms.toDouble
       // Recompute the consensus variable
-      primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
+      receivedPrimalConsensus = regularizer.consensus(primalAvg, dualAvg,
 					      nSolvers = sumTerms,
 					      rho = rho, 
 					      regParam = regParamScaled)
     }
   }
-
-
-  // val consumerThread = new Thread {
-  //   override def run {
-  //     // Intialize global view of primalVars
-  //     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
-  //     var primalAvg = BV.zeros[Double](primalVar.size)
-  //     var dualAvg = BV.zeros[Double](dualVar.size)
-  //     assert(!done)
-  //     while (!done) {
-  //       // TODO: TRY FOLLOWING
-  //       Thread.sleep(params.broadcastDelayMS)
-  //       var tiq = comm.inputQueue.take()
-  //       while (tiq != null) {
-  //         if (tiq.sender == -2) {
-  //           done = true
-  //         } else {
-  //           msgsRcvd += 1
-  //           allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
-  //         }
-  //         tiq = comm.inputQueue.poll()
-  //       }
-  //       if(done && msgsRcvd == 0) {
-  //         println(s"${comm.selfID}: Done without messages: ${System.currentTimeMillis()}")
-  //       }
-  //       // Collect latest variables from everyone
-  //       allVars.put(comm.selfID, (primalVar, dualVar))
-  //       // Compute primal and dual averages
-  //       primalAvg *= 0.0
-  //       dualAvg *= 0.0
-  //       val msgIterator = allVars.values.iterator
-  //       while (msgIterator.hasNext) {
-  //         val (primal, dual) = msgIterator.next()
-  //         primalAvg += primal
-  //         dualAvg += dual
-  //       }
-  //       primalAvg /= allVars.size.toDouble
-  //       dualAvg /= allVars.size.toDouble
-
-  //       // Recompute the consensus variable
-  //       primalConsensus = consensus(primalAvg, dualAvg, nSolvers = allVars.size,
-  //           rho = rho, regParam = regParamScaled)
-        
-  //       // Do a Dual update if the primal seems to be converging
-  //       // dualUpdate(params.lagrangianRho)
-        
-  //     }
-  //   }
-  // }
 
   def mainLoop() = {
     assert(!done)
