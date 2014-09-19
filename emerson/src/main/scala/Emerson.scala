@@ -262,6 +262,8 @@ object Emerson {
       throw new RuntimeException(s"Unrecognized input format ${params.format}")
     }
 
+    examples.repartition(params.numPartitions)
+
 //    val splits = examples.randomSplit(Array(0.8, 0.2))
 //    val training = splits(0).cache()
 //    val test = splits(1).cache()
