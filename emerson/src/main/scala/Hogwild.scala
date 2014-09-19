@@ -2,23 +2,20 @@ package edu.berkeley.emerson
 
 import java.util.UUID
 import java.util.concurrent._
-
-import org.apache.spark.mllib.optimization.Optimizer
+import java.util.concurrent.atomic._
 
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, axpy}
+import breeze.linalg.{norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import java.util.concurrent.atomic._
 
 //
 //case class AsyncSubProblem(data: Array[(Double, Vector)], comm: WorkerCommunication)
@@ -191,18 +188,22 @@ class HOGWILDSGDWorker(subProblemId: Int,
 }
 
 
-class HOGWILDSGD(params: EmersonParams, val lossFun: LossFunction,
-		 var regularizer: Regularizer) 
-extends Optimizer with Serializable with Logging {
+class HOGWILDSGD extends BasicEmersonOptimizer with Serializable with Logging {
   var stats: Stats = null
   var totalTimeMs: Long = -1
 
   @transient var workers : RDD[HOGWILDSGDWorker] = null
 
-  def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
-    val nSubProblems = input.partitions.length
-    val nData = input.count
-    workers = input.mapPartitionsWithIndex { (ind, iter) =>
+
+  override def initialize(params: EmersonParams,
+                          lossFunction: LossFunction, regularizationFunction: Regularizer,
+                          initialWeights: BV[Double],
+                          rawData: RDD[Array[(Double, BV[Double])]]): Unit = {
+    // Preprocess the data
+    super.initialize(params, lossFunction, regularizationFunction, initialWeights, rawData)
+
+    val primal0 = initialWeights.copy
+    workers = data.mapPartitionsWithIndex { (ind, iter) =>
       if(HWSetupBlock.initialized) {
         if (HWSetupBlock.workers(ind) != null ) {
           Iterator(HWSetupBlock.workers(ind))
@@ -211,8 +212,7 @@ extends Optimizer with Serializable with Logging {
         }
       } else {
 
-       val data: Array[(Double, BV[Double])] =
-        iter.map { case (label, features) => (label, features.toBreeze) }.toArray
+      val data: Array[(Double, BV[Double])] = iter.next()
       val workerName = UUID.randomUUID().toString
       val address = Worker.HACKakkaHost + workerName
       val hack = new HWWorkerCommunicationHack()
@@ -225,7 +225,7 @@ extends Optimizer with Serializable with Logging {
 
         val worker = new HOGWILDSGDWorker(subProblemId = ind,
           nSubProblems = nSubProblems, nData = nData.toInt, data = data,
-          lossFun = lossFun, params = params, regularizer = regularizer, 
+          lossFun = lossFunction, params = params, regularizer = regularizationFunction,
           comm = hack.ref)
         worker.primalVar = primal0.copy
         worker.dualVar = primal0.copy
@@ -254,10 +254,26 @@ extends Optimizer with Serializable with Logging {
 
   }
 
-  def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
-    // Initialize the cluster
-    setup(input, primal0.toBreeze)
 
+  def statsMap(): Map[String, String] = {
+    Map(
+      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterInterval" -> stats.avgLocalIters().toString,
+      "avgSGDIters" -> stats.avgSGDIters().toString,
+      "avgMsgsSent" -> stats.avgMsgsSent().toString,
+      "avgMsgsRcvd" -> stats.avgMsgsRcvd().toString,
+      "primalAvgNorm" -> norm(stats.primalAvg(), 2).toString,
+      "dualAvgNorm" -> norm(stats.dualAvg(), 2).toString,
+      "consensusNorm" -> norm(finalW, 2).toString,
+      "dualUpdates" -> stats.avgDualUpdates.toString,
+      "runtime" -> totalTimeMs.toString,
+      "stats" -> stats.toString
+    )
+  }
+
+  var finalW: BV[Double] = null
+
+  def optimize(): BV[Double] = {
     val startTimeNs = System.nanoTime()
 
     // Run all the workers
@@ -271,8 +287,8 @@ extends Optimizer with Serializable with Logging {
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-
-    Vectors.fromBreeze(stats.primalAvg)
+    finalW = stats.primalAvg()
+    finalW
   }
 }
 

@@ -1,37 +1,28 @@
 package edu.berkeley.emerson
 
+import breeze.linalg.{max, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import edu.berkeley.emerson.Emerson.Params
-
-import breeze.linalg.{max, norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
-import org.apache.log4j.{Level, Logger}
-import org.apache.spark.mllib.classification._
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
-import org.apache.spark.mllib.optimization._
-import org.apache.spark.mllib.regression.{GeneralizedLinearModel, LabeledPoint}
-import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.SparkContext
+import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
-import scopt.OptionParser
 
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
 
 
-
 object DataLoaders {
-  def loadBismark(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+  def loadBismark(sc: SparkContext, filename: String, params: Params): RDD[Array[(Double, BV[Double])]] = {
     val data = sc.textFile(filename, params.numPartitions)
       .filter(s => !s.isEmpty && s(0) == '{')
       .map(s => s.split('\t'))
       .map {
       case Array(x, y) =>
         val features = x.stripPrefix("{").stripSuffix("}").split(',').map(xi => xi.toDouble)
-        val label = if (y.toDouble > 0) 1 else 0
-        LabeledPoint(label, new DenseVector(features))
-    }.cache()
-
+        val label = if (y.toDouble > 0) 1.0 else 0.0
+        val xFeatures: BV[Double] = new BDV[Double](features)
+        (label, xFeatures)
+    }.repartition(params.numPartitions).mapPartitions(iter => Iterator(iter.toArray)).cache()
     data
   }
 
@@ -45,7 +36,7 @@ object DataLoaders {
     array
   }
 
-  def loadDBLP(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+  def loadDBLP(sc: SparkContext, filename: String, params: Params): RDD[Array[(Double, BV[Double])]] = {
     println("loading data!")
     val rawData = sc.textFile(filename, params.numPartitions)
 
@@ -65,11 +56,13 @@ object DataLoaders {
         features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
         i += 1
       }
-      LabeledPoint(label, new DenseVector(features))
-    }).repartition(params.numPartitions)
+      val x: BV[Double] = new BDV[Double](features)
+      (label, x)
+    }).repartition(params.numPartitions).mapPartitions(iter => Iterator(iter.toArray)).cache()
   }
 
-  def loadWikipedia(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+  def loadWikipedia(sc: SparkContext, filename: String, params: Params):
+      RDD[Array[(Double, BV[Double])]] = {
     println("loading data!")
     val rawData = sc.textFile(filename, params.numPartitions)
 
@@ -94,11 +87,14 @@ object DataLoaders {
         }
         i += 1
       }
-      LabeledPoint(if(labelFound) 1.0 else 0.0, new DenseVector(features))
-    }).repartition(params.numPartitions)
+      val label = if(labelFound) 1.0 else 0.0
+      val x: BV[Double] = new BDV[Double](features)
+      (label, x)
+    }).repartition(params.numPartitions).mapPartitions(iter => Iterator(iter.toArray)).cache()
   }
 
-  def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
+  def loadFlights(sc: SparkContext, filename: String, params: Params):
+      RDD[Array[(Double, BV[Double])]] = {
     val labels = Array("Year", "Month", "DayOfMonth", "DayOfWeek", "DepTime", "CRSDepTime", "ArrTime",
       "CRSArrTime", "UniqueCarrier", "FlightNum", "TailNum", "ActualElapsedTime", "CRSElapsedTime",
       "AirTime", "ArrDelay", "DepDelay", "Origin", "Dest", "Distance", "TaxiIn", "TaxiOut",
@@ -155,15 +151,14 @@ object DataLoaders {
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
         assert(idx_offset == 11)
+        val x: BV[Double] = new BSV[Double](idx_arr, value_arr, bitvector_offset)
+        (label, x)
+    }.repartition(params.numPartitions).mapPartitions(iter => Iterator(iter.toArray)).cache()
 
-        LabeledPoint(label, new SparseVector(bitvector_offset, idx_arr, value_arr))
-    }
 
-    val ret = data.repartition(params.numPartitions)
-    ret.cache().count()
+    data.count()
     rawData.unpersist(true)
-
-    ret
+    data
   }
 
   /*
@@ -182,8 +177,8 @@ object DataLoaders {
                         cloudSize: Double,
                         partitionSkew: Double,
                         numPartitions: Int,
-                        pointsPerPartition: Int): RDD[LabeledPoint] = {
-    sc.parallelize(1 to numPartitions, numPartitions).flatMap { idx =>
+                        pointsPerPartition: Int): RDD[Array[(Double, BV[Double])]] = {
+    sc.parallelize(1 to numPartitions, numPartitions).map { idx =>
       val plusCloud = new DenseVector(Array.fill[Double](dim)(10.0))
       plusCloud.values(dim - 1) = 1
       val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
@@ -200,16 +195,16 @@ object DataLoaders {
         val pointCenter = if (isPointPlus) plusCloud else negCloud
 
         // calculate the actual point in the cloud
-        val chosenPoint = new DenseVector(new Array[Double](dim))
+        val chosenPoint: BV[Double] = BDV.zeros[Double](dim)
         for (d <- 0 until dim - 1) {
-          chosenPoint.values(d) = pointCenter.values(d) + random.nextGaussian() * cloudSize
+          chosenPoint(d) = pointCenter.values(d) + random.nextGaussian() * cloudSize
         }
-        chosenPoint.values(dim - 1) = 1.0
+        chosenPoint(dim - 1) = 1.0
 
-        val chosenLabel = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
+        val chosenLabel: Double = if (random.nextDouble() < labelNoise) (trueLabel+1) % 2 else trueLabel
 
-        new LabeledPoint(chosenLabel, chosenPoint)
-      }
+        (chosenLabel, chosenPoint)
+      }.toArray
     }
   }
 }

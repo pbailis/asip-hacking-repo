@@ -1,63 +1,86 @@
 package edu.berkeley.emerson
 
 import java.util.concurrent.TimeUnit
+
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 import org.apache.spark.Logging
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.mllib.optimization.{Optimizer}
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
 
 
-class ADMM(val params: EmersonParams, var gradient: LossFunction,
-	   var regularizer: Regularizer) 
-  extends Optimizer with Serializable with Logging {
+class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
   var iteration = 0
   var solvers: RDD[ADMMLocalOptimizer] = null
   var stats: Stats = null
   var totalTimeMs: Long = -1
 
-  def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
-    val primal0 = initialWeights.toBreeze
-    val nSubProblems = rawData.partitions.length
-    val nData = rawData.count
-    solvers =
-      rawData.mapPartitionsWithIndex { (ind, iter) =>
-        val data: Array[(Double, BV[Double])] = iter.map {
-          case (label, features) => (label, features.toBreeze)
-        }.toArray
-        val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
-          nData = nData.toInt, data, gradient, params)
-        // Initialize the primal variable and primal regularizer
-        solver.primalVar = primal0.copy
-        solver.primalConsensus = primal0.copy
-        Iterator(solver)
-      }.cache()
-      solvers.count
+//  def initialize(params: EmersonParams,
+//                 lossFunction: LossFunction, regularizationFunction: Regularizer,
+//                 initialWeights: BV[Double], rawData: RDD[(Double, BV[Double])]) {
+//    println(params)
+//
+//    this.params = params
+//    this.lossFunction = lossFunction
+//    this.regularizationFunction = regularizationFunction
+//    this.initialWeights = initialWeights
+//
+//    val primal0 = initialWeights
+//    val nSubProblems = rawData.partitions.length
+//    val nData = rawData.count
+//    solvers =
+//      rawData.mapPartitionsWithIndex { (ind, iter) =>
+//        val data: Array[(Double, BV[Double])] = iter.toArray
+//        val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
+//          nData = nData.toInt, data, lossFunction, params)
+//        // Initialize the primal variable and primal regularizer
+//        solver.primalVar = primal0.copy
+//        solver.primalConsensus = primal0.copy
+//        Iterator(solver)
+//      }.cache()
+//      solvers.count
+//
+//    // rawData.unpersist(true)
+//    solvers.foreach( f => System.gc() )
+//  }
 
-    // rawData.unpersist(true)
-    solvers.foreach( f => System.gc() )
+  def statsMap(): Map[String, String] = {
+    Map(
+      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterInterval" -> stats.avgLocalIters().toString,
+      "avgSGDIters" -> stats.avgSGDIters().toString,
+      "avgMsgsSent" -> stats.avgMsgsSent().toString,
+      "avgMsgsRcvd" -> stats.avgMsgsRcvd().toString,
+      "primalAvgNorm" -> norm(stats.primalAvg(), 2).toString,
+      "dualAvgNorm" -> norm(stats.dualAvg(), 2).toString,
+      "consensusNorm" -> norm(primalConsensus, 2).toString,
+      "dualUpdates" -> stats.avgDualUpdates.toString,
+      "runtime" -> totalTimeMs.toString,
+      "stats" -> stats.toString
+    )
   }
 
+  var primalConsensus = initialWeights.copy
 
   /**
    * Solve the provided convex optimization problem.
    */
-  override def optimize(rawData: RDD[(Double, Vector)],
-    initialWeights: Vector): Vector = {
+  override def optimize(): BV[Double] = {
 
-    setup(rawData, initialWeights)
-
-    println(params)
-
-    val nSolvers = solvers.partitions.length
-    val nDim = initialWeights.size
+    // Initialize the solvers
+    val primal0 = initialWeights
+    solvers = data.mapPartitionsWithIndex { (ind, iter) =>
+      val data: Array[(Double, BV[Double])] = iter.next()
+      val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
+        nData = nData.toInt, data, lossFunction, params)
+      // Initialize the primal variable and primal regularizer
+      solver.primalVar = primal0.copy
+      solver.primalConsensus = primal0.copy
+      Iterator(solver)
+    }.cache()
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
 
-    var primalConsensus = initialWeights.toBreeze.copy
 
     val starttime = System.currentTimeMillis()
     val startTimeNs = System.nanoTime()
@@ -101,7 +124,7 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
       val regParamScaled = params.regParam // * params.admmRegFactor
-      primalConsensus = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
+      primalConsensus = regularizationFunction.consensus(stats.primalAvg, stats.dualAvg, 
 					      stats.nWorkers, rho,
 					      regParam = regParamScaled)
 
@@ -133,8 +156,7 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
 
-    Vectors.fromBreeze(primalConsensus)
-
+    primalConsensus
   }
 
 }
