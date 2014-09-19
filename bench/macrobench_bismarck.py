@@ -87,6 +87,7 @@ def runTest(runtimeMS,
             ADMMmaxLocalIterations = 1000,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
+            objective="SVM",
             regType="L2",
             regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
@@ -118,9 +119,11 @@ def runTest(runtimeMS,
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
           "./bin/spark-submit " \
           "--driver-memory 52g " \
-          "--class org.apache.spark.examples.mllib.research.SynchronousADMMTests " \
-          "examples/target/scala-*/spark-examples-*.jar " \
+          "--class edu.berkeley.emerson.Emerson " \
+          "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
+          "emerson/target/scala-2.10/spark-emerson_* " \
           "--algorithm " + str(calgorithm) + " " + \
+          "--objective " + str(objective) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
@@ -168,6 +171,7 @@ def runTest(runtimeMS,
             record = json.loads(line[7:])
             pyConfig = {
                 "algorithm": algorithm,
+                "objective": objective,
                 "dataset": datasetName,
                 "datasetConfigStr": datasetConfigStr,
                 "line": line,
@@ -242,8 +246,8 @@ for dataset in ["bismarck"]:
                             ADMMmaxLocalIterations = maxLocalIterations,
                             ADMMlocalEpsilon = localEpsilon,
                             broadcastDelay = broadcastDelay,
-                               miscStr = miscStr,
-                               localTimeout = localTimeout)
+                            miscStr = miscStr,
+                            localTimeout = localTimeout)
 
             output = open(PICKLED_OUTPUT, 'wb')
             pickle.dump(results, output)
