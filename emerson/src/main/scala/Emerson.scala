@@ -68,7 +68,7 @@ object Emerson {
         "format" -> ("\"" + format + "\""),
         "numPartitions" -> numPartitions,
         "algorithm" -> ("\"" + algorithm + "\""),
-        "objective" -> objective,
+        "objective" -> ("\"" + objective + "\""),
         "algParams" -> super.toString(),
         "regType" -> ("\"" + regType + "\""),
         "pointCloudDim" -> pointCloudDimension,
@@ -187,7 +187,8 @@ object Emerson {
       opt[Boolean]("adpativeRho")
         .action{ (x, c) => c.adaptiveRho = x; c }
       opt[Boolean]("usePorkChop")
-        .action{ (x, c) => c.usePorkChop = x; c }
+        .action{ (x, c) => c.usePorkCh
+        op = x; c }
       opt[Boolean]("useLineSearch")
         .action{ (x, c) => c.useLineSearch = x; c }
       opt[Boolean]("localStats")
