@@ -250,6 +250,8 @@ extends Optimizer with Serializable with Logging {
 
     // Ping Pong?  Just because?
     workers.foreach { w => w.comm.sendPingPongs() }
+
+
   }
 
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
