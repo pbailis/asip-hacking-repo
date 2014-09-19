@@ -141,7 +141,7 @@ object SparkBuild extends PomBuild {
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
     libraryDependencies := Seq("spark-streaming-mqtt", "spark-streaming-zeromq",
       "spark-streaming-flume", "spark-streaming-kafka", "spark-streaming-twitter",
-      "spark-streaming", "spark-mllib", "spark-bagel", "spark-graphx", "spark-emerson",
+      "spark-streaming", "spark-mllib", "spark-bagel", "spark-graphx",
       "spark-core").map(versionArtifact(_).get intransitive())
   )
 

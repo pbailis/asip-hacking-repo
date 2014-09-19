@@ -1,20 +1,35 @@
 package edu.berkeley.emerson
 
 import java.util.concurrent.TimeUnit
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.Logging
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.mllib.optimization.{Optimizer}
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
+import org.apache.spark.mllib.optimization.Optimizer
 import org.apache.spark.rdd.RDD
 
+object DualDecomp {
+  // Super ugly hack to copy the primal var to each of the workers without reallocating.
+  def copyPrimalVars(src: Array[BV[Double]], dst: Array[BV[Double]]): Unit = {
+    var i = 0
+    while (i < src.length) {
+      var j = 0
+      while (j < dst.length) {
+        dst(i)(j) = src(i)(j)
+        j += 1
+      }
+      i += 1
+    }
+  }
+}
 
-class ADMM(val params: EmersonParams, var gradient: LossFunction,
-	   var regularizer: Regularizer) 
+class DualDecomp(val params: EmersonParams,
+                 var lossFunction: LossFunction,
+	               var regularizer: Regularizer)
   extends Optimizer with Serializable with Logging {
 
   var iteration = 0
-  var solvers: RDD[ADMMLocalOptimizer] = null
+  var solvers: RDD[DualDecompLocalOptimizer] = null
   var stats: Stats = null
   var totalTimeMs: Long = -1
 
@@ -27,11 +42,11 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
         val data: Array[(Double, BV[Double])] = iter.map {
           case (label, features) => (label, features.toBreeze)
         }.toArray
-        val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
-          nData = nData.toInt, data, gradient, params)
+        val solver = new DualDecompLocalOptimizer(ind, nSubProblems = nSubProblems,
+          nData = nData.toInt, data = data,
+          lossFunction = lossFunction, regularizer = regularizer,
+          params = params, primal0 = primal0.copy)
         // Initialize the primal variable and primal regularizer
-        solver.primalVar = primal0.copy
-        solver.primalConsensus = primal0.copy
         Iterator(solver)
       }.cache()
       solvers.count
@@ -57,7 +72,7 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
 
-    var primalConsensus = initialWeights.toBreeze.copy
+    var primalVars = Array.fill(nSolvers)(initialWeights.toBreeze.copy)
 
     val starttime = System.currentTimeMillis()
     val startTimeNs = System.nanoTime()
@@ -73,54 +88,26 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
 
       val timeRemaining = params.runtimeMS - (System.currentTimeMillis() - starttime)
       // Run the local solvers
-      stats = solvers.map { solver =>
+      val (primalVarMap, localStats) = solvers.map { solver =>
         // Make sure that the local solver did not reset!
         assert(solver.localIters == iteration)
         solver.localIters += 1
 
+        // "Broadcast the primal vars to all the machines"
+        DualDecomp.copyPrimalVars(primalVars, solver.primalVars)
+
         // Do a dual update
-        solver.primalConsensus = primalConsensus.copy
-        solver.primalVar = primalConsensus.copy
-        solver.rho = rho
-
-        // if(params.adaptiveRho) {
-        //   solver.dualUpdate(rho)
-        // } else {
-        //   solver.dualUpdate(solver.params.lagrangianRho)
-        // }
-
         solver.dualUpdate(solver.params.lagrangianRho)
 
         // Do a primal update
         solver.primalUpdate(Math.min(timeRemaining, params.localTimeout))
 
         // Construct stats
-        solver.getStats()
-      }.reduce( _ + _ )
-
-      // Recompute the consensus variable
-      val primalConsensusOld = primalConsensus.copy
-      val regParamScaled = params.regParam // * params.admmRegFactor
-      primalConsensus = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
-					      stats.nWorkers, rho,
-					      regParam = regParamScaled)
-
-      // // Compute the residuals
-      // primalResidual = solvers.map(
-      //   s => norm(s.primalVar - primalConsensus, 2) * s.data.length.toDouble)
-      //   .reduce(_+_) / nSolvers.toDouble
-      // dualResidual = norm(primalConsensus - primalConsensusOld, 2)
-      // if (params.adaptiveRho) {
-      //   if (rho == 0.0) {
-      //     rho = 1.0
-      //   } else if (primalResidual > 10.0 * dualResidual && rho < 8.0) {
-      //     rho = 2.0 * rho
-      //     println(s"Increasing rho: $rho")
-      //   } else if (dualResidual > 10.0 * primalResidual && rho > 0.1) {
-      //     rho = rho / 2.0
-      //     println(s"Decreasing rho: $rho")
-      //   }
-      // }
+        (List((solver.subProblemId -> solver.localPrimalVar)), solver.getStats())
+      }.reduce( (a, b) => (a._1 ++ b._1 , a._2 + b._2)  )
+      stats = localStats
+      // update the primal vars
+      primalVarMap.foreach { case (i, primalVar) => primalVars(i) = primalVar }
 
       println(s"Iteration: $iteration")
       println(stats)
@@ -133,7 +120,7 @@ class ADMM(val params: EmersonParams, var gradient: LossFunction,
 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
 
-    Vectors.fromBreeze(primalConsensus)
+    Vectors.fromBreeze(stats.primalAvg())
 
   }
 

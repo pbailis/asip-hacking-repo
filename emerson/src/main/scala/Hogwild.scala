@@ -8,7 +8,7 @@ import org.apache.spark.mllib.optimization.Optimizer
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, axpy}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
@@ -109,10 +109,10 @@ class HOGWILDSGDWorker(subProblemId: Int,
                        nData: Int,
                        data: Array[(Double, BV[Double])],
                        lossFun: LossFunction,
-                       params: ADMMParams,
+                       params: EmersonParams,
                        val regularizer: Regularizer,
                        val comm: HWWorkerCommunication)
-  extends SGDLocalOptimizer(subProblemId = subProblemId, nSubProblems, 
+  extends ADMMLocalOptimizer(subProblemId = subProblemId, nSubProblems,
 			    nData = nData, data = data, lossFun = lossFun, params)
   with Logging {
 
@@ -124,7 +124,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
   @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
 
   override def getStats() = {
-    WorkerStats(primalVar = primalVar, dualVar = dualVar,
+    Stats(primalVar = primalVar, dualVar = dualVar,
       msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(),
       localIters = localIters,
       dataSize = data.length)
@@ -148,11 +148,12 @@ class HOGWILDSGDWorker(subProblemId: Int,
     assert(done == false)
     // Launch a thread to send the messages in the background
     broadcastThread.start()
-    var t = 0
-    // Assume loss is of the form  lambda/2 |reg|^2 + sum_i loss_i
-    val lossScaleTerm = nData.toDouble / miniBatchSize.toDouble
-    val eta0Scaled = params.eta_0 / nData.toDouble
+
+    // Assume normalized loss and each machine scales gradient to size of the data.
+    val lossScaleTerm = nData.toDouble / (miniBatchSize.toDouble * nData.toDouble)
+
     // Loop until done
+    var t = 0
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
@@ -161,22 +162,25 @@ class HOGWILDSGDWorker(subProblemId: Int,
         lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
+
       // Scale up the gradient
       grad *= lossScaleTerm
 
-      // Add in the regularization term
-      // TODO: USE REGULARIZER to add gradient term
-      grad += primalVar * params.regParam
+      // Add the regularizer to the gradient
+      regularizer.addGradient(primalVar, params.regParam, grad)
 
       // Set the learning rate
-      val eta_t = eta0Scaled / math.sqrt(t.toDouble + 1.0)
+      val eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
 
-      // Scale the gradient
+      // Scale the gradient by the learning rate
       grad *= eta_t
-      
 
-      grad_delta += grad
+      // Take the gradient step
       primalVar -= grad
+
+      // Accumulate the delta gradient to be sent to other machines
+      grad_delta += grad
+
       t += 1
     }
     localIters = t
@@ -187,10 +191,10 @@ class HOGWILDSGDWorker(subProblemId: Int,
 }
 
 
-class HOGWILDSGD(params: ADMMParams, val lossFun: LossFunction, 
+class HOGWILDSGD(params: EmersonParams, val lossFun: LossFunction,
 		 var regularizer: Regularizer) 
 extends Optimizer with Serializable with Logging {
-  var stats: WorkerStats = null
+  var stats: Stats = null
   var totalTimeMs: Long = -1
 
   @transient var workers : RDD[HOGWILDSGDWorker] = null
@@ -251,7 +255,6 @@ extends Optimizer with Serializable with Logging {
   def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
     // Initialize the cluster
     setup(input, primal0.toBreeze)
-
 
     val startTimeNs = System.nanoTime()
 
