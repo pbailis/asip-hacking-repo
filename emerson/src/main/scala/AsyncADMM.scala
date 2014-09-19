@@ -293,9 +293,6 @@ class AsyncADMMWorker(subProblemId: Int,
 
     // Loop until done
     while (!done) {
-      // Do a dual update
-      dualUpdate(params.lagrangianRho)
-
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(timeRemainingMS)
