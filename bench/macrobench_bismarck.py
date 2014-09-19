@@ -22,7 +22,7 @@ PICKLED_OUTPUT = "experiment.pkl"
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1000
+GLOBAL_ADMMrho = 1.0
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
@@ -46,7 +46,7 @@ GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 100
 
-GLOBAL_REG_PARAM = 10
+GLOBAL_REG_PARAM = 0.0001
 
 ## END OF CONSTANTS
 
