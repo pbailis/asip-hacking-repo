@@ -277,6 +277,8 @@ object Emerson {
     //    val numTest = test.count()
     params.numTraining = numTraining
 
+    training.repartition(params.numPartitions)
+
     // if (params.scaled) {
     //   params.lagrangianRho *= numTraining.toDouble // / params.numPartitions.toDouble
     //   params.rho0 *= numTraining.toDouble // / params.numPartitions.toDouble
