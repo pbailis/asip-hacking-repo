@@ -59,7 +59,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
     )
   }
 
-  var primalConsensus = initialWeights.copy
+  var primalConsensus: BV[Double] = null
 
   /**
    * Solve the provided convex optimization problem.

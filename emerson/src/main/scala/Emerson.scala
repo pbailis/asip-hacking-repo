@@ -231,7 +231,7 @@ object Emerson {
 
     println("Starting to load data...")
 
-    val training: RDD[Array[(Double, BV[Double])]] =
+    var training: RDD[Array[(Double, BV[Double])]] =
       if (params.format == "lisbsvm") {
         MLUtils.loadLibSVMFile(sc, params.input).map(
           p => (p.label, p.features.toBreeze)
@@ -255,6 +255,8 @@ object Emerson {
       } else {
         throw new RuntimeException(s"Unrecognized input format ${params.format}")
       }
+
+    training = DataLoaders.normalizeData(training)
 
     val numTraining = training.count()
     params.numTraining = numTraining
@@ -372,36 +374,6 @@ object Emerson {
 
 
 }
-
-
-
-//
-//  def runTest(training: RDD[Array[(Double, BV[Double])]], params: Params): EmersonModel = {
-//    println(s"Running algorithm ${params.algorithm} for ${params.runtimeMS} MS")
-//
-//    val loss = params.objective match {
-//      case SVM => new HingeLoss()
-//      case Logistic => new LogisticLoss()
-//    }
-//
-//    val regularizer = params.regType match {
-//      case L1 => new L1Regularizer()
-//      case L2 => new L2Regularizer()
-//    }
-//
-//    val model = params.algorithm match {
-//      case GD => null
-//      case ADMM => new EmersonModel(params, loss, regularizer) with ADMM
-//      case AsyncADMM => new EmersonModel(params, loss, regularizer) with AsyncADMM
-//    }
-//
-//    val nDim = training.map(d => d(0)._2.size).take(1).head
-//    val initialWeights = BDV.zeros[Double](nDim)
-//
-//    model.fit(params, initialWeights, training)
-//
-//    model
-//  }
 
 
 
