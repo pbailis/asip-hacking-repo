@@ -192,7 +192,7 @@ object DataLoaders {
         val delay = row(labels("ArrDelay"))
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
-        assert(idx_offset == 11)
+        //assert(idx_offset == 11)
 
         LabeledPoint(label, new SparseVector(bitvector_offset, idx_arr, value_arr))
     }
