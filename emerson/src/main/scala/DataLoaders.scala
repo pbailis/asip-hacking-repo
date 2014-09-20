@@ -98,6 +98,15 @@ object DataLoaders {
     }).repartition(params.numPartitions)
   }
 
+  private def hrMinToScaledHr(s: String) = {
+    if(s == 4) {
+      return s.take(2).toDouble/24.
+    } else {
+      assert(s == 3)
+      return s.take(1).toDouble/24.
+    }
+  }
+
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
     val labels = Array("Year", "Month", "DayOfMonth", "DayOfWeek", "DepTime", "CRSDepTime", "ArrTime",
       "CRSArrTime", "UniqueCarrier", "FlightNum", "TailNum", "ActualElapsedTime", "CRSElapsedTime",
@@ -121,36 +130,61 @@ object DataLoaders {
         val idx_arr = new Array[Int](12)
 
         var idx_offset = 0
-        for(i <- 0 until 7 if i != 5) {
-          value_arr(idx_offset) = if (row(i) == "NA") 0.0 else row(i).toDouble
+        for(i <- 1 until 5) {
+          var v: Double = 0
+
+          if (row(i) != "N/A") {
+            v = row(i).toDouble
+
+            // month
+            if (i == 1) {
+              v /= 12
+            }
+
+            // day of month
+            if (i == 2) {
+              v /= 31
+            }
+
+            // day of week
+            if (i == 3) {
+              v /= 7
+            }
+
+            // deptime
+            if (i == 4) {
+              v = hrMinToScaledHr(row(i))
+            }
+          }
+
+          value_arr(idx_offset) = v
           idx_arr(idx_offset) = idx_offset
           idx_offset += 1
         }
 
         var bitvector_offset = idx_offset
-        /*
-    idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
-    idx_offset += 1
-    bitvector_offset += carrierDict.size
 
-    idx_arr(idx_offset) = bitvector_offset + flightNumDict(row(labels("FlightNum")))
-    idx_offset += 1
-    bitvector_offset += flightNumDict.size
+        idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
+        idx_offset += 1
+        bitvector_offset += carrierDict.size
 
-    idx_arr(idx_offset) = bitvector_offset + tailNumDict(row(labels("TailNum")))
-    idx_offset += 1
-    bitvector_offset += tailNumDict.size
-    */
+        idx_arr(idx_offset) = bitvector_offset + flightNumDict(row(labels("FlightNum")))
+        idx_offset += 1
+        bitvector_offset += flightNumDict.size
+
+      /*
+        idx_arr(idx_offset) = bitvector_offset + tailNumDict(row(labels("TailNum")))
+        idx_offset += 1
+        bitvector_offset += tailNumDict.size
+        */
 
         idx_arr(idx_offset) = bitvector_offset + originDict(row(labels("Origin")))
         idx_offset += 1
         bitvector_offset += originDict.size
 
-      /*
         idx_arr(idx_offset) = bitvector_offset + destDict(row(labels("Dest")))
         idx_offset += 1
         bitvector_offset += destDict.size
-        */
 
         // add one for bias term
         bitvector_offset += 1
@@ -158,7 +192,7 @@ object DataLoaders {
         val delay = row(labels("ArrDelay"))
         val label = if (delay != "NA" && delay.toDouble > 0) 1.0 else 0.0
 
-        //assert(idx_offset == 11)
+        assert(idx_offset == 11)
 
         LabeledPoint(label, new SparseVector(bitvector_offset, idx_arr, value_arr))
     }
