@@ -104,7 +104,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       axpy(rho, primalVar - primalConsensus, grad)
 
       // Set the learning rate
-      val eta_t = params.eta_0 / (t + 1.0)
+      val eta_t = params.eta_0 / Math.sqrt(t + 1.0)
 
       // Take a negative gradient step with step size eta
       axpy(-eta_t, grad, primalVar)
