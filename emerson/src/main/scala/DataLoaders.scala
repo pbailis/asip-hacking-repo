@@ -260,7 +260,7 @@ object DataLoaders {
       data.map { case (y, x) =>
         // ugly hack
         x -= xbar
-        x :/= stdev
+        x :/= stdev if stdev != 0 else 1
         (y, x)
       }
     }.cache()
