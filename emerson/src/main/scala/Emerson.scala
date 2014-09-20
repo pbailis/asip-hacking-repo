@@ -256,7 +256,8 @@ object Emerson {
         throw new RuntimeException(s"Unrecognized input format ${params.format}")
       }
 
-    training = DataLoaders.normalizeData(training)
+    // temporarily disabled
+    //training = DataLoaders.normalizeData(training)
 
     val numTraining = training.count()
     params.numTraining = numTraining
