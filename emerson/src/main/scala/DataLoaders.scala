@@ -99,12 +99,8 @@ object DataLoaders {
   }
 
   private def hrMinToScaledHr(s: String): Double = {
-    if(s.length == 4) {
-      return s.take(2).toDouble/24.
-    } else {
-      assert(s.length == 3, "wrong length! "+s)
-      return s.take(1).toDouble/24.
-    }
+    var r = s.toDouble
+    (r- (r % 60))/100.
   }
 
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
