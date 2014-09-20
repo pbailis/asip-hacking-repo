@@ -128,17 +128,19 @@ object DataLoaders {
         }
 
         var bitvector_offset = idx_offset
-        idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
-        idx_offset += 1
-        bitvector_offset += carrierDict.size
+        /*
+    idx_arr(idx_offset) = bitvector_offset + carrierDict(row(labels("UniqueCarrier")))
+    idx_offset += 1
+    bitvector_offset += carrierDict.size
 
-        idx_arr(idx_offset) = bitvector_offset + flightNumDict(row(labels("FlightNum")))
-        idx_offset += 1
-        bitvector_offset += flightNumDict.size
+    idx_arr(idx_offset) = bitvector_offset + flightNumDict(row(labels("FlightNum")))
+    idx_offset += 1
+    bitvector_offset += flightNumDict.size
 
-        idx_arr(idx_offset) = bitvector_offset + tailNumDict(row(labels("TailNum")))
-        idx_offset += 1
-        bitvector_offset += tailNumDict.size
+    idx_arr(idx_offset) = bitvector_offset + tailNumDict(row(labels("TailNum")))
+    idx_offset += 1
+    bitvector_offset += tailNumDict.size
+    */
 
         idx_arr(idx_offset) = bitvector_offset + originDict(row(labels("Origin")))
         idx_offset += 1
