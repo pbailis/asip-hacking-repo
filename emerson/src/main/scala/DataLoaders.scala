@@ -240,4 +240,33 @@ object DataLoaders {
       }.toArray
     }
   }
+
+  def normalizeData(data: RDD[Array[(Double, BV[Double])]]): RDD[Array[(Double, BV[Double])]] = {
+    val nExamples = data.map { data => data.length }.reduce( _ + _ )
+
+    val xbar: BV[Double] = data.map {
+      data => data.view.map { case (y, x) => x }.reduce(_ + _)
+    }.reduce(_ + _) / nExamples.toDouble
+
+    val xxbar: BV[Double] = data.map {
+      data => data.view.map { case (y, x) => x :* x }.reduce(_ + _)
+    }.reduce(_ + _) / nExamples.toDouble
+
+    val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
+
+    val stdev = breeze.numerics.sqrt(variance)
+
+    val data2 = data.map { data =>
+      data.map { case (y, x) =>
+        // ugly hack
+        x -= xbar
+        x :/= stdev
+        (y, x)
+      }
+    }.cache()
+    data2.foreach( x => () )
+    data.unpersist()
+    data2
+  }
+
 }
