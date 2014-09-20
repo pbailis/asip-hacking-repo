@@ -2,10 +2,8 @@ package edu.berkeley.emerson
 
 import java.util.concurrent.TimeUnit
 
-import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
 import org.apache.spark.Logging
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.optimization.Optimizer
 import org.apache.spark.rdd.RDD
 
 object DualDecomp {
@@ -23,56 +21,75 @@ object DualDecomp {
   }
 }
 
-class DualDecomp(val params: EmersonParams,
-                 var lossFunction: LossFunction,
-	               var regularizer: Regularizer)
-  extends Optimizer with Serializable with Logging {
+class DualDecomp extends BasicEmersonOptimizer with Serializable with Logging {
 
   var iteration = 0
   var solvers: RDD[DualDecompLocalOptimizer] = null
   var stats: Stats = null
   var totalTimeMs: Long = -1
 
-  def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
-    val primal0 = initialWeights.toBreeze
-    val nSubProblems = rawData.partitions.length
-    val nData = rawData.count
-    solvers =
-      rawData.mapPartitionsWithIndex { (ind, iter) =>
-        val data: Array[(Double, BV[Double])] = iter.map {
-          case (label, features) => (label, features.toBreeze)
-        }.toArray
-        val solver = new DualDecompLocalOptimizer(ind, nSubProblems = nSubProblems,
-          nData = nData.toInt, data = data,
-          lossFunction = lossFunction, regularizer = regularizer,
-          params = params, primal0 = primal0.copy)
-        // Initialize the primal variable and primal regularizer
-        Iterator(solver)
-      }.cache()
-      solvers.count
-
-    // rawData.unpersist(true)
-    solvers.foreach( f => System.gc() )
+  def statsMap(): Map[String, String] = {
+    Map(
+      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterInterval" -> stats.avgLocalIters().toString,
+      "avgSGDIters" -> stats.avgSGDIters().toString,
+      "avgMsgsSent" -> stats.avgMsgsSent().toString,
+      "avgMsgsRcvd" -> stats.avgMsgsRcvd().toString,
+      "primalAvgNorm" -> norm(stats.primalAvg(), 2).toString,
+      "dualAvgNorm" -> norm(stats.dualAvg(), 2).toString,
+      "consensusNorm" -> norm(finalW, 2).toString,
+      "dualUpdates" -> stats.avgDualUpdates.toString,
+      "runtime" -> totalTimeMs.toString,
+      "stats" -> stats.toString
+    )
   }
 
+//  def setup(rawData: RDD[(Double, Vector)], initialWeights: Vector) {
+//    val primal0 = initialWeights.toBreeze
+//    val nSubProblems = rawData.partitions.length
+//    val nData = rawData.count
+//    solvers =
+//      rawData.mapPartitionsWithIndex { (ind, iter) =>
+//        val data: Array[(Double, BV[Double])] = iter.map {
+//          case (label, features) => (label, features.toBreeze)
+//        }.toArray
+//        val solver = new DualDecompLocalOptimizer(ind, nSubProblems = nSubProblems,
+//          nData = nData.toInt, data = data,
+//          lossFunction = lossFunction, regularizer = regularizer,
+//          params = params, primal0 = primal0.copy)
+//        // Initialize the primal variable and primal regularizer
+//        Iterator(solver)
+//      }.cache()
+//      solvers.count
+//
+//    // rawData.unpersist(true)
+//    solvers.foreach( f => System.gc() )
+//  }
+
+
+  var finalW: BV[Double] = null
 
   /**
    * Solve the provided convex optimization problem.
    */
-  override def optimize(rawData: RDD[(Double, Vector)],
-    initialWeights: Vector): Vector = {
+  override def optimize(): BV[Double] = {
+    // Initialize the solvers
+    val primal0 = initialWeights
+    solvers = data.mapPartitionsWithIndex { (ind, iter) =>
+      val data: Array[(Double, BV[Double])] = iter.next()
+      val solver = new DualDecompLocalOptimizer(ind, nSubProblems = nSubProblems,
+        nData = nData.toInt, data = data,
+        lossFunction = lossFunction, regularizer = regularizationFunction,
+        params = params, primal0 = primal0.copy)
+      // Initialize the primal variable and primal regularizer
+      Iterator(solver)
+    }.cache()
 
-    setup(rawData, initialWeights)
-
-    println(params)
-
-    val nSolvers = solvers.partitions.length
-    val nDim = initialWeights.size
 
     var primalResidual = Double.MaxValue
     var dualResidual = Double.MaxValue
 
-    var primalVars = Array.fill(nSolvers)(initialWeights.toBreeze.copy)
+    var primalVars = Array.fill(nSubProblems)(initialWeights.copy)
 
     val starttime = System.currentTimeMillis()
     val startTimeNs = System.nanoTime()
@@ -80,6 +97,7 @@ class DualDecomp(val params: EmersonParams,
     var rho = params.rho0
 
     iteration = 0
+
     while (iteration < params.maxIterations &&
       (primalResidual > params.tol || dualResidual > params.tol) &&
       (System.currentTimeMillis() - starttime) < params.runtimeMS ) {
@@ -120,7 +138,8 @@ class DualDecomp(val params: EmersonParams,
 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
 
-    Vectors.fromBreeze(stats.primalAvg())
+    finalW = stats.primalAvg()
+    finalW
 
   }
 
