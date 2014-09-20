@@ -256,6 +256,11 @@ object DataLoaders {
 
     val stdev = breeze.numerics.sqrt(variance)
 
+    // Just in case there are constant columns set the standard deviation to 1.0
+    for(i <- 0 until stdev.size) {
+      if (stdev(i) == 0.0) { stdev(i) == 1.0 }
+    }
+
     val data2 = data.map { data =>
       data.map { case (y, x) =>
         // ugly hack
