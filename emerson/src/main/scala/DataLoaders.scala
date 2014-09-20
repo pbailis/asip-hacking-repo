@@ -99,10 +99,10 @@ object DataLoaders {
   }
 
   private def hrMinToScaledHr(s: String): Double = {
-    if(s == 4) {
+    if(s.length == 4) {
       return s.take(2).toDouble/24.
     } else {
-      assert(s == 3)
+      assert(s.length == 3)
       return s.take(1).toDouble/24.
     }
   }
