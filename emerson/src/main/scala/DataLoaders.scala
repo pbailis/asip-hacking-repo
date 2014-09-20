@@ -119,8 +119,8 @@ object DataLoaders {
 
     val data = rawData.map {
       row =>
-        val value_arr = Array.fill(12)(1.0)
-        val idx_arr = new Array[Int](12)
+        val value_arr = Array.fill(10)(1.0)
+        val idx_arr = new Array[Int](10)
 
         var idx_offset = 0
         for(i <- 1 until 5) {
@@ -254,7 +254,11 @@ object DataLoaders {
 
     val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
 
-    val stdev = breeze.numerics.sqrt(variance)
+    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
+
+    for(i <- 0 until stdev.size) {
+      if (stdev(i) == 0.0) { stdev(i) = 1.0 }
+    }
 
     // Just in case there are constant columns set the standard deviation to 1.0
     for(i <- 0 until stdev.size) {
@@ -265,7 +269,8 @@ object DataLoaders {
       data.map { case (y, x) =>
         // ugly hack
         x -= xbar
-        x :/= stdev
+        if (stdev != 0)
+          x :/= stdev
         (y, x)
       }
     }.cache()

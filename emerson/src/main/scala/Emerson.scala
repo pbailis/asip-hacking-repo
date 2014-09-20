@@ -40,7 +40,7 @@ object Emerson {
     var format: String = "libsvm"
     var numPartitions: Int = -1
     var algorithm: Algorithm = ADMM
-    var objective: Objective = SVM
+    var objectiveFn: Objective = SVM
     var regType: RegType = L2
     var pointCloudDimension: Int = 10
     var pointCloudLabelNoise: Double = .2
@@ -60,7 +60,7 @@ object Emerson {
         "format" -> ("\"" + format + "\""),
         "numPartitions" -> numPartitions,
         "algorithm" -> ("\"" + algorithm + "\""),
-        "objective" -> ("\"" + objective + "\""),
+        "objective" -> ("\"" + objectiveFn + "\""),
         "algParams" -> super.toString(),
         "regType" -> ("\"" + regType + "\""),
         "pointCloudDim" -> pointCloudDimension,
@@ -132,8 +132,8 @@ object Emerson {
         .action { (x, c) => c.algorithm = Algorithm.withName(x); c }
       opt[String]("objective")
         .text(s"objective (${Objective.values.mkString(",")}), " +
-        s"default: ${defaultParams.objective}")
-        .action { (x, c) => c.objective = Objective.withName(x); c }
+        s"default: ${defaultParams.objectiveFn}")
+        .action { (x, c) => c.objectiveFn = Objective.withName(x); c }
       opt[String]("regType")
         .text(s"regularization type (${RegType.values.mkString(",")}), " +
         s"default: ${defaultParams.regType}")
@@ -256,7 +256,8 @@ object Emerson {
         throw new RuntimeException(s"Unrecognized input format ${params.format}")
       }
 
-    training = DataLoaders.normalizeData(training)
+    // temporarily disabled
+    //training = DataLoaders.normalizeData(training)
 
     val numTraining = training.count()
     params.numTraining = numTraining
@@ -267,7 +268,7 @@ object Emerson {
 
     println("Starting test!")
 
-    val lossFunction = params.objective match {
+    val lossFunction = params.objectiveFn match {
       case SVM => new HingeLoss()
       case Logistic => new LogisticLoss()
     }
