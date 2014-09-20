@@ -258,7 +258,7 @@ object DataLoaders {
 
     val xmax: BV[Double] = data.map {
       data => data.view.map { case (y, x) => x }.reduce((a,b) => elementMax(a,b))
-    }.reduce((a,b) => elementMax(a,b)) / nExamples.toDouble
+    }.reduce((a,b) => elementMax(a,b))
 //
 //    val xbar: BV[Double] = data.map {
 //      data => data.view.map { case (y, x) => x }.reduce(_ + _)
