@@ -119,8 +119,8 @@ object DataLoaders {
 
     val data = rawData.map {
       row =>
-        val value_arr = Array.fill(12)(1.0)
-        val idx_arr = new Array[Int](12)
+        val value_arr = Array.fill(9)(1.0)
+        val idx_arr = new Array[Int](9)
 
         var idx_offset = 0
         for(i <- 1 until 5) {
