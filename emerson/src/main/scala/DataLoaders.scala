@@ -100,7 +100,8 @@ object DataLoaders {
 
   private def hrMinToScaledHr(s: String): Double = {
     var r = s.toDouble
-    (r- (r % 60))/100.
+    val mins = r % 60
+    (((r-mins)/100*60)+mins)/60/24
   }
 
   def loadFlights(sc: SparkContext, filename: String, params: Params): RDD[LabeledPoint] = {
