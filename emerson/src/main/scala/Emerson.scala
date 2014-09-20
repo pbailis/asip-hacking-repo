@@ -277,7 +277,7 @@ object Emerson {
 
     val optimizer: EmersonOptimizer = params.algorithm match {
       case ADMM => new ADMM()
-      case AsyncADMM => new AsyncADMM()
+      case AsyncADMM | PORKCHOP => new AsyncADMM()
       case HOGWILD => new HOGWILDSGD()
     }
     val model = new EmersonModel(params, lossFunction, regularizationFunction, optimizer)
