@@ -102,7 +102,7 @@ object DataLoaders {
     if(s.length == 4) {
       return s.take(2).toDouble/24.
     } else {
-      assert(s.length == 3)
+      assert(s.length == 3, "wrong length! "+s)
       return s.take(1).toDouble/24.
     }
   }
