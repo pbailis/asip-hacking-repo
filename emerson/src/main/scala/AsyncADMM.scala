@@ -284,7 +284,7 @@ class AsyncADMMWorker(subProblemId: Int,
     primalConsensus
   }
 
-
+ // ASYNCADMM, not PORKCHOP
   def mainLoopSync() = {
     // Intialize global view of primalVars
     val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
@@ -293,12 +293,13 @@ class AsyncADMMWorker(subProblemId: Int,
 
     // Loop until done
     while (!done) {
+      // Do a dual update
+      dualUpdate(params.lagrangianRho)
+
       // Run the primal update
       val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
       primalUpdate(timeRemainingMS)
 
-      // Do a dual update
-      dualUpdate(params.lagrangianRho)
 
 
       // Send the primal and dual
