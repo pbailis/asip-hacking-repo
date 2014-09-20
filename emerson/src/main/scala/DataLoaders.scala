@@ -98,7 +98,7 @@ object DataLoaders {
     }).repartition(params.numPartitions)
   }
 
-  private def hrMinToScaledHr(s: String) = {
+  private def hrMinToScaledHr(s: String): Double = {
     if(s == 4) {
       return s.take(2).toDouble/24.
     } else {
