@@ -254,7 +254,11 @@ object DataLoaders {
 
     val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
 
-    val stdev = breeze.numerics.sqrt(variance)
+    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
+
+    for(i <- 0 until stdev.size) {
+      if (stdev(i) == 0.0) { stdev(i) = 1.0 }
+    }
 
     val data2 = data.map { data =>
       data.map { case (y, x) =>
