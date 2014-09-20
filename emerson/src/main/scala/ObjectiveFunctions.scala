@@ -1,15 +1,14 @@
 package edu.berkeley.emerson
 
-import java.util.concurrent.TimeUnit
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
-import org.apache.spark.Logging
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.rdd.RDD
 
 
 
 trait LossFunction extends Serializable {
+
+  def predict(w: BV[Double], x: BV[Double]): Double = {
+    if(w.dot(x) > 0) { 1.0 } else { 0.0 }
+  }
 
   /**
    * Add gradient for point to running sum.
@@ -42,6 +41,7 @@ trait LossFunction extends Serializable {
  * The Hinge Loss for SVM
  */
 class HingeLoss extends LossFunction {
+
   override def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
     val yscaled = 2.0 * y - 1.0
     val wdotx = w.dot(x)

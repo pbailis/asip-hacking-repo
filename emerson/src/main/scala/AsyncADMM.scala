@@ -1,7 +1,5 @@
 package edu.berkeley.emerson
 
-import edu.berkeley.emerson.InternalMessages.VectorUpdateMessage
-
 import java.util.UUID
 import java.util.concurrent._
 
@@ -9,10 +7,9 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import edu.berkeley.emerson.InternalMessages.VectorUpdateMessage
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.optimization.Optimizer
 import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
@@ -355,9 +352,7 @@ object SetupBlock {
 }
 
 
-class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
-		var regularizer: Regularizer)
-  extends Optimizer with Serializable with Logging {
+class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
   var totalTimeMs: Long = -1
 
@@ -365,10 +360,15 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
 
   @transient var workers : RDD[AsyncADMMWorker] = null
 
-  def setup(input: RDD[(Double, Vector)], primal0: BV[Double]) {
-    val nSubProblems = input.partitions.length
-    val nData = input.count
-    workers = input.mapPartitionsWithIndex { (ind, iter) =>
+  override def initialize(params: EmersonParams,
+                 lossFunction: LossFunction, regularizationFunction: Regularizer,
+                 initialWeights: BV[Double],
+                 rawData: RDD[Array[(Double, BV[Double])]]): Unit = {
+    // Preprocess the data
+    super.initialize(params, lossFunction, regularizationFunction, initialWeights, rawData)
+
+    val primal0 = initialWeights.copy
+    workers = data.mapPartitionsWithIndex { (ind, iter) =>
       if(SetupBlock.initialized) {
         if (SetupBlock.workers(ind) != null ) {
           Iterator(SetupBlock.workers(ind))
@@ -376,28 +376,27 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
           throw new RuntimeException("Worker was evicted, dying lol!")
         }
       } else {
-      
-       val data: Array[(Double, BV[Double])] =
-        iter.map { case (label, features) => (label, features.toBreeze) }.toArray
-      val workerName = UUID.randomUUID().toString
-      val address = Worker.HACKakkaHost + workerName
-      val hack = new WorkerCommunicationHack()
-      logInfo(s"local address is $address")
-      val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
-      implicit val timeout = Timeout(15000 seconds)
+        val data: Array[(Double, BV[Double])] = iter.next()
+        val workerName = UUID.randomUUID().toString
+        val address = Worker.HACKakkaHost + workerName
+        val hack = new WorkerCommunicationHack()
+        logInfo(s"local address is $address")
+        val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
+        implicit val timeout = Timeout(15000 seconds)
 
-      val f = aref ? new InternalMessages.WakeupMsg
-      Await.result(f, timeout.duration).asInstanceOf[String]
+        val f = aref ? new InternalMessages.WakeupMsg
+        Await.result(f, timeout.duration).asInstanceOf[String]
 
-      val worker = new AsyncADMMWorker(subProblemId = ind, 
-        nSubProblems = nSubProblems, nData = nData.toInt , data = data,
-        lossFun = lossFun, params = params, regularizer = regularizer, comm = hack.ref)
-      worker.primalVar = primal0.copy
-      worker.dualVar = primal0.copy
-      SetupBlock.workers(ind) = worker
-      Iterator(worker)
+        val worker = new AsyncADMMWorker(subProblemId = ind,
+          nSubProblems = nSubProblems, nData = nData.toInt , data = data,
+          lossFun = lossFunction, params = params, regularizer = regularizationFunction,
+          comm = hack.ref)
+        worker.primalVar = primal0.copy
+        worker.dualVar = primal0.copy
+        SetupBlock.workers(ind) = worker
+        Iterator(worker)
       }
-     }.cache()
+    }.cache()
 
     // collect the addresses
     val addresses = workers.map {
@@ -414,20 +413,32 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
     println(s"Num Addresses: ${addresses.length}")
 
     // Ping Pong?  Just because?
-    workers.foreach { 
-      w => w.comm.sendPingPongs() 
+    workers.foreach {
+      w => w.comm.sendPingPongs()
     }
 
-    // input.unpersist(blocking = true)
-    // workers.foreach( f => System.gc() )
   }
 
-  def optimize(input: RDD[(Double, Vector)], primal0: Vector): Vector = {
-    // Initialize the cluster
-    setup(input, primal0.toBreeze)
+  def statsMap(): Map[String, String] = {
+    Map(
+      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterInterval" -> stats.avgLocalIters().toString,
+      "avgSGDIters" -> stats.avgSGDIters().toString,
+      "avgMsgsSent" -> stats.avgMsgsSent().toString,
+      "avgMsgsRcvd" -> stats.avgMsgsRcvd().toString,
+      "primalAvgNorm" -> norm(stats.primalAvg(), 2).toString,
+      "dualAvgNorm" -> norm(stats.dualAvg(), 2).toString,
+      "consensusNorm" -> norm(finalW, 2).toString,
+      "dualUpdates" -> stats.avgDualUpdates.toString,
+      "runtime" -> totalTimeMs.toString,
+      "stats" -> stats.toString
+    )
+  }
 
+  var finalW: BV[Double] = null
+
+  def optimize(): BV[Double] = {
     val startTimeNs = System.nanoTime()
-
     // Run all the workers
     stats = workers.map{
       w => w.mainLoop()
@@ -435,7 +446,8 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
     }.reduce( _ + _ )
     
     val regParamScaled = params.regParam // * params.admmRegFactor
-    val finalW = regularizer.consensus(stats.primalAvg, stats.dualAvg, 
+    finalW = regularizationFunction.consensus(
+               stats.primalAvg, stats.dualAvg,
 				       stats.nWorkers, 
 				       params.rho0,
 				       regParam = regParamScaled)
@@ -448,7 +460,7 @@ class AsyncADMM(val params: EmersonParams, val lossFun: LossFunction,
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
-    Vectors.fromBreeze(finalW)
+    finalW
   }
 }
 
