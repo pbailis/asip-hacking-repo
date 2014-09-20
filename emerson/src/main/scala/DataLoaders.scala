@@ -241,34 +241,56 @@ object DataLoaders {
     }
   }
 
+
+  def elementMax(a: BV[Double], b: BV[Double]): BV[Double] = {
+    val res = a.toDenseVector
+    var i = 0
+    val n = a.length
+    while (i < n) {
+      res(i) = math.max(a(i), b(i))
+      i += 1
+    }
+    res
+  }
+
   def normalizeData(data: RDD[Array[(Double, BV[Double])]]): RDD[Array[(Double, BV[Double])]] = {
     val nExamples = data.map { data => data.length }.reduce( _ + _ )
 
-    val xbar: BV[Double] = data.map {
-      data => data.view.map { case (y, x) => x }.reduce(_ + _)
-    }.reduce(_ + _) / nExamples.toDouble
+    val xmax: BV[Double] = data.map {
+      data => data.view.map { case (y, x) => x }.reduce((a,b) => elementMax(a,b))
+    }.reduce((a,b) => elementMax(a,b)) / nExamples.toDouble
+//
+//    val xbar: BV[Double] = data.map {
+//      data => data.view.map { case (y, x) => x }.reduce(_ + _)
+//    }.reduce(_ + _) / nExamples.toDouble
+//
+//    val xxbar: BV[Double] = data.map {
+//      data => data.view.map { case (y, x) => x :* x }.reduce(_ + _)
+//    }.reduce(_ + _) / nExamples.toDouble
+//
+//    val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
+//
+//    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
+//
+//    // Just in case there are constant columns set the standard deviation to 1.0
+//    for(i <- 0 until stdev.size) {
+//      if (stdev(i) == 0.0) { stdev(i) = 1.0 }
+//    }
 
-    val xxbar: BV[Double] = data.map {
-      data => data.view.map { case (y, x) => x :* x }.reduce(_ + _)
-    }.reduce(_ + _) / nExamples.toDouble
-
-    val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
-
-    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
+//    assert(xbar.size == stdev.size)
 
     // Just in case there are constant columns set the standard deviation to 1.0
-    for(i <- 0 until stdev.size) {
-      if (stdev(i) == 0.0) { stdev(i) = 1.0 }
+    for(i <- 0 until xmax.size) {
+      if (xmax(i) == 0.0) { xmax(i) = 1.0 }
     }
-
-    assert(xbar.size == stdev.size)
 
     val data2 = data.map { data =>
       data.map { case (y, x) =>
-        assert(x.size == stdev.size)
+        assert(x.size == xmax.size)
         // ugly hack where I reuse the vector
-        x -= xbar
-        x /= stdev
+//        x -= xbar
+//        x /= stdev
+        x /= xmax
         (y, x)
       }
     }.cache()
