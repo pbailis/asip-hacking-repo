@@ -65,6 +65,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
    * Solve the provided convex optimization problem.
    */
   override def optimize(): BV[Double] = {
+    primalConsensus = initialWeights.copy
 
     // Initialize the solvers
     val primal0 = initialWeights
@@ -98,8 +99,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       // Run the local solvers
       stats = solvers.map { solver =>
         // Make sure that the local solver did not reset!
-        // TODO: this seems broken, Joey?
-        //assert(solver.localIters == iteration)
+        assert(solver.localIters == iteration)
         solver.localIters += 1
 
         // Do a dual update
