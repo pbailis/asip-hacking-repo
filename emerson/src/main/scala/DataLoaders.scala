@@ -130,7 +130,7 @@ object DataLoaders {
         for(i <- 1 until 5) {
           var v: Double = 0
 
-          if (row(i) != "N/A") {
+          if (row(i) != "NA") {
             v = row(i).toDouble
 
             // month
