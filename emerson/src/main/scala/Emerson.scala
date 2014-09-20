@@ -257,7 +257,9 @@ object Emerson {
       }
 
     // temporarily disabled
-    //training = DataLoaders.normalizeData(training)
+    if (params.format == "dblp" || params.format == "wikipedia") {
+      training = DataLoaders.normalizeData(training)
+    }
 
     val numTraining = training.count()
     params.numTraining = numTraining
