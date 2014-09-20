@@ -10,11 +10,11 @@ import json
 RUNTIMES = [1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AVG", "GD"]
+ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AVG"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -22,6 +22,11 @@ DO_TEST_DATASETS = True
 DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
+
+SHORT_ALGORITHMS = ["ADMM"]#"PORKCHOP", "ADMM"]
+SHORT_RUNTIMES = [2000]
+SHORT_TASKS = [("SVM", "L2")]
+SHORT_DATASETS = ["flights"]
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -95,7 +100,7 @@ def runTest(runtimeMS,
             ADMMmaxLocalIterations = 1000,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
-            objective="SVM",
+            objectiveFn="SVM",
             regType="L2",
             regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
@@ -131,7 +136,7 @@ def runTest(runtimeMS,
           "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
           "emerson/target/scala-2.10/spark-emerson_* " \
           "--algorithm " + str(calgorithm) + " " + \
-          "--objective " + str(objective) + " " + \
+          "--objective " + str(objectiveFn) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
@@ -179,7 +184,7 @@ def runTest(runtimeMS,
             record = json.loads(line[7:])
             pyConfig = {
                 "algorithm": algorithm,
-                "objective": objective,
+                "objective": objectiveFn,
                 "dataset": datasetName,
                 "datasetConfigStr": datasetConfigStr,
                 "line": line,
@@ -246,7 +251,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 0):
     results += runTest(runtime,
                        algorithm,
                        dataset,
-                       objective=obj,
+                       objectiveFn=obj,
                        regType=reg,
                        flightsYear = 2008,
                        cloudDim = cloudDim,
@@ -266,6 +271,16 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 0):
 
 
 ## START OF EXPERIMENT RUNS
+
+if DO_TEST_SHORT:
+    for obj, reg in SHORT_TASKS:
+        for dataset in SHORT_DATASETS:
+            for runtime in SHORT_RUNTIMES:
+                for algorithm in SHORT_ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+    exit(-1)
+
 if DO_TEST_DATASETS:
     for obj, reg in TASKS:
         for dataset in DATASETS:
