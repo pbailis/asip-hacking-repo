@@ -146,9 +146,11 @@ object DataLoaders {
         idx_offset += 1
         bitvector_offset += originDict.size
 
+      /*
         idx_arr(idx_offset) = bitvector_offset + destDict(row(labels("Dest")))
         idx_offset += 1
         bitvector_offset += destDict.size
+        */
 
         // add one for bias term
         bitvector_offset += 1
