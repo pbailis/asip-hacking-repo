@@ -11,7 +11,7 @@ object DualDecomp {
   def copyPrimalVars(src: Array[BV[Double]], dst: Array[BV[Double]]): Unit = {
     val n = src.length
     val dim = src(0).size
-    
+
     var i = 0
     while (i < n) {
       var j = 0
@@ -81,7 +81,7 @@ class DualDecomp extends BasicEmersonOptimizer with Serializable with Logging {
     solvers = data.mapPartitionsWithIndex { (ind, iter) =>
       val data: Array[(Double, BV[Double])] = iter.next()
       val solver = new DualDecompLocalOptimizer(ind, nSubProblems = nSubProblems,
-        nData = nData.toInt, data = data,
+        nData = nData, data = data,
         lossFunction = lossFunction, regularizer = regularizationFunction,
         params = params, primal0 = primal0.copy)
       // Initialize the primal variable and primal regularizer
