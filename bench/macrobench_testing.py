@@ -10,7 +10,7 @@ import json
 RUNTIMES = [10000, 100000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "ADMM"]#, "HOGWILD", "ADMM", "MiniBatchADMM"]#, "AsyncADMM", "AVG", "GD"] #, "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
+ALGORITHMS = ["PORKCHOP"]#, "HOGWILD", "ADMM", "MiniBatchADMM"]#, "AsyncADMM", "AVG", "GD"] #, "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
@@ -46,7 +46,7 @@ GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 100
 
-GLOBAL_REG_PARAM = 0.001
+GLOBAL_REG_PARAM = 1e-3
 
 ## END OF CONSTANTS
 
@@ -203,7 +203,7 @@ results = []
 
 
 ## START OF EXPERIMENT RUNS
-for dataset in ["bismarck"]: 
+for dataset in ["flights"]: 
     for runtime in RUNTIMES:
         for algorithm in ALGORITHMS:
             broadcastDelay = -1
