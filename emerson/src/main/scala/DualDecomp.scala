@@ -9,10 +9,13 @@ import org.apache.spark.rdd.RDD
 object DualDecomp {
   // Super ugly hack to copy the primal var to each of the workers without reallocating.
   def copyPrimalVars(src: Array[BV[Double]], dst: Array[BV[Double]]): Unit = {
+    val n = src.length
+    val dim = src(0).size
+    
     var i = 0
-    while (i < src.length) {
+    while (i < n) {
       var j = 0
-      while (j < dst.length) {
+      while (j < dim) {
         dst(i)(j) = src(i)(j)
         j += 1
       }
