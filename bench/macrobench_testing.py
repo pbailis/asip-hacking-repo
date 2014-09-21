@@ -7,10 +7,10 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [1000, 10000, 100000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AVG"]#, "GD"]
+ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM"]#, "HOGWILD", "ADMM", "MiniBatchADMM"]#, "AsyncADMM", "AVG", "GD"] #, "HOGWILD"]#, "HOGWILD", "GD", "PORKCHOP"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -27,6 +27,9 @@ SHORT_ALGORITHMS = ["PORKCHOP"]#"PORKCHOP", "ADMM"]
 SHORT_RUNTIMES = [2000]
 SHORT_TASKS = [("SVM", "L2")]
 SHORT_DATASETS = ["cloud"]
+
+PICKLED_OUTPUT = "experiment.pkl"
+
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -100,7 +103,7 @@ def runTest(runtimeMS,
             ADMMmaxLocalIterations = 1000,
             ADMMrho = GLOBAL_ADMMrho,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
-            objectiveFn="SVM",
+            objective="SVM",
             regType="L2",
             regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
@@ -136,7 +139,7 @@ def runTest(runtimeMS,
           "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
           "emerson/target/scala-2.10/spark-emerson_* " \
           "--algorithm " + str(calgorithm) + " " + \
-          "--objective " + str(objectiveFn) + " " + \
+          "--objective " + str(objective) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \
           "--format " + str(datasetName) + " " + \
@@ -184,7 +187,7 @@ def runTest(runtimeMS,
             record = json.loads(line[7:])
             pyConfig = {
                 "algorithm": algorithm,
-                "objective": objectiveFn,
+                "objective": objective,
                 "dataset": datasetName,
                 "datasetConfigStr": datasetConfigStr,
                 "line": line,
@@ -212,6 +215,7 @@ def runTest(runtimeMS,
 
 results = []
 
+<<<<<<< Updated upstream
 def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 3):
     global results
     localTimeout = 10000000
@@ -267,45 +271,60 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 3):
     pickle.dump(results, output)
     output.close()
 
+
 ## END OF TEST RUNNING CODE
 
 
 ## START OF EXPERIMENT RUNS
+for dataset in ["flights"]: 
+    for runtime in RUNTIMES:
+        for algorithm in ALGORITHMS:
+            broadcastDelay = -1
+            localEpsilon = GLOBAL_ADMMlocalEpsilon
+            miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+            if algorithm == "ADMM":
+                maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+                localEpsilon = GLOBAL_ADMM_localEpsilon
+                localTimeout = GLOBAL_ADMM_localTimeout
+            elif algorithm == "AVG":
+                maxLocalIterations = 1000000
+                localEpsilon = 0
+                localTimeout = 10000000
+                broadcastDelay = -1
+                GLOBAL_ADMMrho = 1.0
+            elif algorithm == "GD":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                localTimeout = -1
+                localEpsilon = -1
+            elif algorithm == "MiniBatchADMM":
+                maxLocalIterations = GLOBAL_MiniBatchADMM_maxLocalIterations
+                localEpsilon = GLOBAL_MiniBatchADMM_localEpsilon
+                localTimeout = GLOBAL_MiniBatchADMM_localTimeout
+            elif algorithm == "HOGWILD":
+                maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+                broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+            elif algorithm == "PORKCHOP":
+                maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+                broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
+                localEpsilon = GLOBAL_PORKCHOP_localEpsilon
+                localTimeout = -1
+            elif algorithm == "AsyncADMM":
+                maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
+                broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
 
-if DO_TEST_SHORT:
-    for obj, reg in SHORT_TASKS:
-        for dataset in SHORT_DATASETS:
-            for runtime in SHORT_RUNTIMES:
-                for algorithm in SHORT_ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
+            results += runTest(runtime,
+                            algorithm,
+                            dataset,
+                            flightsYear = 2008,
+                            ADMMmaxLocalIterations = maxLocalIterations,
+                            ADMMlocalEpsilon = localEpsilon,
+                            broadcastDelay = broadcastDelay,
+                            miscStr = miscStr,
+                            localTimeout = localTimeout)
 
-    exit(-1)
-
-if DO_TEST_DATASETS:
-    for obj, reg in TASKS:
-        for dataset in DATASETS:
-            for runtime in RUNTIMES:
-                for algorithm in ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
-
-if DO_TEST_CLOUD_SKEW:
-    for obj, reg in TASKS:
-        for dim in [3]:
-            for skew in [0, .05, .5, .25]:#, .75/2]:
-                for runtime in RUNTIMES:    
-                    for algorithm in ALGORITHMS:
-                        runone(obj, reg, dataset, runtime, algorithm,
-                               cloudDim = dim, cloudSkew = skew)
-
-
-if DO_TEST_CLOUD_DIM:
-    for obj, reg in TASKS:
-        for dim in [3, 25, 50, 100]:
-            for skew in [0.05]:
-                for runtime in RUNTIMES:    
-                    for algorithm in ALGORITHMS:
-                        runone(obj, reg, dataset, runtime, algorithm,
-                               cloudDim = dim, cloudSkew = skew)
+            output = open(PICKLED_OUTPUT, 'wb')
+            pickle.dump(results, output)
+            output.close()
 
 
 
