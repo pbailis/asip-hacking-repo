@@ -4,54 +4,7 @@ package edu.berkeley.emerson
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 import org.apache.spark.Logging
 
-/* Basic Derivation: (paste into latexit)
 
-N & := \text{number of data points} \\
-P & := \text{number of machines} \\
-n_p & := \text{number of data points on machine $p$} \\
-%
-%
-\mathcal{L}(x, \lambda)
-&=
-\ underbrace{\left(\frac{1}{N} \sum_{i=1}^P \sum_{j=1}^{n_p} f_{ij}(x_i) \right)}_{\text{loss}} +
-\ underbrace{\left(\frac{1}{2P} \sum_{i=1}^P ||x_i||_2^2 \right)}_{\text{regularizer}} +
-\ underbrace{\left(\sum_{i=1}^P \sum_{j =i+1}^P \lambda_{ij}^T (x_i - x_j)  \right)
-}_{\text{undirected equality constraints}} \\
-&=
-\sum_{i=1}^P \left(
-\frac{1}{N} \sum_{j=1}^{n_p} f_{ij}(x_i) +
-\frac{1}{2P} ||x_i||_2^2  +
-\sum_{j =i+1}^P \lambda_{ij}^T (x_i - x_j)  \right) \\
-%
-%
-\nabla_{x_i}\mathcal{L}(x, \lambda) & = \frac{1}{N} \sum_{j=1}^{n_p}  \nabla_{x_i}  f_{ij}(x_i)
-+ \frac{1}{P} x_i
-+ \left(\sum_{j=i+1}^P \lambda_{ij}\right) - \left(\sum_{j=1}^{i-1} \lambda_{ji}\right) \\
-%
-%
-\sigma_i & := \left(\sum_{j=i+1}^P \lambda_{ij}\right) - \left(\sum_{j=1}^{i-1} \lambda_{ji}\right)\\
-%
-%
-\nabla_{x_i}\mathcal{L}(x, \lambda) & = \frac{1}{N} \sum_{j=1}^{n_p}  \nabla_{x_i}  f_{ij}(x_i) +
-  \frac{1}{P} x_i  + \sigma_i  \\
-%
-%
-\nabla_{\lambda_{ij}}\mathcal{L}(x, \lambda) & = (x_i - x_j) \quad \quad :i < j \\
-
-
-Extended Derivation of a condensed version of the \sigma_i update (this optimization is not being used yet)
-
-\lambda^{(t+1)}_{ij} & = \lambda^{(t)}_{ij} + \eta (x_i - x_j) \\
-%
-%
-\sigma^{(t+1)}_i & = \left(\sum_{j=i+1}^P \lambda^{(t)}_{ij} + \eta (x_i - x_j)\right) -
-   \left(\sum_{j=1}^{i-1} \lambda^{(t)}_{ji} + \eta (x_j - x_i)\right) \\
-& = \left(\sum_{j=i+1}^P \lambda^{(t)}_{ij} - \sum_{j=1}^{i-1} \lambda^{(t)}_{ji} \right) +
-   \eta \left(\sum_{j=i+1}^P (x_i - x_j) - \sum_{j=1}^{i-1}  (x_j - x_i) \right) \\
-& = \sigma^{(t)}_i + \eta \sum_{j=1}^P (x_i - x_j)
-
-
- */
 
 class DualDecompLocalOptimizer(val subProblemId: Int,
                         val nSubProblems: Int,
@@ -69,7 +22,7 @@ class DualDecompLocalOptimizer(val subProblemId: Int,
 
   val primalVars = Array.fill(nSubProblems)(primal0.copy)
   val dualVars = Array.fill(nSubProblems)(BV.zeros[Double](nDim))
-  val localPrimalVar = primalVars(subProblemId)
+  def localPrimalVar = primalVars(subProblemId)
 
   val primalGrad = BV.zeros[Double](nDim)
   val dualSum = BV.zeros[Double](nDim)
@@ -103,16 +56,11 @@ class DualDecompLocalOptimizer(val subProblemId: Int,
   }
 
   def dualUpdate(rate: Double) {
+    assert(dualVars.length == nSubProblems)
     // Do the dual update
     var j = 0
     while (j < nSubProblems) {
-      // Upper Triangular Invariant:
-      // \lambda_{ij}^T (x_i - x_j) is defined for i < j
-      if (j < subProblemId) {
-        axpy(rate, primalVars(j) - localPrimalVar, dualVars(j))
-      } else {
-        axpy(rate, localPrimalVar - primalVars(j), dualVars(j))
-      }
+      axpy(rate, localPrimalVar - primalVars(j), dualVars(j))
       j += 1
     }
     dualIters += 1
@@ -144,15 +92,10 @@ class DualDecompLocalOptimizer(val subProblemId: Int,
     val scaledRegParam = params.regParam / nSubProblems.toDouble
 
     // Compute dualSum as defined in:
-    // \sigma_i &= \left(\sum_{j=i+1}^P \lambda_{ij}\right) - \left(\sum_{j=1}^{i-1} \lambda_{ji}\right) \\
     dualSum *= 0.0
     var j = 0
     while (j < nSubProblems) {
-      if (j < subProblemId) {
-        dualSum -= dualVars(j)
-      } else if (j > subProblemId) {
-        dualSum += dualVars(j)
-      }
+      dualSum += dualVars(j)
       j += 1
     }
 
