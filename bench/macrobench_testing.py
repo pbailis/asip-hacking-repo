@@ -14,7 +14,7 @@ ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AVG"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = False
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -23,10 +23,10 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
-SHORT_ALGORITHMS = ["ADMM"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["PORKCHOP"]#"PORKCHOP", "ADMM"]
 SHORT_RUNTIMES = [2000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["dblp"]
+SHORT_DATASETS = ["cloud"]
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -212,7 +212,7 @@ def runTest(runtimeMS,
 
 results = []
 
-def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 0):
+def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 3):
     global results
     localTimeout = 10000000
     broadcastDelay = -1
