@@ -204,6 +204,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
         receiveMsg(comm.selfID, primalVar, dualVar)
         primalConsensus = receivedPrimalConsensus
+        System.out.println("primal consensus is "+primalConsensus.toString+ " vec is "+primalVar.toString)
 
         localIters += 1
 
