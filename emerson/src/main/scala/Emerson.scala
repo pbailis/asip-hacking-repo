@@ -297,7 +297,7 @@ object Emerson {
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
 
-    params.eta_0 *= nDim * 0.02
+    //params.eta_0 *= nDim * 0.02
 
     model.fit(params, initialWeights, training)
 
