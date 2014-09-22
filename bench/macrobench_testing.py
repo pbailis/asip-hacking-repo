@@ -7,14 +7,14 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 10000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM", "MiniBatchADMM", "AVG"]#, "GD"]
+ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -23,10 +23,10 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
-SHORT_ALGORITHMS = ["PORKCHOP"]#"PORKCHOP", "ADMM"]
-SHORT_RUNTIMES = [2000]
+SHORT_ALGORITHMS = ["ADMM"] # ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_RUNTIMES = [10*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["cloud"]
+SHORT_DATASETS = ["bismarck"]
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -34,13 +34,13 @@ SHORT_DATASETS = ["cloud"]
 ## START OF CONSTANTS
 
 GLOBAL_ADMMepsilon = 0.0
-GLOBAL_ADMMlocalEpsilon = 1.0e-5
-GLOBAL_ADMMrho = 1.0
+GLOBAL_ADMMlocalEpsilon = 1.0
+GLOBAL_ADMMrho = 1.0 #1e-5
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
-GLOBAL_ADMM_maxLocalIterations = 100000
-GLOBAL_ADMM_localEpsilon = 1.0e-3
+GLOBAL_ADMM_maxLocalIterations = 10000
+GLOBAL_ADMM_localEpsilon = 1.0e-5
 GLOBAL_ADMM_localTimeout = 100000000
 
 GLOBAL_MiniBatchADMM_maxLocalIterations = 100000000
@@ -53,13 +53,23 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
-GLOBAL_PORKCHOP_broadcastDelay = 10
+GLOBAL_PORKCHOP_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 100
 
-GLOBAL_REG_PARAM = 1e-3
+DATASET_REG_PARAM = { 
+"cloud" : 1e-5,
+"bismarck" : 1,
+"flights" : 1e-5,
+"dblp" : 1,
+"wikipedia": 1
+}
+
+GLOBAL_REG_PARAM = 1#e-5
+
+GLOBAL_ETA_0 = 1
 
 ## END OF CONSTANTS
 
@@ -67,7 +77,7 @@ GLOBAL_REG_PARAM = 1e-3
 ## START OF DATASET FORMATTING
 
 def describe_point_cloud(pointsPerPartition = 500000,
-                         partitionSkew = 0.00,
+                         partitionSkew = 0.50,
                          labelNoise = 0.05,
                          dimension = 100):
     return   "--pointCloudPointsPerPartition " + str(pointsPerPartition) + " " + \
@@ -102,7 +112,6 @@ def runTest(runtimeMS,
             ADMMlagrangianRho = GLOBAL_ADMMlagrangianRho,
             objectiveFn="SVM",
             regType="L2",
-            regParam=GLOBAL_REG_PARAM,
             numPartitions = (8*16),
             broadcastDelay = 100,
             cloudDim=-1,
@@ -113,6 +122,8 @@ def runTest(runtimeMS,
             dblpSplitYear = 2007,
             inputTokenHashKernelDimension = GLOBAL_inputTokenHashKernelDimension,
             miscStr = ""):
+    regParam=DATASET_REG_PARAM[datasetName]
+
     if datasetName == "bismarck":
         datasetConfigStr = describe_forest()
     elif datasetName == "cloud":
@@ -150,8 +161,10 @@ def runTest(runtimeMS,
           "--broadcastDelayMs " + str(broadcastDelay) + " " +  \
           "--dblpSplitYear " + str(dblpSplitYear) + " " + \
           "--wikipediaTargetWordToken " + str(wikipediaTargetWordToken) + " " +  \
+          "--stepSize "+str(GLOBAL_ETA_0) + " " + \
           "--inputTokenHashKernelDimension " + str(inputTokenHashKernelDimension) + " " + \
           "--localTimeout " + str(localTimeout) + " " + \
+          "--learningT false " + \
           datasetConfigStr + " " + miscStr + " "
 
            # (algorithm,
@@ -212,13 +225,18 @@ def runTest(runtimeMS,
 
 results = []
 
-def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0, cloudDim = 3):
+def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3):
     global results
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
     miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+
     if algorithm == "ADMM":
+        maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
+        localEpsilon = GLOBAL_ADMM_localEpsilon
+        localTimeout = GLOBAL_ADMM_localTimeout
+    if algorithm == "DualDecomp":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
         localEpsilon = GLOBAL_ADMM_localEpsilon
         localTimeout = GLOBAL_ADMM_localTimeout

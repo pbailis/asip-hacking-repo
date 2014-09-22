@@ -212,9 +212,9 @@ object DataLoaders {
                         numPartitions: Int,
                         pointsPerPartition: Int): RDD[Array[(Double, BV[Double])]] = {
     sc.parallelize(1 to numPartitions, numPartitions).map { idx =>
-      val plusCloud = new DenseVector(Array.fill[Double](dim)(10.0))
+      val plusCloud = new DenseVector(Array.fill[Double](dim)(5.0))
       plusCloud.values(dim - 1) = 1
-      val negCloud = new DenseVector(Array.fill[Double](dim)(5.0))
+      val negCloud = new DenseVector(Array.fill[Double](dim)(0.0))
       negCloud.values(dim - 1) = 1
 
       // Seed the generator with the partition index

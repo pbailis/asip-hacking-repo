@@ -2,6 +2,7 @@ package edu.berkeley.emerson
 
 import java.util.concurrent.TimeUnit
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
+import breeze.optimize.DiffFunction
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.mllib.optimization.{Optimizer}
@@ -45,6 +46,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
   def getStats() = {
     Stats(primalVar, dualVar, msgsSent = 0,
+      localIters = localIters,
       sgdIters = sgdIters,
       dualUpdates = dualIters,
       dataSize = data.length,
@@ -59,12 +61,70 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
     val endByMS = System.currentTimeMillis() + remainingTimeMS
-    sgd(endByMS)
+    //params.useLBFGS = true
+    //params.maxWorkerIterations = 7
+    //params.workerTol = 1.0e-10
+
+    localIters += 1
+
+    // val preLoss = lossFun(primalVar, data) / nData.toDouble
+    // val preDiff = primalVar - primalConsensus
+    // val preLag = dualVar.dot(preDiff) + (rho / 2.0) * math.pow(norm(preDiff, 2), 2)
+    // val preObj = preLoss + preLag
+
+    if(params.useLBFGS) {
+      lbfgs(endByMS)
+    } else {
+      sgd(endByMS)
+    }
+
+    // val postLoss = lossFun(primalVar, data) / nData.toDouble
+    // val postDiff = primalVar - primalConsensus
+    // val postLag = dualVar.dot(postDiff) + (rho / 2.0) * math.pow(norm(postDiff, 2), 2)
+    // val postObj = postLoss + postLag
+    // println(s"($preObj, $preLoss, $preLag), ($postObj, $postLoss, $postLag)")
+
   }
 
+  def lbfgs(remainingTimeMS: Long = Long.MaxValue) {
+    val lbfgs = new breeze.optimize.LBFGS[BDV[Double]](//params.maxWorkerIterations,
+      tolerance = params.workerTol, m = 5)
+    var funEvals = 0
+    val f = new DiffFunction[BDV[Double]] {
+      override def calculate(x: BDV[Double]) = {
+        var obj = 0.0
+        var cumGrad = BDV.zeros[Double](x.length)
+        obj = lossFun.addGradient(x, data, cumGrad)
+        // Scale by size of the data
+        cumGrad /= nData.toDouble
+        obj /= nData.toDouble
+
+        val diff = x - primalConsensus 
+
+        // Add the dual variable
+        cumGrad += dualVar
+        obj += dualVar.dot(diff)
+
+        // Add the augmenting term
+        axpy(rho, diff, cumGrad)
+        obj += (rho / 2.0) *  math.pow(norm(diff, 2), 2)
+ 
+        funEvals += 1
+        
+        (obj, cumGrad)
+      }
+    }
+    primalVar = lbfgs.minimize(f, primalConsensus.toDenseVector)
+    println(s"Function Evals $funEvals")
+    sgdIters += funEvals
+  }
+
+
   // var t = 0
+  var learningT = 0.0
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
+
     // The lossScaleTerm is composed to several parts:
     //                   Scale up sample to machine  *  Loss Scale Term
     // lossScaleTerm = (dataOnMachine  * (1/miniBatch))  *  (1/N)
@@ -75,11 +135,18 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     //    Regularizer              Loss Term
     //  lambda * reg(w)  +  1/N \sum_{i=1}^N f(x_i, w)
     //
-    val lossScaleTerm = data.size.toDouble / (nData.toDouble * miniBatchSize.toDouble)
+    val lossScaleTerm = data.length.toDouble / (nData.toDouble * miniBatchSize.toDouble)
+
+    // Reset the primal variable to start at consensus
+    // primalVar = primalConsensus.copy
 
     var currentTime = System.currentTimeMillis()
     residual = Double.MaxValue
     var t = 0
+
+    if (!params.learningT) {
+      learningT = 0.0
+    }
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       currentTime < endByMS) {
@@ -93,24 +160,29 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // Normalize the gradient to the batch size
       grad *= lossScaleTerm
 
-      // // Assume loss is of the form  lambda/2 |reg|^2 + 1/n sum_i loss_i
-      // val scaledRegParam = params.regParam // / nData.toDouble
-      // grad += primalVar * scaledRegParam
-
       // Add the lagrangian
       grad += dualVar
 
       // Add the augmenting term
-      axpy(rho, primalVar - primalConsensus, grad)
+      // grad = grad + rho (primalVar - primalConsensus)
+      // axpy(rho, primalVar - primalConsensus, grad)
+      // grad = grad + rho * primalVar - rho * primalConsensus
+      // grad += rho * primalVar
+      // grad -= rho * primalConsensus
+      axpy(rho, primalVar, grad)
+      axpy(-rho, primalConsensus, grad)
 
       // Set the learning rate
-      val eta_t = params.eta_0 / Math.sqrt(t + 1.0)
+      val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
+      learningT += 1.0
 
       // Take a negative gradient step with step size eta
       axpy(-eta_t, grad, primalVar)
 
       // Compute residual
-      residual = eta_t * norm(grad, 2)
+      if (t % 100 == 0) {
+        residual = eta_t * norm(grad, 2)
+      }
 
       // Increment iteration counter
       t += 1
@@ -122,7 +194,18 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     }
     println(s"$t \t $residual")
 
+    // Compute the error on the local data
+    // val loss = lossFun(primalVar, data)
+    // val error = data.view.map { case (y, x) =>
+    //   assert(y == 0.0 || y == 1.0)
+    //   val yScaled = 2.0 * y - 1.0
+    //   if (yScaled * primalVar.dot(x) <= 0.0) 1.0 else 0.0
+    // }.reduce(_ + _) / data.length.toDouble
+
+    // val localSkew = data.view.map { case (y, x) => y }.reduce(_ + _) / data.length
+    // println(s"(primalVar, preLoss, loss, error, skew): ($primalVar, $preLoss, $loss, $error, $localSkew)")
+
     // Save the last num
-    sgdIters = t
+    sgdIters += t
   }
 }

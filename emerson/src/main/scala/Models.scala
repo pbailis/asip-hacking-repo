@@ -41,7 +41,11 @@ abstract trait BasicEmersonOptimizer extends EmersonOptimizer {
     nSubProblems = data.partitions.length
 
     data.cache()
-    nData = data.map( a => a.length ).reduce(_ + _)
+    val perNodeData = data.map( a => a.length ).collect
+    nData = perNodeData.sum
+
+    println(s"Per node data size: ${perNodeData.mkString(",")}")
+
   }
 
 }
@@ -72,7 +76,6 @@ class EmersonModel(val params: EmersonParams,
   def score(data: RDD[Array[(Double, BV[Double])]]): (Double, Double, Double, Double) = {
     assert(weights != null)
     val w = weights // make a local reference to prevent closure capture
-    val loss = data.map(d => lossFunction(w, d)).reduce( _ + _ )
     val (nData, totalError) = data.map { data =>
       val totalError = data.view.map{
         case (y, x) =>
@@ -82,6 +85,9 @@ class EmersonModel(val params: EmersonParams,
       }.sum
       (data.length.toDouble, totalError)
     }.reduce( (a,b) => (a._1 + b._1, a._2 + b._2) )
+
+    val loss = data.map(d => lossFunction(w, d)).reduce( _ + _ ) / nData.toDouble
+
     val propError = totalError / nData
     val reg = regularizationFunction(w, params.regParam)
     val objective = loss + reg

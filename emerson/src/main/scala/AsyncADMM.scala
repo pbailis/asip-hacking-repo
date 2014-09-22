@@ -2,6 +2,7 @@ package edu.berkeley.emerson
 
 import java.util.UUID
 import java.util.concurrent._
+import java.util.concurrent.atomic._
 
 import akka.actor._
 import akka.pattern.ask
@@ -56,6 +57,7 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
     case d: InternalMessages.VectorUpdateMessage => {
       if(worker != null) {
         worker.receiveMsg(d.sender, d.primalVar, d.dualVar)
+        worker.msgsRcvd.getAndIncrement()
       }
     }
     case _ => println("hello, world!")
@@ -123,12 +125,12 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var done = false
   @volatile var startTime = 0L
   @volatile var msgsSent = 0
-  @volatile var msgsRcvd = 0
+  val msgsRcvd = new AtomicInteger(0)
   @volatile var ranOnce = false
 
   override def getStats() = {
     Stats(primalVar = primalVar, dualVar = dualVar,
-      msgsSent = msgsSent, msgsRcvd = msgsRcvd,
+      msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(),
       localIters = localIters, sgdIters = sgdIters,
       dualUpdates = dualIters,
       dataSize = data.length)
@@ -180,7 +182,7 @@ class AsyncADMMWorker(subProblemId: Int,
         dualUpdate(params.lagrangianRho)
         
         // Start over at primal consensus
-        primalVar = primalConsensus.copy  // this was there before
+        //  primalVar = primalConsensus.copy  // this was there before
 
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)        
         // Run the primal update
@@ -195,17 +197,15 @@ class AsyncADMMWorker(subProblemId: Int,
         var currentTime = System.currentTimeMillis() 
   
         if (currentTime - lastSend > params.broadcastDelayMS) {
-          val primalCopy = primalVar.copy
-          val dualCopy = dualVar.copy
-          comm.broadcastDeltaUpdate(primalCopy, dualCopy)
-          lastSend = System.currentTimeMillis()
-          currentTime = lastSend
+          comm.broadcastDeltaUpdate(primalVar, dualVar)
+          msgsSent += 1
+          lastSend = currentTime
         }
 
         receiveMsg(comm.selfID, primalVar, dualVar)
         primalConsensus = receivedPrimalConsensus
 
-        localIters += 1
+        // localIters += 1
 
         // Assess Termination
         val elapsedTime = currentTime - startTime
@@ -238,15 +238,14 @@ class AsyncADMMWorker(subProblemId: Int,
         primalSum += newPrimal
         dualSum += newDual
       }
-      msgsRcvd += 1
-      val primalAvg = primalSum/sumTerms.toDouble
-      val dualAvg = dualSum/sumTerms.toDouble
-      // Recompute the consensus variable
-      receivedPrimalConsensus = regularizer.consensus(primalAvg, dualAvg,
-					      nSolvers = sumTerms,
-					      rho = rho, 
-					      regParam = regParamScaled)
     }
+    val primalAvg = primalSum/sumTerms.toDouble
+    val dualAvg = dualSum/sumTerms.toDouble
+    // Recompute the consensus variable
+    receivedPrimalConsensus = regularizer.consensus(primalAvg, dualAvg,
+      nSolvers = sumTerms,
+      rho = rho,
+      regParam = regParamScaled)
   }
 
   def mainLoop() = {
@@ -268,11 +267,13 @@ class AsyncADMMWorker(subProblemId: Int,
   def mainLoopAsync() = {
     println(s"${comm.selfID}: Starting the main loop.")
     // Launch a thread to send the messages in the background
-    solverLoopThread.start()
+    //solverLoopThread.start()
     //consumerThread.start()
     //broadcastThread.start()
 
-    solverLoopThread.join()
+    solverLoopThread.run()
+
+    //solverLoopThread.join()
     //consumerThread.join()
     //broadcastThread.join()
 
@@ -308,7 +309,7 @@ class AsyncADMMWorker(subProblemId: Int,
       while (tiq != null) {
         allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
         tiq = comm.inputQueue.poll()
-        msgsRcvd += 1
+        msgsRcvd.getAndIncrement()
       }
       allVars.put(comm.selfID, (primalVar, dualVar))
 
@@ -331,7 +332,7 @@ class AsyncADMMWorker(subProblemId: Int,
 					      regParam = regParamScaled)
 
       // Reset the primal var
-      primalVar = primalConsensus.copy
+      // primalVar = primalConsensus.copy
 
       // Check to see if we are done
       val elapsedTime = System.currentTimeMillis() - startTime

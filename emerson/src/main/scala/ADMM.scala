@@ -87,6 +87,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
     val startTimeNs = System.nanoTime()
 
     var rho = params.rho0
+    //    rho = 0.0
 
     iteration = 0
     while (iteration < params.maxIterations &&
@@ -95,16 +96,18 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       println("========================================================")
       println(s"Starting iteration $iteration.")
 
-      val timeRemaining = params.runtimeMS - (System.currentTimeMillis() - starttime)
+      val timeRemaining = 
+        params.runtimeMS - (System.currentTimeMillis() - starttime)
+     
+      println(s"Master time remaining ${timeRemaining}")
+
       // Run the local solvers
       stats = solvers.map { solver =>
         // Make sure that the local solver did not reset!
         assert(solver.localIters == iteration)
-        solver.localIters += 1
 
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
-        solver.primalVar = primalConsensus.copy
         solver.rho = rho
 
         // if(params.adaptiveRho) {
@@ -118,16 +121,20 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
         // Do a primal update
         solver.primalUpdate(Math.min(timeRemaining, params.localTimeout))
 
+
         // Construct stats
         solver.getStats()
       }.reduce( _ + _ )
 
       // Recompute the consensus variable
       val primalConsensusOld = primalConsensus.copy
-      val regParamScaled = params.regParam // * params.admmRegFactor
-      primalConsensus = regularizationFunction.consensus(stats.primalAvg, stats.dualAvg, 
-					      stats.nWorkers, rho,
-					      regParam = regParamScaled)
+      primalConsensus = regularizationFunction.consensus(
+        stats.primalAvg, stats.dualAvg,
+	stats.nWorkers, rho,
+	regParam = params.regParam)
+
+      //      rho = params.rho0
+
 
       // // Compute the residuals
       // primalResidual = solvers.map(

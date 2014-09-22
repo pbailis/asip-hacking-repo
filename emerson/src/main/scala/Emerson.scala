@@ -97,6 +97,8 @@ object Emerson {
         .text(s"initial step size, default: ${defaultParams.eta_0}")
         .action { (x, c) => c.eta_0 = x; c}
 
+      opt[Boolean]("learningT")
+        .action{ (x, c) => c.learningT = x; c }
 
       // point cloud parameters
       opt[Int]("pointCloudDimension")
@@ -223,7 +225,7 @@ object Emerson {
 
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.akka.heartbeat.interval", "20000") // in seconds?
     conf.set("spark.locality.wait", "100000") // in milliseconds
 
@@ -261,7 +263,9 @@ object Emerson {
       training = DataLoaders.normalizeData(training)
     }
 
-    val numTraining = training.count()
+  
+    training.foreach{ x => System.gc() }
+    val numTraining = training.map{x => x.length}.reduce(_ + _)
     params.numTraining = numTraining
 
     println(s"Loaded data! Number of training examples: $numTraining")
@@ -292,6 +296,8 @@ object Emerson {
 
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
+
+    params.eta_0 *= nDim * 0.02
 
     model.fit(params, initialWeights, training)
 
@@ -347,8 +353,10 @@ object Emerson {
       "minW" -> model.weights.toArray.min,
       "maxW" -> model.weights.toArray.max,
       "params" -> params.toString,
+      "dim" -> nDim.toString,
       "stats" -> mapToJson(optimizerStats)
-    )
+  
+  )
 
 
     println("RESULT: " + mapToJson(resultsMap))

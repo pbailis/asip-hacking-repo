@@ -7,13 +7,28 @@ import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
 trait LossFunction extends Serializable {
 
   def predict(w: BV[Double], x: BV[Double]): Double = {
-    if(w.dot(x) > 0) { 1.0 } else { 0.0 }
+    if(w.dot(x) > 0.0) { 1.0 } else { 0.0 }
   }
 
   /**
    * Add gradient for point to running sum.
    */
   def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double
+
+  /**
+   * Add gradient for point to running sum.
+   */
+  def addGradient(w: BV[Double], data: Array[(Double, BV[Double])], cumGrad: BV[Double]): Double = {
+    var i = 0
+    var sum = 0.0
+    while (i < data.length) {
+      sum += addGradient(w, data(i)._2, data(i)._1, cumGrad)
+      i += 1
+    }
+    sum
+  }
+
+
 
   /**
    * Evaluate the loss at a point
@@ -43,6 +58,7 @@ trait LossFunction extends Serializable {
 class HingeLoss extends LossFunction {
 
   override def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
+    assert(y == 0.0 || y == 1.0)
     val yscaled = 2.0 * y - 1.0
     val wdotx = w.dot(x)
     if (yscaled * wdotx < 1.0) {
