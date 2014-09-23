@@ -17,7 +17,7 @@ object Emerson {
 
   object Objective extends Enumeration {
     type Objective = Value
-    val SVM, Logistic = Value
+    val SVM, LR = Value
   }
 
   object RegType extends Enumeration {
@@ -276,7 +276,7 @@ object Emerson {
 
     val lossFunction = params.objectiveFn match {
       case SVM => new HingeLoss()
-      case Logistic => new LogisticLoss()
+      case LR => new LogisticLoss()
     }
 
     val regularizationFunction = params.regType match {

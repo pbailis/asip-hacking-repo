@@ -26,7 +26,7 @@ TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 SHORT_ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 SHORT_RUNTIMES = [10*1000, 30*1000]
-SHORT_TASKS = [("SVM", "L2")]
+SHORT_TASKS = [("LR", "L2")]
 SHORT_DATASETS = ["bismarck"]
 
 
@@ -75,7 +75,7 @@ DATASET_REG_PARAM = {
 GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
-GLOBAL_ETA_0 = 1#1e-2
+GLOBAL_ETA_0 = 1.0e-2
 
 ## END OF CONSTANTS
 
