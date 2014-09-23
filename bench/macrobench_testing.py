@@ -24,10 +24,11 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
-SHORT_ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
-SHORT_RUNTIMES = [10*1000]
+SHORT_ALGORITHMS = ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_RUNTIMES = [2000, 20*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["dblp"]
+SHORT_DATASETS = ["flights"]
+
 
 
 ## END OF EXPERIMENTAL PARAMETERS
@@ -65,7 +66,7 @@ GLOBAL_inputTokenHashKernelDimension = 100
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
 "bismarck" : 1e-1,
-"flights" : 1e-5,
+"flights" : 1e-1,
 "dblp" : 1e-1,
 "wikipedia": 1e-2
 }
@@ -74,7 +75,7 @@ DATASET_REG_PARAM = {
 GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
-GLOBAL_ETA_0 = 1e-2
+GLOBAL_ETA_0 = 1#1e-2
 
 ## END OF CONSTANTS
 

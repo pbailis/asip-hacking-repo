@@ -162,6 +162,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
       // val lossGradNorm = norm(grad, 2)
 
+      // Add the regularization term into the gradient step
+      regularizer.addGradient(primalVar, params.regParam / nSubProblems.toDouble, grad)
+
       // Add the lagrangian
       grad += dualVar
 

@@ -297,6 +297,16 @@ object Emerson {
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
 
+    /*
+    val rando = new java.util.Random(42)
+    var i = 0
+    while (i < nDim) {
+      initialWeights(i) = rando.nextDouble()
+      i += 1
+    }
+     */
+
+
     //params.eta_0 *= nDim * 0.02
 
     model.fit(params, initialWeights, training)
