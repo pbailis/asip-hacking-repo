@@ -114,11 +114,11 @@ class AsyncADMMWorker(subProblemId: Int,
                       nData: Int, 
                       data: Array[(Double, BV[Double])],
                       lossFun: LossFunction,
+                      regularizer: Regularizer,
                       params: EmersonParams,
-                      val regularizer: Regularizer,
                       val comm: WorkerCommunication)
-    extends ADMMLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, nData = nData,
-      data = data, lossFun = lossFun, params)
+    extends ADMMLocalOptimizer(subProblemId = subProblemId, nSubProblems = nSubProblems, 
+      nData = nData, data = data, lossFun = lossFun, regularizer, params)
     with Logging {
   comm.worker = this
 
@@ -390,10 +390,10 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
         val worker = new AsyncADMMWorker(subProblemId = ind,
           nSubProblems = nSubProblems, nData = nData.toInt , data = data,
-          lossFun = lossFunction, params = params, regularizer = regularizationFunction,
+          lossFun = lossFunction, regularizer = regularizationFunction, params = params, 
           comm = hack.ref)
         worker.primalVar = primal0.copy
-        worker.dualVar = primal0.copy
+        worker.primalConsensus = primal0.copy
         SetupBlock.workers(ind) = worker
         Iterator(worker)
       }
@@ -448,18 +448,20 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
     
     val regParamScaled = params.regParam // * params.admmRegFactor
     finalW = regularizationFunction.consensus(
-               stats.primalAvg, stats.dualAvg,
-				       stats.nWorkers, 
-				       params.rho0,
-				       regParam = regParamScaled)
+      stats.primalAvg, stats.dualAvg,
+      stats.nWorkers,
+      params.rho0,
+      regParam = regParamScaled)
+   
+
+    val totalTimeNs = System.nanoTime() - startTimeNs
+    totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
+
     println(stats.primalAvg())
     println(stats.dualAvg())
     println(finalW)
     println(s"Final norm: ${norm(finalW, 2)}")
 
-
-    val totalTimeNs = System.nanoTime() - startTimeNs
-    totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
 
     finalW
   }

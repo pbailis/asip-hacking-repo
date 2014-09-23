@@ -72,7 +72,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
     solvers = data.mapPartitionsWithIndex { (ind, iter) =>
       val data: Array[(Double, BV[Double])] = iter.next()
       val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
-        nData = nData.toInt, data, lossFunction, params)
+        nData = nData.toInt, data, lossFunction, regularizationFunction,  params)
       // Initialize the primal variable and primal regularizer
       solver.primalVar = primal0.copy
       solver.primalConsensus = primal0.copy

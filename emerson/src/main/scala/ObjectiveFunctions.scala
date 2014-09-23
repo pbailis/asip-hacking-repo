@@ -177,6 +177,7 @@ class L2Regularizer extends Regularizer {
       println(s"multiplier: $multiplier")
       (primalAvg + dualAvg / rho) * multiplier
     }
+    //primalAvg.copy
   }
 
   

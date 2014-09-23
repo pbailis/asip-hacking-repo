@@ -17,7 +17,7 @@ object Emerson {
 
   object Objective extends Enumeration {
     type Objective = Value
-    val SVM, Logistic = Value
+    val SVM, LR = Value
   }
 
   object RegType extends Enumeration {
@@ -276,7 +276,7 @@ object Emerson {
 
     val lossFunction = params.objectiveFn match {
       case SVM => new HingeLoss()
-      case Logistic => new LogisticLoss()
+      case LR => new LogisticLoss()
     }
 
     val regularizationFunction = params.regType match {
@@ -296,6 +296,16 @@ object Emerson {
 
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
+
+   /* 
+    val rando = new java.util.Random(42)
+    var i = 0
+    while (i < nDim) {
+      initialWeights(i) = rando.nextGaussian() //rando.nextDouble()
+      i += 1
+    }
+    */
+
 
     //params.eta_0 *= nDim * 0.02
 

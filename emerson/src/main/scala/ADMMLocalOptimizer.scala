@@ -15,6 +15,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
                         val nData: Int,
                         val data: Array[(Double, BV[Double])],
                         val lossFun: LossFunction,
+                        val regularizer: Regularizer,
                         val params: EmersonParams) extends Serializable with Logging {
 
   val nDim = data(0)._2.size
@@ -162,6 +163,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
       // val lossGradNorm = norm(grad, 2)
 
+      // Add the regularization term into the gradient step
+      // regularizer.addGradient(primalVar, params.regParam / nSubProblems.toDouble, grad)
+
       // Add the lagrangian
       grad += dualVar
 
@@ -171,6 +175,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // grad = grad + rho * primalVar - rho * primalConsensus
       // grad += rho * primalVar
       // grad -= rho * primalConsensus
+      
       axpy(rho, primalVar, grad)
       axpy(-rho, primalConsensus, grad)
 
