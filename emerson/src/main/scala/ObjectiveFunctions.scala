@@ -174,6 +174,7 @@ class L2Regularizer extends Regularizer {
       primalAvg
     } else {
       val multiplier = (nSolvers * rho) / (regParam + nSolvers * rho)
+      println(s"multiplier: $multiplier")
       (primalAvg + dualAvg / rho) * multiplier
     }
   }
