@@ -61,9 +61,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
     val endByMS = System.currentTimeMillis() + remainingTimeMS
-    //params.useLBFGS = true
-    //params.maxWorkerIterations = 7
-    //params.workerTol = 1.0e-10
+    // params.useLBFGS = true
+    // params.maxWorkerIterations = 10
+    // params.workerTol = 1.0e-10
 
     localIters += 1
 
@@ -160,6 +160,8 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // Normalize the gradient to the batch size
       grad *= lossScaleTerm
 
+      // val lossGradNorm = norm(grad, 2)
+
       // Add the lagrangian
       grad += dualVar
 
@@ -171,6 +173,8 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // grad -= rho * primalConsensus
       axpy(rho, primalVar, grad)
       axpy(-rho, primalConsensus, grad)
+
+      // println(s"grad norm: (${norm(primalVar,2)}, $lossGradNorm, ${norm(grad, 2)})")
 
       // Set the learning rate
       val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
@@ -192,18 +196,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
         currentTime = System.currentTimeMillis()
       }
     }
-    println(s"$t \t $residual")
-
-    // Compute the error on the local data
-    // val loss = lossFun(primalVar, data)
-    // val error = data.view.map { case (y, x) =>
-    //   assert(y == 0.0 || y == 1.0)
-    //   val yScaled = 2.0 * y - 1.0
-    //   if (yScaled * primalVar.dot(x) <= 0.0) 1.0 else 0.0
-    // }.reduce(_ + _) / data.length.toDouble
-
-    // val localSkew = data.view.map { case (y, x) => y }.reduce(_ + _) / data.length
-    // println(s"(primalVar, preLoss, loss, error, skew): ($primalVar, $preLoss, $loss, $error, $localSkew)")
+    println(s"$t \t $residual: \t (primalMin, primalMax): (${min(primalVar.toDenseVector)}, ${max(primalVar.toDenseVector)}")
 
     // Save the last num
     sgdIters += t

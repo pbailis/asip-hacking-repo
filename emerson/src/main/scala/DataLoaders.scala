@@ -191,6 +191,16 @@ object DataLoaders {
 
     data.count()
     rawData.unpersist(true)
+
+    // val nData = data.map(_.length).reduce(_ + _)
+    // val dimInterval = data.map(_.map { case (y, x) => Interval(x.size) }.reduce(_+_)).reduce(_ + _) / nData.toDouble
+    // val maxValue = data.map(_.map { case (y, x) => Interval(x.max) }.reduce(_+_)).reduce(_+_) / nData.toDouble
+    // val minValue = data.map(_.map { case (y, x) => Interval(x.min) }.reduce(_+_)).reduce(_+_) / nData.toDouble
+    // println(s"nData:        $nData")
+    // println(s"dimInterval:  $dimInterval")
+    // println(s"maxValue:     $maxValue")
+    // println(s"minValue:     $minValue")
+
     data
   }
 

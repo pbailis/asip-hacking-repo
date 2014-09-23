@@ -7,14 +7,14 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 10000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 10000, 50000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = False
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -23,10 +23,10 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
-SHORT_ALGORITHMS = ["ADMM"] # ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 SHORT_RUNTIMES = [10*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["bismarck"]
+SHORT_DATASETS = ["flights"]
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -35,7 +35,7 @@ SHORT_DATASETS = ["bismarck"]
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0
-GLOBAL_ADMMrho = 1.0 #1e-5
+GLOBAL_ADMMrho = 1.0e-2 #1e-5
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
@@ -62,7 +62,7 @@ GLOBAL_inputTokenHashKernelDimension = 100
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
 "bismarck" : 1,
-"flights" : 1e-5,
+"flights" : 1e-1,
 "dblp" : 1,
 "wikipedia": 1
 }
