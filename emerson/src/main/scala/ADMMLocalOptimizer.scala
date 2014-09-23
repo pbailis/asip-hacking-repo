@@ -121,6 +121,38 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   }
 
 
+  def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
+    var etaBest = 1.0e-8
+    var w = primalVar - grad * etaBest
+    var scoreBest = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
+      (rho / 2.0) * math.pow(norm(w - primalConsensus,2), 2)
+    var etaProposal = etaBest * 2.0
+    w = primalVar - grad * etaProposal
+    var newScoreProposal = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
+      (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
+    var searchIters = 0
+    // Try to decrease the objective as much as possible
+    while (newScoreProposal < scoreBest) {
+      etaBest = etaProposal
+      scoreBest = newScoreProposal
+      // Double eta and propose again.
+      etaProposal *= 2.0
+      w = primalVar - grad * etaProposal
+      newScoreProposal = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
+        (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
+      searchIters += 1
+      // Kill the loop if we run out of search time
+      val currentTime = System.currentTimeMillis()
+      if (currentTime > endByMS) {
+        etaProposal = 0.0
+        newScoreProposal = Double.MaxValue
+        println(s"Ran out of linesearch time on $searchIters: $currentTime > $endByMS")
+      }
+    }
+    etaBest
+  }
+
+
   // var t = 0
   var learningT = 0.0
   def sgd(endByMS: Long = Long.MaxValue) {
@@ -153,8 +185,10 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       currentTime < endByMS) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
-      while (b < miniBatchSize) {
-        val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
+      //while (b < miniBatchSize) {
+      while (b < data.length) {
+        // val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
+        val ind = b 
         lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
@@ -182,7 +216,8 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // println(s"grad norm: (${norm(primalVar,2)}, $lossGradNorm, ${norm(grad, 2)})")
 
       // Set the learning rate
-      val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
+      // val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
+      val eta_t = lineSearch(grad)
       learningT += 1.0
 
       // Take a negative gradient step with step size eta

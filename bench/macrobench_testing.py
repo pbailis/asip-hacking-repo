@@ -14,7 +14,7 @@ ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDeco
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = False
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -26,8 +26,8 @@ TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 SHORT_ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
-SHORT_RUNTIMES = [10*1000, 30*1000]
-SHORT_TASKS = [("LR", "L2")]
+SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
+SHORT_TASKS = [("SVM", "L2")]
 SHORT_DATASETS = ["bismarck"]
 
 
@@ -59,8 +59,8 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 1000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
+GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-5
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 1000
@@ -78,7 +78,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e-2
+GLOBAL_ETA_0 = 1.0 # 1.0e-2
 
 
 ## END OF CONSTANTS
