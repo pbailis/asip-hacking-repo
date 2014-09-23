@@ -7,14 +7,14 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 10000, 50000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 10000, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
 ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -25,9 +25,9 @@ TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
 SHORT_ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
-SHORT_RUNTIMES = [10*1000, 30*1000]
+SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["bismarck"]
+SHORT_DATASETS = ["cloud"]
 
 
 ## END OF EXPERIMENTAL PARAMETERS
@@ -65,16 +65,16 @@ GLOBAL_inputTokenHashKernelDimension = 1000
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
 "bismarck" : 1e-1,
-"flights" : 1e-5,
+"flights" : 1e-1,
 "dblp" : 1e-1,
-"wikipedia": 1e-5
+"wikipedia": 1e-1
 }
 
 # bismarck the paper does 1e-1
 GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
-GLOBAL_ETA_0 = 1e-2
+GLOBAL_ETA_0 = 1
 
 ## END OF CONSTANTS
 
@@ -128,6 +128,10 @@ def runTest(runtimeMS,
             inputTokenHashKernelDimension = GLOBAL_inputTokenHashKernelDimension,
             miscStr = ""):
     regParam=DATASET_REG_PARAM[datasetName]
+
+    # scale L1 regparam to 1e-5
+    if regType == "L1":
+        regParam *= 1e-4
 
     if datasetName == "bismarck":
         datasetConfigStr = describe_forest()
@@ -270,7 +274,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     elif algorithm == "AsyncADMM":
         maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
         broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
-        
+
     results += runTest(runtime,
                        algorithm,
                        dataset,
