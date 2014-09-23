@@ -86,9 +86,6 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
     val starttime = System.currentTimeMillis()
     val startTimeNs = System.nanoTime()
 
-    var rho = params.rho0
-    //    rho = 0.0
-
     iteration = 0
     while (iteration < params.maxIterations &&
       (primalResidual > params.tol || dualResidual > params.tol) &&
@@ -108,7 +105,6 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
-        solver.rho = rho
 
         // if(params.adaptiveRho) {
         //   solver.dualUpdate(rho)
@@ -130,10 +126,8 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = regularizationFunction.consensus(
         stats.primalAvg, stats.dualAvg,
-	stats.nWorkers, rho,
+	stats.nWorkers, params.rho0,
 	regParam = params.regParam)
-
-      //      rho = params.rho0
 
 
       // // Compute the residuals

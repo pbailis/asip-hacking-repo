@@ -122,14 +122,16 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
 
   def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
-    var etaBest = 1.0e-8
+    var etaBest = params.workerTol
     var w = primalVar - grad * etaBest
-    var scoreBest = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
-      (rho / 2.0) * math.pow(norm(w - primalConsensus,2), 2)
+    var diff = w - primalConsensus
+    var scoreBest = lossFun(w, data) + dualVar.dot(diff) +
+      (rho / 2.0) * math.pow(norm(diff,2), 2)
     var etaProposal = etaBest * 2.0
     w = primalVar - grad * etaProposal
-    var newScoreProposal = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
-      (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
+    diff = w - primalConsensus
+    var newScoreProposal = lossFun(w, data) + dualVar.dot(diff) +
+      (rho / 2.0) * math.pow( norm(diff, 2), 2)
     var searchIters = 0
     // Try to decrease the objective as much as possible
     while (newScoreProposal < scoreBest) {
@@ -138,16 +140,17 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // Double eta and propose again.
       etaProposal *= 2.0
       w = primalVar - grad * etaProposal
-      newScoreProposal = lossFun(w, data) + dualVar.dot(w - primalConsensus) +
-        (rho / 2.0) * math.pow( norm(w - primalConsensus,2), 2)
+      diff = w - primalConsensus
+      newScoreProposal = lossFun(w, data) + dualVar.dot(diff)
+        (rho / 2.0) * math.pow( norm(diff, 2), 2)
       searchIters += 1
-      // Kill the loop if we run out of search time
-      val currentTime = System.currentTimeMillis()
-      if (currentTime > endByMS) {
-        etaProposal = 0.0
-        newScoreProposal = Double.MaxValue
-        println(s"Ran out of linesearch time on $searchIters: $currentTime > $endByMS")
-      }
+      // // Kill the loop if we run out of search time
+      // val currentTime = System.currentTimeMillis()
+      // if (currentTime > endByMS) {
+      //   // etaProposal = 0.0
+      //   newScoreProposal = Double.MaxValue
+      //   println(s"Ran out of linesearch time on $searchIters: $currentTime > $endByMS")
+      // }
     }
     etaBest
   }
@@ -168,7 +171,8 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     //    Regularizer              Loss Term
     //  lambda * reg(w)  +  1/N \sum_{i=1}^N f(x_i, w)
     //
-    val lossScaleTerm = data.length.toDouble / (nData.toDouble * miniBatchSize.toDouble)
+    // val lossScaleTerm = data.length.toDouble / (nData.toDouble * miniBatchSize.toDouble)
+    val lossScaleTerm = 1.0 / nData.toDouble
 
     // Reset the primal variable to start at consensus
     // primalVar = primalConsensus.copy

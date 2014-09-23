@@ -185,6 +185,7 @@ class AsyncADMMWorker(subProblemId: Int,
         //  primalVar = primalConsensus.copy  // this was there before
 
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)        
+
         // Run the primal update
         primalUpdate(timeRemainingMS)
 
@@ -197,12 +198,12 @@ class AsyncADMMWorker(subProblemId: Int,
         var currentTime = System.currentTimeMillis() 
   
         if (currentTime - lastSend > params.broadcastDelayMS) {
-          comm.broadcastDeltaUpdate(primalVar, dualVar)
+          comm.broadcastDeltaUpdate(primalVar.copy, dualVar.copy)
           msgsSent += 1
           lastSend = currentTime
         }
 
-        receiveMsg(comm.selfID, primalVar, dualVar)
+        receiveMsg(comm.selfID, primalVar.copy, dualVar.copy)
         primalConsensus = receivedPrimalConsensus
 
         // localIters += 1
@@ -239,13 +240,13 @@ class AsyncADMMWorker(subProblemId: Int,
         dualSum += newDual
       }
     }
-    val primalAvg = primalSum/sumTerms.toDouble
-    val dualAvg = dualSum/sumTerms.toDouble
+    val primalAvg = primalSum / sumTerms.toDouble
+    val dualAvg = dualSum / sumTerms.toDouble
     // Recompute the consensus variable
     receivedPrimalConsensus = regularizer.consensus(primalAvg, dualAvg,
       nSolvers = sumTerms,
-      rho = rho,
-      regParam = regParamScaled)
+      rho = params.rho0,
+      regParam = params.regParam)
   }
 
   def mainLoop() = {
@@ -253,7 +254,6 @@ class AsyncADMMWorker(subProblemId: Int,
     assert(!ranOnce)
     ranOnce = true
     startTime = System.currentTimeMillis()
-    rho = params.rho0
     val primalOptimum =
       if (params.usePorkChop) {
         mainLoopAsync()
@@ -328,7 +328,7 @@ class AsyncADMMWorker(subProblemId: Int,
       // Recompute the consensus variable
       primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
 					      nSolvers = allVars.size,
-					      rho = rho, 
+					      rho = params.rho0, 
 					      regParam = regParamScaled)
 
       // Reset the primal var
@@ -446,12 +446,11 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
       w.getStats()
     }.reduce( _ + _ )
     
-    val regParamScaled = params.regParam // * params.admmRegFactor
     finalW = regularizationFunction.consensus(
       stats.primalAvg, stats.dualAvg,
       stats.nWorkers,
       params.rho0,
-      regParam = regParamScaled)
+      regParam = params.regParam)
    
 
     val totalTimeNs = System.nanoTime() - startTimeNs
