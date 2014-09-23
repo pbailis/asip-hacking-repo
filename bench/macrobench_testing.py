@@ -25,9 +25,9 @@ TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
 SHORT_ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
-SHORT_RUNTIMES = [10*1000]
+SHORT_RUNTIMES = [10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["dblp"]
+SHORT_DATASETS = ["bismarck"]
 
 
 ## END OF EXPERIMENTAL PARAMETERS
@@ -60,14 +60,14 @@ GLOBAL_PORKCHOP_maxLocalIterations = 1000
 GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
-GLOBAL_inputTokenHashKernelDimension = 100
+GLOBAL_inputTokenHashKernelDimension = 1000
 
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
 "bismarck" : 1e-1,
 "flights" : 1e-5,
 "dblp" : 1e-1,
-"wikipedia": 1e-2
+"wikipedia": 1e-5
 }
 
 # bismarck the paper does 1e-1
