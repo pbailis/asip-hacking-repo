@@ -23,10 +23,12 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
+
 SHORT_ALGORITHMS = ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 SHORT_RUNTIMES = [10*1000]
 SHORT_TASKS = [("SVM", "L2")]
 SHORT_DATASETS = ["flights"]
+
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -36,6 +38,7 @@ SHORT_DATASETS = ["flights"]
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0
 GLOBAL_ADMMrho = 1.0e-2 #1e-5
+
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
@@ -61,15 +64,17 @@ GLOBAL_inputTokenHashKernelDimension = 100
 
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
-"bismarck" : 1,
-"flights" : 1e-1,
-"dblp" : 1,
-"wikipedia": 1
+"bismarck" : 1e-1,
+"flights" : 1e-5,
+"dblp" : 1e-1,
+"wikipedia": 1e-2
 }
 
-GLOBAL_REG_PARAM = 1#e-5
+# bismarck the paper does 1e-1
+GLOBAL_REG_PARAM = 1e-1#e-5
 
-GLOBAL_ETA_0 = 1
+# bismarck the paper does 1e-2
+GLOBAL_ETA_0 = 1e-2
 
 ## END OF CONSTANTS
 
@@ -230,7 +235,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+    miscStr = ""
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations

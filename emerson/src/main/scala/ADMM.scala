@@ -154,7 +154,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       // }
 
       println(s"Iteration: $iteration")
-      println(stats)
+      println(stats.toStringShort)
       // println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
       iteration += 1
     }

@@ -53,6 +53,8 @@ object DataLoaders {
       var i = 1
       while (i < splits.length) {
         val hc: Int = MurmurHash3.stringHash(splits(i))
+        // shit, so we want to subtract, i think, no?
+        // this is just the vector... yep but I want to keep the sign in my scaling code
         features(Math.abs(hc) % features.length) += (if (hc > 0) 1.0 else -1.0)
         i += 1
       }
@@ -266,41 +268,57 @@ object DataLoaders {
   def normalizeData(data: RDD[Array[(Double, BV[Double])]]): RDD[Array[(Double, BV[Double])]] = {
     val nExamples = data.map { data => data.length }.reduce( _ + _ )
 
-    val xmax: BV[Double] = data.map {
-      data => data.view.map { case (y, x) => x }.reduce((a,b) => elementMax(a,b))
-    }.reduce((a,b) => elementMax(a,b))
-//
-//    val xbar: BV[Double] = data.map {
-//      data => data.view.map { case (y, x) => x }.reduce(_ + _)
-//    }.reduce(_ + _) / nExamples.toDouble
-//
-//    val xxbar: BV[Double] = data.map {
-//      data => data.view.map { case (y, x) => x :* x }.reduce(_ + _)
-//    }.reduce(_ + _) / nExamples.toDouble
-//
-//    val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
-//
-//    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
-//
-//    // Just in case there are constant columns set the standard deviation to 1.0
-//    for(i <- 0 until stdev.size) {
-//      if (stdev(i) == 0.0) { stdev(i) = 1.0 }
-//    }
+    // val xmax: BV[Double] = data.map {
+    //   data => data.view.map { case (y, x) => x }.reduce((a,b) => elementMax(a,b))
+    // }.reduce((a,b) => elementMax(a,b))
 
-//    assert(xbar.size == stdev.size)
+    val xbar: BV[Double] = data.map {
+      data => data.view.map { case (y, x) => x }.reduce(_ + _)
+    }.reduce(_ + _) / nExamples.toDouble
 
-    // Just in case there are constant columns set the standard deviation to 1.0
-    for(i <- 0 until xmax.size) {
-      if (xmax(i) == 0.0) { xmax(i) = 1.0 }
-    }
+    val xxbar: BV[Double] = data.map {
+      data => data.view.map { case (y, x) => x :* x }.reduce(_ + _)
+    }.reduce(_ + _) / nExamples.toDouble
+
+    val variance: BDV[Double] = (xxbar - (xbar :* xbar)).toDenseVector
+
+    val stdev: BDV[Double] = breeze.numerics.sqrt(variance)
+
+    assert(xbar.size == stdev.size)
+
+    println(s"Standard deviation: $stdev")
+
+    // // Just in case there are constant columns set the standard deviation to 1.0
+    // for(i <- 0 until stdev.size) {
+    //   if (stdev(i) == 0.0) { stdev(i) = 1.0 }
+    // }
+
+
+
+    // // Just in case there are constant columns set the standard deviation to 1.0
+    // for(i <- 0 until xmax.size) {
+    //   if (xmax(i) == 0.0) { xmax(i) = 1.0 }
+    // }
 
     val data2 = data.map { data =>
       data.map { case (y, x) =>
-        assert(x.size == xmax.size)
+        assert(x.size == stdev.size)
+        // x -= xbar
+        // x /= stdev
+        // x /= xmax
+
         // ugly hack where I reuse the vector
-//        x -= xbar
-//        x /= stdev
-        x /= xmax
+        var i = 0
+        while (i < x.size) {
+          if (stdev(i) == 0.0) {
+            x(i) = 1.0 // make a constant column
+          } else {
+            x(i) = (x(i) - xbar(i)) / stdev(i)
+          }
+          // x(i) /= xmax(i)
+          i += 1
+        }
+
         (y, x)
       }
     }.cache()

@@ -91,6 +91,14 @@ case class Stats(
     }.toArray.mkString(", ") + "}"
   }
 
+  def toStringShort = {
+    "{" + toMap.iterator.filter { 
+      case (k,v) => k != "primalAvg" && k != "dualAvg"
+    }.map {
+      case (k,v) => "\"" + k + "\": " + v
+    }.toArray.mkString(", ") + "}"
+  }
+
   def primalAvg(): BV[Double] = {
     if (weightedPrimalVar == null) null else weightedPrimalVar / nWorkers.toDouble
   }
