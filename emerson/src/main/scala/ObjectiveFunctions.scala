@@ -170,14 +170,14 @@ class L2Regularizer extends Regularizer {
 
   override def consensus(primalAvg: BV[Double], dualAvg: BV[Double], 
 			 nSolvers: Int, rho: Double, regParam: Double): BV[Double] = {
-    // if (rho == 0.0) {
-    //   primalAvg
-    // } else {
-    //   val multiplier = (nSolvers * rho) / (regParam + nSolvers * rho)
-    //   println(s"multiplier: $multiplier")
-    //   (primalAvg + dualAvg / rho) * multiplier
-    // }
-    primalAvg.copy
+    if (rho == 0.0) {
+      primalAvg
+    } else {
+      val multiplier = (nSolvers * rho) / (regParam + nSolvers * rho)
+      println(s"multiplier: $multiplier")
+      (primalAvg + dualAvg / rho) * multiplier
+    }
+    //primalAvg.copy
   }
 
   
