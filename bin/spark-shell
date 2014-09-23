@@ -50,7 +50,7 @@ function main(){
         stty icanon echo > /dev/null 2>&1
     else
         export SPARK_SUBMIT_OPTS
-        $FWDIR/bin/spark-submit --class org.apache.spark.repl.Main spark-shell "$@"
+        $FWDIR/bin/spark-submit --jars "examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar,emerson/target/scala-2.10/spark-emerson_2.10-1.1.0-SNAPSHOT.jar" --class org.apache.spark.repl.Main spark-shell "$@"
     fi
 }
 
