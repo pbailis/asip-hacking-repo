@@ -156,8 +156,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   }
 
 
-  // var t = 0
+
   var learningT = 0.0
+
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
 
@@ -171,8 +172,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     //    Regularizer              Loss Term
     //  lambda * reg(w)  +  1/N \sum_{i=1}^N f(x_i, w)
     //
-    // val lossScaleTerm = data.length.toDouble / (nData.toDouble * miniBatchSize.toDouble)
-    val lossScaleTerm = 1.0 / nData.toDouble
+    val lossScaleTerm = data.length.toDouble / (nData.toDouble * miniBatchSize.toDouble)
 
     // Reset the primal variable to start at consensus
     // primalVar = primalConsensus.copy
@@ -187,15 +187,16 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       currentTime < endByMS) {
-      grad *= 0.0 // Clear the gradient sum
+
+      // Compute the gradient of the loss
+      grad *= 0.0 
       var b = 0
-      //while (b < miniBatchSize) {
-      while (b < data.length) {
-        // val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
-        val ind = b 
+      while (b < miniBatchSize) {
+        val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
         lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
+
       // Normalize the gradient to the batch size
       grad *= lossScaleTerm
 
@@ -212,33 +213,32 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // axpy(rho, primalVar - primalConsensus, grad)
       // grad = grad + rho * primalVar - rho * primalConsensus
       // grad += rho * primalVar
-      // grad -= rho * primalConsensus
-      
+      // grad -= rho * primalConsensus      
       axpy(rho, primalVar, grad)
       axpy(-rho, primalConsensus, grad)
 
       // println(s"grad norm: (${norm(primalVar,2)}, $lossGradNorm, ${norm(grad, 2)})")
 
       // Set the learning rate
-      // val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
-      val eta_t = lineSearch(grad)
+      val eta_t = 
+        if (params.useLineSearch) {
+          lineSearch(grad)
+        } else {
+          params.eta_0 / Math.sqrt(learningT + 1.0)
+        }
       learningT += 1.0
 
       // Take a negative gradient step with step size eta
       axpy(-eta_t, grad, primalVar)
 
-      // Compute residual
+      // Compute residual and current time in frequently to reduce overhead
       if (t % 100 == 0) {
         residual = eta_t * norm(grad, 2)
+        currentTime = System.currentTimeMillis()
       }
 
       // Increment iteration counter
       t += 1
-
-      // more coarse grained timeing
-      if (t % 100 == 0) {
-        currentTime = System.currentTimeMillis()
-      }
     }
     println(s"$t \t $residual: \t (primalMin, primalMax): (${min(primalVar.toDenseVector)}, ${max(primalVar.toDenseVector)}")
 

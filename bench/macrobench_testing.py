@@ -78,7 +78,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0 # 1.0e-2
+GLOBAL_ETA_0 = 1.0e-2
 
 
 ## END OF CONSTANTS
