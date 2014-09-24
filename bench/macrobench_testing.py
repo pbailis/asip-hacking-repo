@@ -24,7 +24,7 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
-SHORT_ALGORITHMS = ["HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["HOGWILD"]#, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
@@ -304,6 +304,16 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
 
 ## START OF EXPERIMENT RUNS
 
+
+if DO_TEST_SHORT:
+    for obj, reg in SHORT_TASKS:
+        for dataset in SHORT_DATASETS:
+            for runtime in SHORT_RUNTIMES:
+                for algorithm in SHORT_ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+    exit(-1)
+
 dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
@@ -325,14 +335,6 @@ if DO_TEST_CLOUD_DIM:
                                cloudDim = dim, cloudSkew = skew)
 
 
-if DO_TEST_SHORT:
-    for obj, reg in SHORT_TASKS:
-        for dataset in SHORT_DATASETS:
-            for runtime in SHORT_RUNTIMES:
-                for algorithm in SHORT_ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
-
-    exit(-1)
 
 if DO_TEST_DATASETS:
     for obj, reg in TASKS:
