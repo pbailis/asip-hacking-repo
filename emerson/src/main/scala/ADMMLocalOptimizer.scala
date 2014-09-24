@@ -56,7 +56,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar += (primalVar - primalConsensus) * rate
+    axpy(rate, primalVar - primalConsensus, dualVar)
     dualIters += 1
   }
 
@@ -122,7 +122,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
 
   def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
-    var etaBest = params.workerTol
+    var etaBest = 1.0e-10
     var w = primalVar - grad * etaBest
     var diff = w - primalConsensus
     var scoreBest = lossFun(w, data) + dualVar.dot(diff) +
@@ -134,7 +134,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       (rho / 2.0) * math.pow( norm(diff, 2), 2)
     var searchIters = 0
     // Try to decrease the objective as much as possible
-    while (newScoreProposal < scoreBest) {
+    while (newScoreProposal <= scoreBest) {
       etaBest = etaProposal
       scoreBest = newScoreProposal
       // Double eta and propose again.

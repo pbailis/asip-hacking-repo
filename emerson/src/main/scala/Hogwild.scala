@@ -142,6 +142,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
   }
 
   def mainLoop() = {
+    assert(miniBatchSize <= data.size)
+
     assert(done == false)
     // Launch a thread to send the messages in the background
     broadcastThread.start()
@@ -154,8 +156,8 @@ class HOGWILDSGDWorker(subProblemId: Int,
     while (!done) {
       grad *= 0.0 // Clear the gradient sum
       var b = 0
-      while (b < params.miniBatchSize) {
-        val ind = if (params.miniBatchSize < data.length) rnd.nextInt(data.length) else b
+      while (b < miniBatchSize) {
+        val ind = if (miniBatchSize < data.length) rnd.nextInt(data.length) else b
         lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }

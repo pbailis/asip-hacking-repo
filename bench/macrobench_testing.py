@@ -78,7 +78,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e-2
+GLOBAL_ETA_0 = 1.0  #1.0e-2
 
 
 ## END OF CONSTANTS
@@ -244,7 +244,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = ""
+    miscStr = " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations

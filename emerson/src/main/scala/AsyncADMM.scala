@@ -170,7 +170,11 @@ class AsyncADMMWorker(subProblemId: Int,
   // PORKCHOP
   val solverLoopThread = new Thread {
     override def run {
+
       while (!done) {
+        // Update the dual
+        dualUpdate(params.lagrangianRho)
+
         // Start over at primal consensus
         val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)        
 
@@ -209,12 +213,10 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // Compute the primal consensus value
         primalConsensus = regularizer.consensus(primalAvg, dualAvg,
-          nSolvers = nnz,
+          nSolvers = nSubProblems,
           rho = params.rho0,
           regParam = params.regParam)
       
-        // Update the dual
-        dualUpdate(params.lagrangianRho)
 
         // Assess Termination
         val elapsedTime = currentTime - startTime
@@ -228,15 +230,15 @@ class AsyncADMMWorker(subProblemId: Int,
     }
   }
 
-  val lastMsg = new Array[(BV[Double], BV[Double])](256)
+  val lastMsg = new Array[(BV[Double], BV[Double])](128)
   // @volatile var primalSum = BV.zeros[Double](primalVar.size)
   // @volatile var dualSum = BV.zeros[Double](dualVar.size)
   // @volatile var receivedPrimalConsensus = BV.zeros[Double](primalConsensus.size)
   // @volatile var sumTerms = 0
 
   def receiveMsg(srcId: Int, newPrimal: BV[Double], newDual: BV[Double]) { // : BV[Double] = {
-    var res: BV[Double] = null
     lastMsg(srcId) = (newPrimal, newDual)
+    // var res: BV[Double] = null
     // lastMsg.synchronized {
     //   if (lastMsg(srcId) != null) {
     //     val (oldPrimal, oldDual) = lastMsg(srcId)
@@ -289,73 +291,73 @@ class AsyncADMMWorker(subProblemId: Int,
     //solverLoopThread.join()
     //consumerThread.join()
     //broadcastThread.join()
-
     println(s"${comm.selfID}: Finished main loop.")
+    
     // Return the primal consensus value
     primalConsensus
   }
 
- // ASYNCADMM, not PORKCHOP
-  def mainLoopSync() = {
-    // Intialize global view of primalVars
-    val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
-    var primalAvg = BV.zeros[Double](primalVar.size)
-    var dualAvg = BV.zeros[Double](dualVar.size)
+ // // ASYNCADMM, not PORKCHOP
+ //  def mainLoopSync() = {
+ //    // Intialize global view of primalVars
+ //    val allVars = new mutable.HashMap[Int, (BV[Double], BV[Double])]()
+ //    var primalAvg = BV.zeros[Double](primalVar.size)
+ //    var dualAvg = BV.zeros[Double](dualVar.size)
 
-    // Loop until done
-    while (!done) {
-      // Do a dual update
-      dualUpdate(params.lagrangianRho)
+ //    // Loop until done
+ //    while (!done) {
+ //      // Do a dual update
+ //      dualUpdate(params.lagrangianRho)
 
-      // Run the primal update
-      val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
-      primalUpdate(timeRemainingMS)
+ //      // Run the primal update
+ //      val timeRemainingMS = params.runtimeMS - (System.currentTimeMillis() - startTime)
+ //      primalUpdate(timeRemainingMS)
 
 
 
-      // Send the primal and dual
-      comm.broadcastDeltaUpdate(primalVar, dualVar)
-      msgsSent += 1
+ //      // Send the primal and dual
+ //      comm.broadcastDeltaUpdate(primalVar, dualVar)
+ //      msgsSent += 1
 
-      // Collect latest variables from everyone
-      var tiq = comm.inputQueue.poll()
-      while (tiq != null) {
-        allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
-        tiq = comm.inputQueue.poll()
-        msgsRcvd.getAndIncrement()
-      }
-      allVars.put(comm.selfID, (primalVar, dualVar))
+ //      // Collect latest variables from everyone
+ //      var tiq = comm.inputQueue.poll()
+ //      while (tiq != null) {
+ //        allVars(tiq.sender) = (tiq.primalVar, tiq.dualVar)
+ //        tiq = comm.inputQueue.poll()
+ //        msgsRcvd.getAndIncrement()
+ //      }
+ //      allVars.put(comm.selfID, (primalVar, dualVar))
 
-      // Compute primal and dual averages
-      primalAvg *= 0.0
-      dualAvg *= 0.0
-      val msgIterator = allVars.values.iterator
-      while (msgIterator.hasNext) {
-        val (primal, dual) = msgIterator.next()
-        primalAvg += primal
-        dualAvg += dual
-      }
-      primalAvg /= allVars.size.toDouble
-      dualAvg /= allVars.size.toDouble
+ //      // Compute primal and dual averages
+ //      primalAvg *= 0.0
+ //      dualAvg *= 0.0
+ //      val msgIterator = allVars.values.iterator
+ //      while (msgIterator.hasNext) {
+ //        val (primal, dual) = msgIterator.next()
+ //        primalAvg += primal
+ //        dualAvg += dual
+ //      }
+ //      primalAvg /= allVars.size.toDouble
+ //      dualAvg /= allVars.size.toDouble
 
-      // Recompute the consensus variable
-      primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
-					      nSolvers = allVars.size,
-					      rho = params.rho0, 
-					      regParam = regParamScaled)
+ //      // Recompute the consensus variable
+ //      primalConsensus = regularizer.consensus(primalAvg, dualAvg, 
+ //        				      nSolvers = allVars.size,
+ //        				      rho = params.rho0, 
+ //        				      regParam = regParamScaled)
 
-      // Reset the primal var
-      // primalVar = primalConsensus.copy
+ //      // Reset the primal var
+ //      // primalVar = primalConsensus.copy
 
-      // Check to see if we are done
-      val elapsedTime = System.currentTimeMillis() - startTime
-      done = elapsedTime > params.runtimeMS
-      localIters += 1
-    }
+ //      // Check to see if we are done
+ //      val elapsedTime = System.currentTimeMillis() - startTime
+ //      done = elapsedTime > params.runtimeMS
+ //      localIters += 1
+ //    }
 
-    // Return the primal consensus value
-    primalConsensus
-  }
+ //    // Return the primal consensus value
+ //    primalConsensus
+ //  }
 
 }
 
@@ -458,7 +460,10 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
       w => w.mainLoop()
       w.getStats()
     }.reduce( _ + _ )
-    
+
+    // Debugging
+    assert(stats.nWorkers == 128)
+
     finalW = regularizationFunction.consensus(
       stats.primalAvg, stats.dualAvg,
       stats.nWorkers,
