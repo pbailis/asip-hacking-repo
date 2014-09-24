@@ -304,22 +304,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
 
 ## START OF EXPERIMENT RUNS
 
-if DO_TEST_SHORT:
-    for obj, reg in SHORT_TASKS:
-        for dataset in SHORT_DATASETS:
-            for runtime in SHORT_RUNTIMES:
-                for algorithm in SHORT_ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
-
-    exit(-1)
-
-if DO_TEST_DATASETS:
-    for obj, reg in TASKS:
-        for dataset in DATASETS:
-            for runtime in RUNTIMES:
-                for algorithm in ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
-
+dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
         for dim in [3]:
@@ -338,6 +323,25 @@ if DO_TEST_CLOUD_DIM:
                     for algorithm in ALGORITHMS:
                         runone(obj, reg, dataset, runtime, algorithm,
                                cloudDim = dim, cloudSkew = skew)
+
+
+if DO_TEST_SHORT:
+    for obj, reg in SHORT_TASKS:
+        for dataset in SHORT_DATASETS:
+            for runtime in SHORT_RUNTIMES:
+                for algorithm in SHORT_ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+    exit(-1)
+
+if DO_TEST_DATASETS:
+    for obj, reg in TASKS:
+        for dataset in DATASETS:
+            for runtime in RUNTIMES:
+                for algorithm in ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+
 
 
 
