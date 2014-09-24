@@ -14,7 +14,7 @@ ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDeco
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
