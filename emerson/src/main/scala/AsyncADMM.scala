@@ -29,35 +29,37 @@ class WorkerCommunicationHack {
 
 
 object InternalMessages {
-  class WakeupMsg
-  class PingPong
-  class VectorUpdateMessage(val sender: Int,
-                            val primalVar: BV[Double], val dualVar: BV[Double])
+  case class WakeupMsg() extends Serializable 
+  case class PingPong() extends Serializable
+  case class VectorUpdateMessage(val sender: Int,
+    val primalVar: Array[Double], val dualVar: Array[Double]) extends Serializable
 }
 
 
 
 class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack) extends Actor with Logging {
   hack.ref = this
-  val others = new mutable.HashMap[Int, ActorSelection]
+  val others = new mutable.HashMap[Int, ActorRef]
   var selfID: Int = -1
 
-  var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
+  // var inputQueue = new LinkedBlockingQueue[VectorUpdateMessage]()
 
   var worker: AsyncADMMWorker = null
 
   def receive = {
     case ppm: InternalMessages.PingPong => {
-      logInfo("new message from " + sender)
+       println(s"$selfID : new message from $sender")
     }
     case m: InternalMessages.WakeupMsg => {
-      logInfo("activated local!"); sender ! "yo"
+       println(s"$selfID : activated local!"); sender ! "yo"
     }
     case s: String => println(s)
     case d: InternalMessages.VectorUpdateMessage => {
+      assert(worker != null)
       if(worker != null) {
-        worker.receiveMsg(d.sender, d.primalVar, d.dualVar)
-        worker.msgsRcvd.getAndIncrement()
+        worker.receiveMsg(d.sender, new BDV[Double](d.primalVar), new BDV[Double](d.dualVar))
+        val counter = worker.msgsRcvd.getAndIncrement()
+        // println(s"$selfID : $counter")
       }
     }
     case _ => println("hello, world!")
@@ -69,22 +71,23 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
 
   def connectToOthers(allHosts: Array[String]) {
     var i = 0
+    var connections = 0
     //logInfo(s"Connecting to others ${allHosts.mkString(",")} ${allHosts.length}")
     for (host <- allHosts) {
       // skip self
       if (!host.equals(address)) {
-        //logInfo(s"Connecting to $host, $i")
-        others.put(i, context.actorSelection(allHosts(i)))
-
         implicit val timeout = Timeout(15000 seconds)
-        val f = others(i).resolveOne()
+        val f = context.actorSelection(allHosts(i)).resolveOne()
         Await.ready(f, Duration.Inf)
-        logInfo(s"Connected to ${f.value.get.get}")
+        others.put(i, f.value.get.get)
+        println(s"others is ${others(i)}")
+        connections += 1
       } else {
         selfID = i
       }
       i += 1
     }
+
     if(selfID == -1) {
       println("SelfID is -1 !!!!!!!!!!!!!!")
       println(s"Address: $address")
@@ -92,6 +95,8 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
       allHosts.foreach(x => println(s"\t $x")) 
       throw new RuntimeException("Worker was evicted, dying not lol!")
     }
+
+    sendPingPongs()
   }
 
   def sendPingPongs() {
@@ -101,10 +106,13 @@ class WorkerCommunication(val address: String, val hack: WorkerCommunicationHack
   }
 
   def broadcastDeltaUpdate(primalVar: BV[Double], dualVar: BV[Double]) {
-    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar, dualVar)
+    val msg = new InternalMessages.VectorUpdateMessage(selfID, primalVar.toArray, dualVar.toArray)
+    var counter = 0
     for (other <- others.values) {
       other ! msg
+      counter += 1
     }
+    assert(counter == 127)
   }
 }
 
@@ -129,7 +137,7 @@ class AsyncADMMWorker(subProblemId: Int,
   @volatile var ranOnce = false
 
   override def getStats() = {
-    Stats(primalVar = primalVar, dualVar = dualVar,
+    Stats(primalVar = primalVar.copy, dualVar = dualVar.copy,
       msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(),
       localIters = localIters, sgdIters = sgdIters,
       dualUpdates = dualIters,
@@ -170,7 +178,6 @@ class AsyncADMMWorker(subProblemId: Int,
   // PORKCHOP
   val solverLoopThread = new Thread {
     override def run {
-
       while (!done) {
         // Update the dual
         dualUpdate(params.lagrangianRho)
@@ -180,6 +187,7 @@ class AsyncADMMWorker(subProblemId: Int,
 
         // Run the primal update
         primalUpdate(timeRemainingMS)
+        
 
         // If within the time interval notify neighbors of new messages
         var currentTime = System.currentTimeMillis() 
@@ -207,7 +215,7 @@ class AsyncADMMWorker(subProblemId: Int,
           i += 1
         }
         assert(nnz > 0)
-        assert(nnz < nSubProblems)
+        assert(nnz <= nSubProblems)
         val primalAvg = primalSum / nnz.toDouble
         val dualAvg = dualSum / nnz.toDouble
 
@@ -225,8 +233,8 @@ class AsyncADMMWorker(subProblemId: Int,
       }
       println(s"${comm.selfID}: Sent death message ${System.currentTimeMillis()}")
       // Kill the consumer thread
-      val poisonMessage = new InternalMessages.VectorUpdateMessage(-2, null, null)
-      comm.inputQueue.add(poisonMessage)
+      // val poisonMessage = new InternalMessages.VectorUpdateMessage(-2, null, null)
+      // comm.inputQueue.add(poisonMessage)
     }
   }
 
@@ -396,7 +404,7 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
         val workerName = UUID.randomUUID().toString
         val address = Worker.HACKakkaHost + workerName
         val hack = new WorkerCommunicationHack()
-        logInfo(s"local address is $address")
+        println(s"local address is $address")
         val aref = Worker.HACKworkerActorSystem.actorOf(Props(new WorkerCommunication(address, hack)), workerName)
         implicit val timeout = Timeout(15000 seconds)
 
@@ -425,7 +433,7 @@ class AsyncADMM extends BasicEmersonOptimizer with Serializable with Logging {
       w.comm.connectToOthers(addresses)
     }
 
-    addresses.foreach( a => println(s"\t $a") )
+    //addresses.foreach( a => println(s"\t $a") )
     println(s"Num Addresses: ${addresses.length}")
 
     // Ping Pong?  Just because?
