@@ -7,10 +7,10 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 10000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 10000, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "HOGWILD", "ADMM"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -23,10 +23,15 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
-SHORT_ALGORITHMS = ["ADMM"] # ["PORKCHOP",  "ADMM", "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
-SHORT_RUNTIMES = [10*1000]
+
+SHORT_ALGORITHMS = ["HOGWILD"]#, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+
+SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
 SHORT_DATASETS = ["bismarck"]
+
+
+
 
 ## END OF EXPERIMENTAL PARAMETERS
 
@@ -35,7 +40,8 @@ SHORT_DATASETS = ["bismarck"]
 
 GLOBAL_ADMMepsilon = 0.0
 GLOBAL_ADMMlocalEpsilon = 1.0
-GLOBAL_ADMMrho = 1.0 #1e-5
+GLOBAL_ADMMrho = 1.0e-2 #1e-5
+
 
 GLOBAL_ADMMlagrangianRho = GLOBAL_ADMMrho
 
@@ -53,23 +59,27 @@ GLOBAL_HOGWILD_broadcastDelay = 10
 GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
-GLOBAL_PORKCHOP_maxLocalIterations = 1000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
+GLOBAL_PORKCHOP_maxLocalIterations = 10000
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-5
 GLOBAL_PORKCHOP_broadcastDelay = 100
 
-GLOBAL_inputTokenHashKernelDimension = 100
+GLOBAL_inputTokenHashKernelDimension = 1000
 
 DATASET_REG_PARAM = { 
 "cloud" : 1e-5,
-"bismarck" : 1,
-"flights" : 1e-5,
-"dblp" : 1,
-"wikipedia": 1
+"bismarck" : 1e-1,
+"flights" : 1e-1,
+"dblp" : 1e-1,
+"wikipedia": 1e-1
 }
 
-GLOBAL_REG_PARAM = 1#e-5
+# bismarck the paper does 1e-1
+GLOBAL_REG_PARAM = 1e-1#e-5
 
-GLOBAL_ETA_0 = 1
+# bismarck the paper does 1e-2
+
+GLOBAL_ETA_0 = 1.0e0
+
 
 ## END OF CONSTANTS
 
@@ -124,6 +134,10 @@ def runTest(runtimeMS,
             miscStr = ""):
     regParam=DATASET_REG_PARAM[datasetName]
 
+    # scale L1 regparam to 1e-5
+    if regType == "L1":
+        regParam *= 1e-4
+
     if datasetName == "bismarck":
         datasetConfigStr = describe_forest()
     elif datasetName == "cloud":
@@ -139,12 +153,12 @@ def runTest(runtimeMS,
         raise
 
     calgorithm = algorithm if algorithm != "AVG" else "ADMM"
+          # "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
 
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
           "./bin/spark-submit " \
           "--driver-memory 52g " \
           "--class edu.berkeley.emerson.Emerson " \
-          "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
           "emerson/target/scala-2.10/spark-emerson_* " \
           "--algorithm " + str(calgorithm) + " " + \
           "--objective " + str(objectiveFn) + " " + \
@@ -230,7 +244,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = "" # " --useLineSearch true --miniBatchSize 10000000"
+    miscStr = " " #  " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
@@ -265,7 +279,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     elif algorithm == "AsyncADMM":
         maxLocalIterations = GLOBAL_AsyncADMM_maxLocalIterations
         broadcastDelay = GLOBAL_AsyncADMM_broadcastDelay
-        
+
     results += runTest(runtime,
                        algorithm,
                        dataset,
@@ -290,6 +304,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
 
 ## START OF EXPERIMENT RUNS
 
+
 if DO_TEST_SHORT:
     for obj, reg in SHORT_TASKS:
         for dataset in SHORT_DATASETS:
@@ -299,13 +314,7 @@ if DO_TEST_SHORT:
 
     exit(-1)
 
-if DO_TEST_DATASETS:
-    for obj, reg in TASKS:
-        for dataset in DATASETS:
-            for runtime in RUNTIMES:
-                for algorithm in ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
-
+dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
         for dim in [3]:
@@ -324,6 +333,17 @@ if DO_TEST_CLOUD_DIM:
                     for algorithm in ALGORITHMS:
                         runone(obj, reg, dataset, runtime, algorithm,
                                cloudDim = dim, cloudSkew = skew)
+
+
+
+if DO_TEST_DATASETS:
+    for obj, reg in TASKS:
+        for dataset in DATASETS:
+            for runtime in RUNTIMES:
+                for algorithm in ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+
 
 
 

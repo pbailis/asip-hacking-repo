@@ -17,7 +17,7 @@ object Emerson {
 
   object Objective extends Enumeration {
     type Objective = Value
-    val SVM, Logistic = Value
+    val SVM, LR = Value
   }
 
   object RegType extends Enumeration {
@@ -226,6 +226,8 @@ object Emerson {
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
     // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    // conf.set("spark.akka.option", "{log-dead-letters = 10000}")
+    // conf.set("spark.akka.batchSize", "1") // no negel
     conf.set("spark.akka.heartbeat.interval", "20000") // in seconds?
     conf.set("spark.locality.wait", "100000") // in milliseconds
 
@@ -276,7 +278,7 @@ object Emerson {
 
     val lossFunction = params.objectiveFn match {
       case SVM => new HingeLoss()
-      case Logistic => new LogisticLoss()
+      case LR => new LogisticLoss()
     }
 
     val regularizationFunction = params.regType match {
@@ -297,6 +299,16 @@ object Emerson {
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
 
+   /* 
+    val rando = new java.util.Random(42)
+    var i = 0
+    while (i < nDim) {
+      initialWeights(i) = rando.nextGaussian() //rando.nextDouble()
+      i += 1
+    }
+    */
+
+
     //params.eta_0 *= nDim * 0.02
 
     model.fit(params, initialWeights, training)
@@ -306,39 +318,6 @@ object Emerson {
 
     // Get any stats from the model
     val optimizerStats: Map[String, String] = model.optimizer.statsMap()
-
-//    val trainingError = params.objective match {
-//      case Logistic =>
-//        training.map{ point =>
-//          val p = model.predict(point.features)
-//          if ( (p > 0.5) != (point.label > 0) ) 1.0 else 0.0
-//        }.reduce(_ + _) / numTraining.toDouble
-//      case SVM =>
-//        training.map{ point =>
-//          val p = model.predict(point.features)
-//          val y = 2.0 * point.label - 1.0
-//          assert(y != 0)
-//          if (y * p <= 0.0) 1.0 else 0.0
-//        }.reduce(_ + _) / numTraining.toDouble
-//    }
-
-//    val prediction = model.predict(training.map(_.features))
-//    val predictionAndLabel = prediction.zip(training.map(_.label))
-//    val metrics = new BinaryClassificationMetrics(predictionAndLabel)
-
-
-//    val trainingLoss = model.loss(training) * numTraining.toDouble
-//    val scaledReg = params.regParam / 2.0
-//    val regularizationPenalty = scaledReg * math.pow(model.weights.l2Norm, 2)
-//    val totalLoss = trainingLoss + regularizationPenalty
-
-    // unscale the params to be saved in original form
-    // if (params.scaled) {
-    //   params.lagrangianRho /= numTraining.toDouble // / params.numPartitions.toDouble
-    //   params.rho0 /= numTraining.toDouble // / params.numPartitions.toDouble
-    //   params.regParam /= numTraining.toDouble
-    // }
-
 
     val resultsMap = Map(
       "algorithm" -> ("\"" + params.algorithm.toString + "\""),
@@ -355,8 +334,7 @@ object Emerson {
       "params" -> params.toString,
       "dim" -> nDim.toString,
       "stats" -> mapToJson(optimizerStats)
-  
-  )
+    )
 
 
     println("RESULT: " + mapToJson(resultsMap))
@@ -382,148 +360,7 @@ object Emerson {
     sc.stop()
   }
 
-
-
 }
 
 
 
-
-//
-//val nDim = training.take(1).head.features.size
-//
-//(params.algorithm, params.objective) match {
-//case (GD, Logistic) =>
-//val algorithm = new LogisticRegressionWithSGD()
-//algorithm.optimizer
-//.setNumIterations(1000000)
-//.setRuntime(params.runtimeMS)
-//.setStepSize(params.eta_0)
-//.setUpdater(updater)
-//.setRegParam(params.regParam)
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.getLastIterations().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString
-//)
-//(model, results)
-//
-//case (GD, SVM) =>
-//val algorithm = new SVMWithSGD()
-//algorithm.optimizer
-//.setNumIterations(1000000)
-//.setRuntime(params.runtimeMS)
-//.setStepSize(params.eta_0)
-//.setUpdater(updater)
-//.setRegParam(params.regParam)
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.getLastIterations().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString
-//)
-//(model, results)
-//
-//case (ADMM, Logistic) | (MiniBatchADMM, Logistic) =>
-//val algorithm = new LRWithADMM(params)
-//algorithm.optimizer.regularizationFunction = regularizer
-//val startTime = System.nanoTime()
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.iteration.toString,
-//"avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
-//"dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
-//"consensusNorm" -> model.weights.l2Norm.toString,
-//"dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results )
-//
-//case (ADMM, SVM) | (MiniBatchADMM, SVM) =>
-//val algorithm = new SVMWithADMM(params)
-//algorithm.optimizer.regularizationFunction = regularizer
-//val startTime = System.nanoTime()
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.iteration.toString,
-//"avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
-//"dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
-//"consensusNorm" -> model.weights.l2Norm.toString,
-//"dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results)
-//
-//case (AsyncADMM, Logistic) | (PORKCHOP, Logistic) =>
-//val algorithm = new LRWithAsyncADMM(params)
-//algorithm.optimizer.regularizer = regularizer
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-//"iterInterval" -> algorithm.optimizer.stats.avgLocalIters().toString,
-//"avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-//"avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-//"avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-//"primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
-//"dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
-//"consensusNorm" -> model.weights.l2Norm.toString,
-//"dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results)
-//
-//case (AsyncADMM, SVM) | (PORKCHOP, SVM) =>
-//val algorithm = new SVMWithAsyncADMM(params)
-//algorithm.optimizer.regularizer = regularizer
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-//"iterInterval" -> algorithm.optimizer.stats.avgLocalIters().toString,
-//"avgSGDIters" -> algorithm.optimizer.stats.avgSGDIters().toString,
-//"avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-//"avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-//"primalAvgNorm" -> norm(algorithm.optimizer.stats.primalAvg(), 2).toString,
-//"dualAvgNorm" -> norm(algorithm.optimizer.stats.dualAvg(), 2).toString,
-//"consensusNorm" -> model.weights.l2Norm.toString,
-//"dualUpdates" -> algorithm.optimizer.stats.avgDualUpdates.toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results)
-//case (HOGWILD, Logistic) =>
-//val algorithm = new LRWithHOGWILD(params)
-//algorithm.optimizer.regularizer = regularizer
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-//"avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-//"avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results)
-//case (HOGWILD, SVM) =>
-//val algorithm = new SVMWithHOGWILD(params)
-//algorithm.optimizer.regularizer = regularizer
-//val model = algorithm.run(training).clearThreshold()
-//val results =
-//Map(
-//"iterations" -> algorithm.optimizer.stats.avgLocalIters().x.toString,
-//"avgMsgsSent" -> algorithm.optimizer.stats.avgMsgsSent().toString,
-//"avgMsgsRcvd" -> algorithm.optimizer.stats.avgMsgsRcvd().toString,
-//"runtime" -> algorithm.optimizer.totalTimeMs.toString,
-//"stats" -> algorithm.optimizer.stats.toString
-//)
-//(model, results)
-//}

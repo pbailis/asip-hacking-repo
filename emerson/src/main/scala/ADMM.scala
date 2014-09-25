@@ -72,7 +72,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
     solvers = data.mapPartitionsWithIndex { (ind, iter) =>
       val data: Array[(Double, BV[Double])] = iter.next()
       val solver = new ADMMLocalOptimizer(ind, nSubProblems = nSubProblems,
-        nData = nData.toInt, data, lossFunction, params)
+        nData = nData.toInt, data, lossFunction, regularizationFunction,  params)
       // Initialize the primal variable and primal regularizer
       solver.primalVar = primal0.copy
       solver.primalConsensus = primal0.copy
@@ -85,9 +85,6 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
     val starttime = System.currentTimeMillis()
     val startTimeNs = System.nanoTime()
-
-    var rho = params.rho0
-    //    rho = 0.0
 
     iteration = 0
     while (iteration < params.maxIterations &&
@@ -108,7 +105,6 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
 
         // Do a dual update
         solver.primalConsensus = primalConsensus.copy
-        solver.rho = rho
 
         // if(params.adaptiveRho) {
         //   solver.dualUpdate(rho)
@@ -130,10 +126,8 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       val primalConsensusOld = primalConsensus.copy
       primalConsensus = regularizationFunction.consensus(
         stats.primalAvg, stats.dualAvg,
-	stats.nWorkers, rho,
+	stats.nWorkers, params.rho0,
 	regParam = params.regParam)
-
-      //      rho = params.rho0
 
 
       // // Compute the residuals
@@ -154,7 +148,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
       // }
 
       println(s"Iteration: $iteration")
-      println(stats)
+      println(stats.toStringShort)
       // println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
       iteration += 1
     }

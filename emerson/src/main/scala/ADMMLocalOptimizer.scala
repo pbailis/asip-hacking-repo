@@ -15,6 +15,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
                         val nData: Int,
                         val data: Array[(Double, BV[Double])],
                         val lossFun: LossFunction,
+                        val regularizer: Regularizer,
                         val params: EmersonParams) extends Serializable with Logging {
 
   val nDim = data(0)._2.size
@@ -45,7 +46,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   @volatile var dataInd = 0
 
   def getStats() = {
-    Stats(primalVar, dualVar, msgsSent = 0,
+    Stats(primalVar.copy, dualVar.copy, msgsSent = 0,
       localIters = localIters,
       sgdIters = sgdIters,
       dualUpdates = dualIters,
@@ -55,15 +56,15 @@ class ADMMLocalOptimizer(val subProblemId: Int,
 
   def dualUpdate(rate: Double) {
     // Do the dual update
-    dualVar += (primalVar - primalConsensus) * rate
+    axpy(rate, primalVar - primalConsensus, dualVar)
     dualIters += 1
   }
 
   def primalUpdate(remainingTimeMS: Long = Long.MaxValue) {
     val endByMS = System.currentTimeMillis() + remainingTimeMS
-    //params.useLBFGS = true
-    //params.maxWorkerIterations = 7
-    //params.workerTol = 1.0e-10
+    // params.useLBFGS = true
+    // params.maxWorkerIterations = 10
+    // params.workerTol = 1.0e-10
 
     localIters += 1
 
@@ -120,8 +121,44 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   }
 
 
-  // var t = 0
+  def lineSearch(grad: BV[Double], endByMS: Long = Long.MaxValue): Double = {
+    var etaBest = 1.0e-10
+    var w = primalVar - grad * etaBest
+    var diff = w - primalConsensus
+    var scoreBest = lossFun(w, data) + dualVar.dot(diff) +
+      (rho / 2.0) * math.pow(norm(diff,2), 2)
+    var etaProposal = etaBest * 2.0
+    w = primalVar - grad * etaProposal
+    diff = w - primalConsensus
+    var newScoreProposal = lossFun(w, data) + dualVar.dot(diff) +
+      (rho / 2.0) * math.pow( norm(diff, 2), 2)
+    var searchIters = 0
+    // Try to decrease the objective as much as possible
+    while (newScoreProposal <= scoreBest) {
+      etaBest = etaProposal
+      scoreBest = newScoreProposal
+      // Double eta and propose again.
+      etaProposal *= 2.0
+      w = primalVar - grad * etaProposal
+      diff = w - primalConsensus
+      newScoreProposal = lossFun(w, data) + dualVar.dot(diff)
+        (rho / 2.0) * math.pow( norm(diff, 2), 2)
+      searchIters += 1
+      // // Kill the loop if we run out of search time
+      // val currentTime = System.currentTimeMillis()
+      // if (currentTime > endByMS) {
+      //   // etaProposal = 0.0
+      //   newScoreProposal = Double.MaxValue
+      //   println(s"Ran out of linesearch time on $searchIters: $currentTime > $endByMS")
+      // }
+    }
+    etaBest
+  }
+
+
+
   var learningT = 0.0
+
   def sgd(endByMS: Long = Long.MaxValue) {
     assert(miniBatchSize <= data.size)
 
@@ -150,15 +187,23 @@ class ADMMLocalOptimizer(val subProblemId: Int,
     while(t < params.maxWorkerIterations &&
       residual > params.workerTol &&
       currentTime < endByMS) {
-      grad *= 0.0 // Clear the gradient sum
+
+      // Compute the gradient of the loss
+      grad *= 0.0 
       var b = 0
       while (b < miniBatchSize) {
         val ind = if (miniBatchSize == data.length) b else rnd.nextInt(data.length)
         lossFun.addGradient(primalVar, data(ind)._2, data(ind)._1, grad)
         b += 1
       }
+
       // Normalize the gradient to the batch size
       grad *= lossScaleTerm
+
+      // val lossGradNorm = norm(grad, 2)
+
+      // Add the regularization term into the gradient step
+      // regularizer.addGradient(primalVar, params.regParam / nSubProblems.toDouble, grad)
 
       // Add the lagrangian
       grad += dualVar
@@ -168,42 +213,34 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // axpy(rho, primalVar - primalConsensus, grad)
       // grad = grad + rho * primalVar - rho * primalConsensus
       // grad += rho * primalVar
-      // grad -= rho * primalConsensus
+      // grad -= rho * primalConsensus      
       axpy(rho, primalVar, grad)
       axpy(-rho, primalConsensus, grad)
 
+      // println(s"grad norm: (${norm(primalVar,2)}, $lossGradNorm, ${norm(grad, 2)})")
+
       // Set the learning rate
-      val eta_t = params.eta_0 / Math.sqrt(learningT + 1.0)
+      val eta_t = 
+        if (params.useLineSearch) {
+          lineSearch(grad)
+        } else {
+          params.eta_0 / Math.sqrt(learningT + 1.0)
+        }
       learningT += 1.0
 
       // Take a negative gradient step with step size eta
       axpy(-eta_t, grad, primalVar)
 
-      // Compute residual
+      // Compute residual and current time in frequently to reduce overhead
       if (t % 100 == 0) {
         residual = eta_t * norm(grad, 2)
+        currentTime = System.currentTimeMillis()
       }
 
       // Increment iteration counter
       t += 1
-
-      // more coarse grained timeing
-      if (t % 100 == 0) {
-        currentTime = System.currentTimeMillis()
-      }
     }
-    println(s"$t \t $residual")
-
-    // Compute the error on the local data
-    // val loss = lossFun(primalVar, data)
-    // val error = data.view.map { case (y, x) =>
-    //   assert(y == 0.0 || y == 1.0)
-    //   val yScaled = 2.0 * y - 1.0
-    //   if (yScaled * primalVar.dot(x) <= 0.0) 1.0 else 0.0
-    // }.reduce(_ + _) / data.length.toDouble
-
-    // val localSkew = data.view.map { case (y, x) => y }.reduce(_ + _) / data.length
-    // println(s"(primalVar, preLoss, loss, error, skew): ($primalVar, $preLoss, $loss, $error, $localSkew)")
+    println(s"$t \t $residual: \t (primalMin, primalMax): (${min(primalVar.toDenseVector)}, ${max(primalVar.toDenseVector)}")
 
     // Save the last num
     sgdIters += t
