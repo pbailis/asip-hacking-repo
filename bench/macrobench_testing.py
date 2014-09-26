@@ -19,16 +19,16 @@ DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
 
-DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
+DATASETS = ["bismarck"] #, "flights", "dblp", "wikipedia"]
 
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
-SHORT_ALGORITHMS = ["HOGWILD"]#, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
-SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["bismarck"]
+SHORT_TASKS = [("SVM", "L2")]#, ("LR", "L1")]
+SHORT_DATASETS = ["flights", "bismarck"]
 
 
 
@@ -60,8 +60,8 @@ GLOBAL_AsyncADMM_maxLocalIterations = 100000
 GLOBAL_AsyncADMM_broadcastDelay = 100
 
 GLOBAL_PORKCHOP_maxLocalIterations = 10000
-GLOBAL_PORKCHOP_localEpsilon = 1.0e-5
-GLOBAL_PORKCHOP_broadcastDelay = 100
+GLOBAL_PORKCHOP_localEpsilon = 1.0e-3
+GLOBAL_PORKCHOP_broadcastDelay = 10
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
@@ -78,7 +78,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e0
+GLOBAL_ETA_0 = 10.0
 
 
 ## END OF CONSTANTS
@@ -131,6 +131,7 @@ def runTest(runtimeMS,
             wikipediaTargetWordToken = 4690,
             dblpSplitYear = 2007,
             inputTokenHashKernelDimension = GLOBAL_inputTokenHashKernelDimension,
+            stepSize = GLOBAL_ETA_0,
             miscStr = ""):
     regParam=DATASET_REG_PARAM[datasetName]
 
@@ -175,7 +176,7 @@ def runTest(runtimeMS,
           "--broadcastDelayMs " + str(broadcastDelay) + " " +  \
           "--dblpSplitYear " + str(dblpSplitYear) + " " + \
           "--wikipediaTargetWordToken " + str(wikipediaTargetWordToken) + " " +  \
-          "--stepSize "+str(GLOBAL_ETA_0) + " " + \
+          "--stepSize " + str(stepSize) + " " + \
           "--inputTokenHashKernelDimension " + str(inputTokenHashKernelDimension) + " " + \
           "--localTimeout " + str(localTimeout) + " " + \
           "--learningT false " + \
@@ -239,7 +240,7 @@ def runTest(runtimeMS,
 
 results = []
 
-def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3):
+def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3, stepSize = GLOBAL_ETA_0, rho = GLOBAL_ADMMrho):
     global results
     localTimeout = 10000000
     broadcastDelay = -1
@@ -285,6 +286,8 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
                        dataset,
                        objectiveFn=obj,
                        regType=reg,
+                       ADMMrho = rho,
+                       ADMMlagrangianRho = rho,
                        flightsYear = 2008,
                        cloudDim = cloudDim,
                        cloudPartitionSkew = cloudSkew,
@@ -292,7 +295,9 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
                        ADMMlocalEpsilon = localEpsilon,
                        broadcastDelay = broadcastDelay,
                        miscStr = miscStr,
-                       localTimeout = localTimeout)
+                       localTimeout = localTimeout,
+                       stepSize = stepSize)
+                    
     
     system("cp %s /tmp/%s" % (PICKLED_OUTPUT, PICKLED_OUTPUT))
     output = open(PICKLED_OUTPUT, 'wb')
@@ -304,6 +309,15 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
 
 ## START OF EXPERIMENT RUNS
 
+for obj, reg in TASKS:
+    for rho in [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0]:
+        for eta in [0.1, 0.5, 1.0, 2.0, 4.0, 5.0, 10.0]:
+            for algorithm in ALGORITHMS:
+                runone(obj, reg, 'bismarck', 5*1000, algorithm, rho = rho, stepSize = eta)
+
+
+
+exit(-1)
 
 if DO_TEST_SHORT:
     for obj, reg in SHORT_TASKS:
