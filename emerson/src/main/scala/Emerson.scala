@@ -226,6 +226,8 @@ object Emerson {
     val conf = new SparkConf().setAppName(s"BinaryClassification with $params")
     conf.set("spark.akka.threads", "16")
     // conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    // conf.set("spark.akka.option", "{log-dead-letters = 10000}")
+    // conf.set("spark.akka.batchSize", "1") // no negel
     conf.set("spark.akka.heartbeat.interval", "20000") // in seconds?
     conf.set("spark.locality.wait", "100000") // in milliseconds
 

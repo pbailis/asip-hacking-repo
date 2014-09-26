@@ -23,7 +23,7 @@ for p in pickle_filenames:
         results += pickle.load(open(p))
         print r
 
-#results = [r for r in results if r['algorithm'] != "HOGWILD"]
+results = [r for r in results if r['algorithm'] if r['algorithm'] != "DualDecomp"]
 
 print results[0].keys()
 print results[0]['pyConfig'].keys()
@@ -49,6 +49,9 @@ datasets = unique([r['dataset'] for r in results if r['dataset'] != 'cloud'])
 
 print datasets
 
+clouds = [r for r in results if r['dataset'] == "wikipedia" and r['runtime_ms'] < 3000]
+print len(clouds)
+
 for (objFn, regType) in fnRegCombos:
     print objFn, regType
     for dataset in datasets:
@@ -71,9 +74,6 @@ for (objFn, regType) in fnRegCombos:
             gca().set_yscale('log')
             #gca().set_xscale('log')
 
-        if dataset == "wikipedia":
-            ylim(ymax=390000, ymin=175000)
-
         legend()
         xlabel("Time (ms)")
         ylabel("Objective")
@@ -91,7 +91,7 @@ print skews
 for (objFn, regType) in fnRegCombos:
     for dataset in ["cloud"]:
         for skew in skews:
-            dataset_results = [r for r in results if r['dataset'] == dataset and r['pointCloudSkew'] == skew  and r['objFn'] == objFn and r['regType'] == regType]
+            dataset_results = [r for r in results if r['dataset'] == dataset and r['pointCloudSkew'] == skew  and r['objFn'] == objFn and r['regType'] == regType and r['dim'] == 3]
             algs = unique([r['algorithm'] for r in dataset_results])
             print "Cloud ", "skew", skew, objFn, regType
             for alg in algs:
@@ -110,7 +110,46 @@ for (objFn, regType) in fnRegCombos:
                 gca().set_yscale('log')
                 #gca().set_xscale('log')
 
+
+            xlabel("Runtime (ms)")
+            ylabel("Objective")
+            title("%s-skew%f-%s-%s" % (dataset, skew, objFn, regType))
             legend()
             savefig("%s-skew%f-%s-%s.png" % (dataset, skew, objFn, regType))
             cla()
             clf()
+
+
+dims = unique([r['dim'] for r in results if r['dataset'] == 'cloud'])
+            
+for (objFn, regType) in fnRegCombos:
+    for dataset in ["cloud"]:
+        for dim in dims:
+            dataset_results = [r for r in results if r['dataset'] == dataset and  r['objFn'] == objFn and r['regType'] == regType and r['pointCloudSkew'] == 0.05 and r['dim'] == dim]
+            algs = unique([r['algorithm'] for r in dataset_results])
+            print "Cloud ", "dim", dim, objFn, regType
+            for alg in algs:
+                alg_results = [r for r in dataset_results if r['algorithm'] == alg]                
+                plot_p = [(r['runtime_ms'], r[yval]) for r in alg_results]
+                plot_p.sort(key = lambda x: x[0])
+                plotx = [r[0] for r in plot_p]
+                ploty = [r[1] for r in plot_p]
+
+                for p in plot_p:
+                    print "\t", alg, p[0], p[1]
+    
+                plot(plotx, ploty, 'o-', label=alg)
+
+            if logLoss:
+                gca().set_yscale('log')
+                #gca().set_xscale('log')
+
+
+            xlabel("Runtime (ms)")
+            ylabel("Objective")
+            title("%s-dim%d-%s-%s" % (dataset, dim, objFn, regType))
+            legend()
+            savefig("%s-dim%d-%s-%s.png" % (dataset, dim, objFn, regType))
+            cla()
+            clf()
+            

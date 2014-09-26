@@ -28,13 +28,14 @@ for r in results:
              r['stats']['primalAvgNorm'] if 'primalAvgNorm' in r['stats'] else -1, \
              r['stats']['dualAvgNorm'] if 'dualAvgNorm' in r['stats'] else -1, \
              r['stats']['avgSGDIters'] if 'avgSGDIters' in r['stats'] else 0, \
+             r['stats']['avgMsgsSent'] if 'avgMsgsSent' in r['stats'] else 0, \
              r['stats']['avgMsgsRcvd'] if 'avgMsgsRcvd' in r['stats'] else 0)]
  #, r['stats']['avgSGDIters'])]
 #    print r
 
 #print tbl
 columns = ['alg', 'Runtime', 'dataset', 'Iters', '*Obj*', 'Loss', 'Reg', 'Error', \
-           'lrho', 'Rho', 'consensusNorm', 'primalNorm', 'dualNorm',  'SGDItres', 'msgsRcv']
+           'lrho', 'Rho', 'consensusNorm', 'primalNorm', 'dualNorm',  'SGDItres', 'msgsSent', 'msgsRcv']
 
 frame = pd.DataFrame.from_records(tbl, columns= columns)
 print frame.to_string()
