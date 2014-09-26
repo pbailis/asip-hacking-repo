@@ -291,6 +291,7 @@ object Emerson {
       case AsyncADMM | PORKCHOP => new AsyncADMM()
       case HOGWILD => new HOGWILDSGD()
       case DualDecomp => new DualDecomp()
+      case GD => new GradientDescent()
     }
 
     val model = new EmersonModel(params, lossFunction, regularizationFunction, optimizer)
