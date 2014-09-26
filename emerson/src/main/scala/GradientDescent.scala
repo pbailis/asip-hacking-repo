@@ -14,13 +14,13 @@ class GradientDescent extends BasicEmersonOptimizer with Serializable with Loggi
 
   def statsMap(): Map[String, String] = {
     Map(
-      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterations" -> iteration.toString,
       "iterInterval" -> stats.avgLocalIters().toString,
       "avgSGDIters" -> stats.avgSGDIters().toString,
       "avgMsgsSent" -> stats.avgMsgsSent().toString,
       "avgMsgsRcvd" -> stats.avgMsgsRcvd().toString,
-      "primalAvgNorm" -> norm(stats.primalAvg(), 2).toString,
-      "dualAvgNorm" -> norm(stats.dualAvg(), 2).toString,
+      "primalAvgNorm" -> norm(weights, 2).toString,
+      "dualAvgNorm" -> "0.0",
       "consensusNorm" -> norm(weights, 2).toString,
       "dualUpdates" -> stats.avgDualUpdates.toString,
       "runtime" -> totalTimeMs.toString,
@@ -66,13 +66,15 @@ class GradientDescent extends BasicEmersonOptimizer with Serializable with Loggi
       weights -= grad
 
       println(s"Iteration: $iteration")
-      println(stats.toStringShort)
       // println(s"(Primal Resid, Dual Resid, Rho): $primalResidual, \t $dualResidual, \t $rho")
       iteration += 1
     }
 
+
     val totalTimeNs = System.nanoTime() - startTimeNs
     totalTimeMs = TimeUnit.MILLISECONDS.convert(totalTimeNs, TimeUnit.NANOSECONDS)
+
+    stats = Stats(weights, BV.zeros[Double](weights.size))
 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
 

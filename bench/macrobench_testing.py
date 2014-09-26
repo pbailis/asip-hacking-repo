@@ -14,7 +14,7 @@ ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDeco
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = False
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -24,7 +24,7 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
-SHORT_ALGORITHMS = ["HOGWILD"]#, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["GD", "HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
