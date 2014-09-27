@@ -7,10 +7,10 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 5000, 10000]#, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 5000, 10000, 20000] #[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP", "AVG"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -19,9 +19,15 @@ DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
 
-DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
+DATASETS = ["wikipedia", "bismarck", "flights", "dblp"]
 
 TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
+
+
+
+
+
+
 
 
 SHORT_ALGORITHMS = ["MLlibGD", "GD", "HOGWILD"] #, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
@@ -79,7 +85,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e0
+GLOBAL_ETA_0 = 2.0e0
 
 
 ## END OF CONSTANTS
@@ -319,7 +325,7 @@ if DO_TEST_SHORT:
 
     exit(-1)
 
-dataset = "cloud"
+
 if DO_TEST_DATASETS:
     for obj, reg in TASKS:
         for dataset in DATASETS:
@@ -327,7 +333,7 @@ if DO_TEST_DATASETS:
                 for algorithm in ALGORITHMS:
                     runone(obj, reg, dataset, runtime, algorithm)
 
-
+dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
         for dim in [3]:
