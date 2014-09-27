@@ -7,21 +7,21 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 10000, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 5000, 10000]#, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["MLlibGD"] #, "GD", "PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
 
 DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 
-TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
+TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 SHORT_ALGORITHMS = ["MLlibGD", "GD", "HOGWILD"] #, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
@@ -245,7 +245,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = " " #  " --useLineSearch true --miniBatchSize 10000000 "
+    miscStr = " --miniBatchSize 1 " #  " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
@@ -320,6 +320,14 @@ if DO_TEST_SHORT:
     exit(-1)
 
 dataset = "cloud"
+if DO_TEST_DATASETS:
+    for obj, reg in TASKS:
+        for dataset in DATASETS:
+            for runtime in RUNTIMES:
+                for algorithm in ALGORITHMS:
+                    runone(obj, reg, dataset, runtime, algorithm)
+
+
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
         for dim in [3]:
@@ -332,7 +340,7 @@ if DO_TEST_CLOUD_SKEW:
 
 if DO_TEST_CLOUD_DIM:
     for obj, reg in TASKS:
-        for dim in [3, 25, 50, 100]:
+        for dim in [3, 25, 50]:
             for skew in [0.05]:
                 for runtime in RUNTIMES:    
                     for algorithm in ALGORITHMS:
@@ -340,13 +348,6 @@ if DO_TEST_CLOUD_DIM:
                                cloudDim = dim, cloudSkew = skew)
 
 
-
-if DO_TEST_DATASETS:
-    for obj, reg in TASKS:
-        for dataset in DATASETS:
-            for runtime in RUNTIMES:
-                for algorithm in ALGORITHMS:
-                    runone(obj, reg, dataset, runtime, algorithm)
 
 
 
