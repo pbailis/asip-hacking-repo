@@ -10,11 +10,11 @@ import json
 RUNTIMES = [2000, 5000, 10000, 20000] #[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP", "AVG"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = False
+DO_TEST_SHORT = True
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -30,12 +30,12 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 
-SHORT_ALGORITHMS = ["MLlibGD", "GD", "HOGWILD"] #, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["PORKCHOP"] #["MLlibGD", "HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 
-SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
+SHORT_RUNTIMES = [20000] # [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["bismarck"]
+SHORT_DATASETS = ["wikipedia"]
 
 
 
@@ -85,7 +85,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 2.0e0
+GLOBAL_ETA_0 = 1.0e-1
 
 
 ## END OF CONSTANTS
