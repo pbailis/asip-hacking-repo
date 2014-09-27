@@ -7,6 +7,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
+import org.apache.spark.mllib.evaluation.Straggler
 
 object Emerson {
 
@@ -53,6 +54,7 @@ object Emerson {
     var wikipediaTargetWordToken = 4690
     var numTraining = 0L
     var scaled = false
+    var straggler = false
 
     override def toString = {
       val m =  Map(
@@ -72,6 +74,7 @@ object Emerson {
         "wikipediaTargetWordToken" -> wikipediaTargetWordToken,
         "dblpSplitYear" -> dblpSplitYear,
         "scaled" -> scaled,
+        "straggler" -> straggler,
         "numTraining" -> numTraining        
       )
       mapToJson(m)
@@ -99,6 +102,10 @@ object Emerson {
 
       opt[Boolean]("learningT")
         .action{ (x, c) => c.learningT = x; c }
+
+      opt[Boolean]("straggler")
+        .action{ (x, c) => c.straggler = x; c }
+
 
       // point cloud parameters
       opt[Int]("pointCloudDimension")
@@ -267,6 +274,17 @@ object Emerson {
 
   
     training.foreach{ x => System.gc() }
+
+    // Make one of the nodes a straggler
+    if(params.straggler) {
+      training.mapPartitionsWithIndex( (pid, iter) => {
+        if (pid == 0) {
+          Straggler.isStraggler = true
+        }
+        iter
+      }).foreach(f => ())
+    }
+
     val numTraining = training.map{x => x.length}.reduce(_ + _)
     params.numTraining = numTraining
 

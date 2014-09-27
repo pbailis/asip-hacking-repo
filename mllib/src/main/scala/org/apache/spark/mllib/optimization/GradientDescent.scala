@@ -17,6 +17,7 @@
 
 package org.apache.spark.mllib.optimization
 
+import org.apache.spark.mllib.evaluation.Straggler
 import scala.collection.mutable.ArrayBuffer
 import java.util.concurrent.TimeUnit
 
@@ -218,6 +219,8 @@ object GradientDescent extends Logging {
       val (gradientSum, lossSum) = data.sample(false, miniBatchFraction, 42 + i)
         .treeAggregate((BDV.zeros[Double](n), 0.0))(
           seqOp = (c, v) => (c, v) match { case ((grad, loss), (label, features)) =>
+
+            Straggler.straggle()
             val l = gradient.compute(features, label, bcWeights.value, Vectors.fromBreeze(grad))
             (grad, loss + l)
           },

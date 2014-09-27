@@ -1,7 +1,7 @@
 package edu.berkeley.emerson
 
 import breeze.linalg.{DenseVector => BDV, SparseVector => BSV, Vector => BV, _}
-
+import org.apache.spark.mllib.evaluation.Straggler
 
 
 trait LossFunction extends Serializable {
@@ -59,6 +59,7 @@ class HingeLoss extends LossFunction {
 
   override def addGradient(w: BV[Double], x: BV[Double], y: Double, cumGrad: BV[Double]): Double = {
     assert(y == 0.0 || y == 1.0)
+    Straggler.straggle()
     val yscaled = 2.0 * y - 1.0
     val wdotx = w.dot(x)
     if (yscaled * wdotx < 1.0) {
@@ -99,6 +100,9 @@ class LogisticLoss extends LossFunction {
 
   override def addGradient(w: BV[Double], x: BV[Double], label: Double, 
 			   cumGrad: BV[Double]) = {
+    assert(label == 0.0 || label == 1.0)
+    Straggler.straggle()
+
     val wdotx = w.dot(x)
     val gradientMultiplier = label - sigmoid(wdotx)
     // Note we negate the gradient here since we ant to minimize the negative of the likelihood
