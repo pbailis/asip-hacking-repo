@@ -7,7 +7,7 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 5000, 10000, 20000] #[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 5000, 20000] #[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
 ALGORITHMS = ["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
@@ -85,7 +85,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e-1
+GLOBAL_ETA_0 = 1.0e0
 
 
 ## END OF CONSTANTS
@@ -251,7 +251,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = " --miniBatchSize 1 " #  " --useLineSearch true --miniBatchSize 10000000 "
+    miscStr = " " # " --miniBatchSize 1 " #  " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
