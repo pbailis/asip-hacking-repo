@@ -48,7 +48,7 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
 
   def statsMap(): Map[String, String] = {
     Map(
-      "iterations" -> stats.avgLocalIters().x.toString,
+      "iterations" -> iteration.toString,
       "iterInterval" -> stats.avgLocalIters().toString,
       "avgSGDIters" -> stats.avgSGDIters().toString,
       "avgMsgsSent" -> stats.avgMsgsSent().toString,
@@ -89,7 +89,9 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
           .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        algorithm.run(data2).clearThreshold()
+        val res = algorithm.run(data2).clearThreshold()
+	iteration = algorithm.optimizer.getLastIterations()
+	res
       case l: HingeLoss =>
         val algorithm = new SVMWithSGD()
         algorithm.optimizer
@@ -98,7 +100,9 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
           .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        algorithm.run(data2).clearThreshold()
+        val res = algorithm.run(data2).clearThreshold()
+	iteration = algorithm.optimizer.getLastIterations()
+	res
     }
 
     val totalTimeNs = System.nanoTime() - startTimeNs
@@ -107,6 +111,8 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
     println("Finished!!!!!!!!!!!!!!!!!!!!!!!")
 
     weights = model.weights.toBreeze
+
+    stats = Stats(weights, BV.zeros[Double](weights.size))
 
     weights
   }

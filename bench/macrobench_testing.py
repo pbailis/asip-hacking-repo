@@ -10,7 +10,7 @@ import json
 RUNTIMES = [2000, 10000, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["MLlibGD"] #, "GD", "PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
@@ -24,7 +24,8 @@ DATASETS = ["bismarck", "flights", "dblp", "wikipedia"]
 TASKS = [("SVM", "L2"), ("SVM", "L1"), ("LR", "L2"), ("LR", "L1")]
 
 
-SHORT_ALGORITHMS = ["GD", "HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["MLlibGD", "GD", "HOGWILD"] #, "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+
 
 SHORT_RUNTIMES = [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
@@ -262,6 +263,10 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
         GLOBAL_ADMMrho = 1.0
     elif algorithm == "GD":
         maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
+        localTimeout = -1
+        localEpsilon = -1
+    elif algorithm == "MLlibGD":
+        maxLocalIterations = -1
         localTimeout = -1
         localEpsilon = -1
     elif algorithm == "MiniBatchADMM":
