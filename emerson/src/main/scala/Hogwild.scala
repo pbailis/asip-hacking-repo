@@ -7,7 +7,7 @@ import java.util.concurrent.atomic._
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import breeze.linalg.{norm, DenseVector => BDV, SparseVector => BSV, Vector => BV}
+import breeze.linalg.{norm, DenseVector => BDV, SparseVector => BSV, Vector => BV, axpy}
 import org.apache.spark.Logging
 import org.apache.spark.deploy.worker.Worker
 import org.apache.spark.rdd.RDD
@@ -55,7 +55,8 @@ class HWWorkerCommunication(val address: String, val hack: HWWorkerCommunication
     case s: String => println(s)
     case d: HWInternalMessages.DeltaUpdate => {
       if (optimizer != null) {
-        optimizer.primalVar -= d.delta
+        axpy(-optimizer.eta_t, d.delta, optimizer.primalVar)
+        // optimizer.primalVar -= d.delta
         optimizer.msgsRcvd.getAndIncrement()
       }
     }
@@ -119,7 +120,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
   @volatile var msgsSent = 0
   @volatile var msgsRcvd = new AtomicInteger()
   @volatile var grad_delta: BV[Double] = BV.zeros(nDim)
-
+  @volatile var eta_t = params.eta_0
   override def getStats() = {
     Stats(primalVar = primalVar, dualVar = dualVar,
       msgsSent = msgsSent, msgsRcvd = msgsRcvd.get(),
@@ -169,13 +170,14 @@ class HOGWILDSGDWorker(subProblemId: Int,
       regularizer.addGradient(primalVar, params.regParam, grad)
 
       // Set the learning rate
-      val eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
+      eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
 
       // Scale the gradient by the learning rate
-      grad *= eta_t
-
+      // grad *= eta_t
+      //primalVar -= grad
       // Take the gradient step
-      primalVar -= grad
+      axpy(-eta_t, grad, primalVar)
+
 
       // Accumulate the delta gradient to be sent to other machines
       grad_delta += grad
