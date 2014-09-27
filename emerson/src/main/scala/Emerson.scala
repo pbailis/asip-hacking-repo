@@ -12,7 +12,7 @@ object Emerson {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val GD, ADMM, MiniBatchADMM, AsyncADMM, PORKCHOP, HOGWILD, DualDecomp = Value
+    val GD, ADMM, MiniBatchADMM, AsyncADMM, PORKCHOP, HOGWILD, DualDecomp, MLlibGD = Value
   }
 
   object Objective extends Enumeration {
@@ -292,6 +292,7 @@ object Emerson {
       case HOGWILD => new HOGWILDSGD()
       case DualDecomp => new DualDecomp()
       case GD => new GradientDescent()
+      case MLlibGD => new MLlibGradientDescent
     }
 
     val model = new EmersonModel(params, lossFunction, regularizationFunction, optimizer)
@@ -299,15 +300,14 @@ object Emerson {
 
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
-
-   /* 
-    val rando = new java.util.Random(42)
+   
+    val rando = new java.util.Random(43)
     var i = 0
     while (i < nDim) {
       initialWeights(i) = rando.nextGaussian() //rando.nextDouble()
       i += 1
     }
-    */
+    
 
 
     //params.eta_0 *= nDim * 0.02

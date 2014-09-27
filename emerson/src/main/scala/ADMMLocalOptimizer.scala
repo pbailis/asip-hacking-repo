@@ -24,9 +24,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   val miniBatchSize = math.min(params.miniBatchSize, data.size)
   val regParamScaled = params.regParam
 
-  @volatile var primalConsensus = BV.zeros[Double](nDim)
+  @volatile var primalConsensus: BV[Double] = null // BV.zeros[Double](nDim)
 
-  @volatile var primalVar = BV.zeros[Double](nDim)
+  @volatile var primalVar: BV[Double] = null // BV.zeros[Double](nDim)
 
   @volatile var dualVar = BV.zeros[Double](nDim)
 

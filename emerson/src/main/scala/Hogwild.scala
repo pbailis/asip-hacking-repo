@@ -118,7 +118,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
   @volatile var done = false
   @volatile var msgsSent = 0
   @volatile var msgsRcvd = new AtomicInteger()
-  @volatile var grad_delta: BV[Double] = BV.zeros(primalVar.size)
+  @volatile var grad_delta: BV[Double] = BV.zeros(nDim)
 
   override def getStats() = {
     Stats(primalVar = primalVar, dualVar = dualVar,
@@ -230,7 +230,6 @@ class HOGWILDSGD extends BasicEmersonOptimizer with Serializable with Logging {
           lossFun = lossFunction, params = params, regularizer = regularizationFunction,
           comm = hack.ref)
         worker.primalVar = primal0.copy
-        worker.dualVar = primal0.copy
         HWSetupBlock.workers(ind) = worker
         Iterator(worker)
       }
