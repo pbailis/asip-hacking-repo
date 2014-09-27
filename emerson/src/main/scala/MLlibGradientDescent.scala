@@ -89,7 +89,7 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
           .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        val res = algorithm.run(data2).clearThreshold()
+        val res = algorithm.run(data2, initialWeights = Vectors.fromBreeze(initialWeights.copy)).clearThreshold()
 	iteration = algorithm.optimizer.getLastIterations()
 	res
       case l: HingeLoss =>
@@ -100,7 +100,7 @@ class MLlibGradientDescent extends BasicEmersonOptimizer with Serializable with 
           .setStepSize(params.eta_0)
           .setUpdater(updater)
           .setRegParam(params.regParam)
-        val res = algorithm.run(data2).clearThreshold()
+        val res = algorithm.run(data2, initialWeights = Vectors.fromBreeze(initialWeights.copy)).clearThreshold()
 	iteration = algorithm.optimizer.getLastIterations()
 	res
     }
