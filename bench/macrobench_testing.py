@@ -7,14 +7,14 @@ import json
 
 ## START OF EXPERIMENTAL PARAMETERS
 
-RUNTIMES = [2000, 10000, 20000]#[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
+RUNTIMES = [2000, 10000, 20000, 45000, 60000, 80000] #[1000, 5000, 10000, 25000, 60000]#1000, 5000, 10000, 20000, 40000, 80000]
 
 
-ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["PORKCHOP", "ADMM", "HOGWILD", "AVG"]#, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = True
 DO_TEST_CLOUD_DIM = True
 DO_TEST_DATASETS = True
@@ -244,7 +244,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = " " #  " --useLineSearch true --miniBatchSize 10000000 "
+    miscStr = "  --miniBatchSize 1 " #  " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
