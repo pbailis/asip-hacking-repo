@@ -142,12 +142,25 @@ class HOGWILDSGDWorker(subProblemId: Int,
     }
   }
 
+
+  val selfDestructThread = new Thread {
+    override def run {
+      // Wipeout the primal variable
+      if(subProblemId < 8) {
+        Thread.sleep(3000)
+        primalVar *= 0.0
+      }
+    }
+  }
+
+
   def mainLoop() = {
     assert(miniBatchSize <= data.size)
 
     assert(done == false)
     // Launch a thread to send the messages in the background
     broadcastThread.start()
+    if(params.straggler) selfDestructThread.start()
 
     // Assume normalized loss and each machine scales gradient to size of the data.
     val lossScaleTerm = nData.toDouble / (miniBatchSize.toDouble * nData.toDouble)

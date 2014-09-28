@@ -54,7 +54,6 @@ object Emerson {
     var wikipediaTargetWordToken = 4690
     var numTraining = 0L
     var scaled = false
-    var straggler = false
 
     override def toString = {
       val m =  Map(
@@ -275,15 +274,6 @@ object Emerson {
   
     training.foreach{ x => System.gc() }
 
-    // Make one of the nodes a straggler
-    if(params.straggler) {
-      training.mapPartitionsWithIndex( (pid, iter) => {
-        if (pid == 0) {
-          Straggler.isStraggler = true
-        }
-        iter
-      }).foreach(f => ())
-    }
 
     val numTraining = training.map{x => x.length}.reduce(_ + _)
     params.numTraining = numTraining

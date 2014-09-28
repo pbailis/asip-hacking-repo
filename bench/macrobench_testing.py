@@ -29,9 +29,9 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 
-SHORT_ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP", "AVG"]
+SHORT_ALGORITHMS = ["HOGWILD", "PORKCHOP"]
 SHORT_RUNTIMES = [5000, 10000]
-SHORT_TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
+SHORT_TASKS = [("SVM", "L2"), ("LR", "L1")] #, ("SVM", "L1"), ("LR", "L2")]
 SHORT_DATASETS = ["bismarck", "flights", "dblp", "wikipedia"] # ["bismarck"]
 
 

@@ -28,6 +28,7 @@ class EmersonParams extends Serializable {
   var useLineSearch = false
   var localTimeout = Int.MaxValue
   var learningT = false
+  var straggler = false
 
   //  var admmRegFactor = 1.0
 

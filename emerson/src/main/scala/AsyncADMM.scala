@@ -144,6 +144,18 @@ class AsyncADMMWorker(subProblemId: Int,
       dataSize = data.length)
   }
 
+  val selfDestruct = new Thread {
+    override def run {
+      // Wipeout the primal variable
+      if(subProblemId < 8) {
+        Thread.sleep(3000)
+        primalVar *= 0.0
+        dualVar *= 0.0
+        primalConsensus *= 0.0
+      }
+    }
+  }
+
 
   // val broadcastThread = new Thread {
   //   override def run {
@@ -275,6 +287,9 @@ class AsyncADMMWorker(subProblemId: Int,
     assert(!done)
     assert(!ranOnce)
     ranOnce = true
+
+    if(params.straggler) selfDestruct.start()
+
     startTime = System.currentTimeMillis()
     val primalOptimum =
       if (params.usePorkChop) {
