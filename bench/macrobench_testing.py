@@ -16,8 +16,8 @@ ALGORITHMS = ["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"] #, "MiniBatchADMM
 PICKLED_OUTPUT = "experiment.pkl"
 
 DO_TEST_SHORT = False
-DO_TEST_CLOUD_SKEW = True
-DO_TEST_CLOUD_DIM = True
+DO_TEST_CLOUD_SKEW = False
+DO_TEST_CLOUD_DIM = False
 DO_TEST_DATASETS = True
 
 DATASETS = ["wikipedia", "bismarck", "flights", "dblp"]
@@ -335,6 +335,7 @@ if DO_TEST_DATASETS:
                 for algorithm in ALGORITHMS:
                     runone(obj, reg, dataset, runtime, algorithm)
 
+exit(-1)
 dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
