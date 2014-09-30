@@ -31,8 +31,8 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 SHORT_ALGORITHMS = ["MLlibGD", "HOGWILD",  "ADMM", "PORKCHOP", "AVG"]
 SHORT_RUNTIMES = [5000, 10000]
-SHORT_TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
-SHORT_DATASETS = ["bismarck", "flights", "dblp", "wikipedia"] # ["bismarck"]
+SHORT_TASKS = [("SVM", "L2")] #, ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
+SHORT_DATASETS = ["bismarck"] #, "flights", "dblp", "wikipedia"] # ["bismarck"]
 
 
 
@@ -248,7 +248,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3,
     localTimeout = 10000000
     broadcastDelay = -1
     localEpsilon = GLOBAL_ADMMlocalEpsilon
-    miscStr = " --miniBatchSize 1 " + opts #  " --useLineSearch true --miniBatchSize 10000000 "
+    miscStr = opts  #+ " --miniBatchSize 1 " #  " --useLineSearch true --miniBatchSize 10000000 "
 
     if algorithm == "ADMM":
         maxLocalIterations = GLOBAL_ADMM_maxLocalIterations
