@@ -156,7 +156,7 @@ class ADMMLocalOptimizer(val subProblemId: Int,
   }
 
 
-
+  var useReg = false // only used for averaging
   var learningT = 0.0
 
   def sgd(endByMS: Long = Long.MaxValue) {
@@ -203,7 +203,9 @@ class ADMMLocalOptimizer(val subProblemId: Int,
       // val lossGradNorm = norm(grad, 2)
 
       // Add the regularization term into the gradient step
-      // regularizer.addGradient(primalVar, params.regParam / nSubProblems.toDouble, grad)
+      if(useReg) { // only used for averaging
+        regularizer.addGradient(primalVar, params.regParam / nSubProblems.toDouble, grad)
+      }
 
       // Add the lagrangian
       grad += dualVar

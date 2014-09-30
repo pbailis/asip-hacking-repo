@@ -15,7 +15,7 @@ class EmersonParams extends Serializable {
   var workerTol = 1.0e-5
   var maxIterations = 1000
   var maxWorkerIterations = 1000
-  var miniBatchSize = 100
+  var miniBatchSize = 10
   var useLBFGS = false
   var rho0 = 1.0
   var lagrangianRho = 1.0

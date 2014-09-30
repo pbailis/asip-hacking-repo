@@ -31,7 +31,7 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 
-SHORT_ALGORITHMS = ["PORKCHOP"] #["MLlibGD", "HOGWILD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["AVG", "HOGWILD", "MLlibGD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 
 SHORT_RUNTIMES = [20000] # [2*1000, 10*1000, 30*1000]
@@ -86,7 +86,7 @@ GLOBAL_REG_PARAM = 1e-1#e-5
 
 # bismarck the paper does 1e-2
 
-GLOBAL_ETA_0 = 1.0e0
+GLOBAL_ETA_0 = 1.0e-1
 
 
 ## END OF CONSTANTS
@@ -160,7 +160,6 @@ def runTest(runtimeMS,
         print "Unknown dataset!"
         raise
 
-    calgorithm = algorithm if algorithm != "AVG" else "ADMM"
           # "--jars examples/target/scala-2.10/spark-examples-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
 
     cmd = "cd /mnt/spark; sbin/stop-all.sh; sleep 5; sbin/start-all.sh; sleep 3;" \
@@ -168,7 +167,7 @@ def runTest(runtimeMS,
           "--driver-memory 52g " \
           "--class edu.berkeley.emerson.Emerson " \
           "emerson/target/scala-2.10/spark-emerson_* " \
-          "--algorithm " + str(calgorithm) + " " + \
+          "--algorithm " + str(algorithm) + " " + \
           "--objective " + str(objectiveFn) + " " + \
           "--regType " + str(regType) + " " + \
           "--regParam " + str(regParam) + " " + \

@@ -75,7 +75,7 @@ class ADMM extends BasicEmersonOptimizer with Serializable with Logging {
         nData = nData.toInt, data, lossFunction, regularizationFunction,  params)
       // Initialize the primal variable and primal regularizer
       solver.primalVar = primal0.copy
-      // solver.primalConsensus = primal0.copy
+      solver.primalConsensus = primal0.copy
       Iterator(solver)
     }.cache()
 
