@@ -76,13 +76,37 @@ object MLUtils {
       .map { line =>
         val items = line.split(' ')
         val label = items.head.toDouble
-        val (indices, values) = items.tail.map { item =>
-          val indexAndValue = item.split(':')
-          val index = indexAndValue(0).toInt - 1 // Convert 1-based indices to 0-based.
-          val value = indexAndValue(1).toDouble
-          (index, value)
-        }.unzip
-        (label, indices.toArray, values.toArray)
+        // Count the number of empty values
+        var i = 1
+        var emptyValues = 0
+        while (i < items.size) {
+          if (items(i).isEmpty) emptyValues += 1
+          i += 1
+        }
+        // Determine the number of non-zero entries
+        val nnzs = items.size - 1 - emptyValues
+        // Compute the indices
+        val indices = new Array[Int](nnzs)
+        val values = new Array[Double](nnzs)
+        i = 1
+        var j = 0
+        while (i < items.size) {
+          if (!items(i).isEmpty) {
+            val indexAndValue = items(i).split(':')
+            indices(j) = indexAndValue(0).toInt - 1 // Convert 1-based indices to 0-based.
+            values(j) = indexAndValue(1).toDouble
+            j += 1
+          }
+          i += 1
+        }
+        // assert(j == nnzs)
+        // val (indices, values) = items.tail.filter( pair => !pair.isEmpty ).map { item =>
+        //   val indexAndValue = item.split(':')
+        //   val index = indexAndValue(0).toInt - 1 // Convert 1-based indices to 0-based.
+        //   val value = indexAndValue(1).toDouble
+        //   (index, value)
+        // }.unzip
+        (label, indices, values)
       }
 
     // Determine number of features.
