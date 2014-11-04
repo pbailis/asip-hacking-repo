@@ -11,10 +11,11 @@ cd ~/spark
 sbin/stop-all.sh
 
 cd /mnt
-#git clone https://github.com/jegonzal/spark.git
+git clone https://github.com/jegonzal/spark.git
 
 cd spark
-#git remote add peter https://github.com/pbailis/spark.git
+git remote add peter https://github.com/pbailis/spark.git
+git fetch --all
 git checkout -b emerson origin/emerson
 
 mv conf old_conf
