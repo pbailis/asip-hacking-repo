@@ -39,6 +39,7 @@ object Emerson {
     var input: String = null
     var format: String = "libsvm"
     var numPartitions: Int = -1
+    var nfeatures: Int = -1
     var algorithm: Algorithm = ADMM
     var objectiveFn: Objective = SVM
     var regType: RegType = L2
@@ -72,7 +73,7 @@ object Emerson {
         "wikipediaTargetWordToken" -> wikipediaTargetWordToken,
         "dblpSplitYear" -> dblpSplitYear,
         "scaled" -> scaled,
-        "numTraining" -> numTraining        
+        "numTraining" -> numTraining
       )
       mapToJson(m)
     }
@@ -96,6 +97,10 @@ object Emerson {
       opt[Double]("stepSize")
         .text(s"initial step size, default: ${defaultParams.eta_0}")
         .action { (x, c) => c.eta_0 = x; c}
+
+      opt[Int]("nfeatures")
+        .text(s"the number of features to use in libSVM formatted files")
+        .action { (x, c) => c.nfeatures = x; c}
 
       opt[Boolean]("learningT")
         .action{ (x, c) => c.learningT = x; c }
@@ -236,8 +241,8 @@ object Emerson {
     println("Starting to load data...")
 
     var training: RDD[Array[(Double, BV[Double])]] =
-      if (params.format == "lisbsvm") {
-        MLUtils.loadLibSVMFile(sc, params.input).map(
+      if (params.format == "libsvm") {
+        MLUtils.loadLibSVMFile(sc, params.input, params.nfeatures).map(
           p => (p.label, p.features.toBreeze)
         ).repartition(params.numPartitions).mapPartitions( iter => Iterator(iter.toArray) ).cache()
       } else if (params.format == "bismarck") {
@@ -265,7 +270,7 @@ object Emerson {
       training = DataLoaders.normalizeData(training)
     }
 
-  
+
     training.foreach{ x => System.gc() }
     val numTraining = training.map{x => x.length}.reduce(_ + _)
     params.numTraining = numTraining
@@ -301,14 +306,14 @@ object Emerson {
 
     val nDim = training.map(d => d(0)._2.size).take(1).head
     val initialWeights = BDV.zeros[Double](nDim)
-   
+
     val rando = new java.util.Random(43)
     var i = 0
     while (i < nDim) {
       initialWeights(i) = rando.nextGaussian() //rando.nextDouble()
       i += 1
     }
-    
+
 
 
     //params.eta_0 *= nDim * 0.02
@@ -342,7 +347,7 @@ object Emerson {
     println("RESULT: " + mapToJson(resultsMap))
 
     // val summary =
-    //   s"RESULT: ${params.algorithm}\t" + 
+    //   s"RESULT: ${params.algorithm}\t" +
     //   s"${stats("iterations")}\t" +
     //   s"${params.runtimeMS}\t" +
     //   s"${stats("runtime")}\t" +
@@ -354,7 +359,7 @@ object Emerson {
     //   s"${params.toString}\t" +
     //   "{" + stats.map { case (k,v) => s"$k: $v" }.mkString(", ") + "}\t" +
     //   s"${metrics.areaUnderPR()}\t" +
-    //   s"${trainingError}" 
+    //   s"${trainingError}"
 
     // println(summary)
 

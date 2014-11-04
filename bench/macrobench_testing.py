@@ -73,12 +73,14 @@ GLOBAL_PORKCHOP_broadcastDelay = 100
 
 GLOBAL_inputTokenHashKernelDimension = 1000
 
-DATASET_REG_PARAM = { 
+DATASET_REG_PARAM = {
 "cloud" : 1e-5,
 "bismarck" : 1e-1,
 "flights" : 1e-1,
 "dblp" : 1e-1,
-"wikipedia": 1e-1
+"wikipedia": 1e-1,
+"splice_site": 1e-1,
+"splice_site.t": 1e-1
 }
 
 # bismarck the paper does 1e-1
@@ -101,7 +103,7 @@ def describe_point_cloud(pointsPerPartition = 500000,
     return   "--pointCloudPointsPerPartition " + str(pointsPerPartition) + " " + \
              "--pointCloudPartitionSkew " + str(partitionSkew) + " " + \
              "--pointCloudLabelNoise " + str(labelNoise) + " " + \
-             "--pointCloudDimension " + str(dimension) + " " 
+             "--pointCloudDimension " + str(dimension) + " "
 
 def describe_forest():
     return " --input /user/root/bismarck_data/forest* "
@@ -114,6 +116,13 @@ def describe_dblp():
 
 def describe_wikipedia():
     return " --input /user/root/wiki/en-wiki-8-7-2014-tokenized.txt"
+
+def describe_splice_site_t():
+    return " --input /user/root/splice_site.t --nfeatures 11725480 --format libsvm "
+
+def describe_splice_site():
+    return " --input /user/root/splice_site --nfeatures 11725480 --format libsvm "
+
 
 ## END OF DATASET FORMATTING
 
@@ -156,6 +165,10 @@ def runTest(runtimeMS,
         datasetConfigStr = describe_dblp()
     elif datasetName == "wikipedia":
         datasetConfigStr = describe_wikipedia()
+    elif datasetName == "splice_site.t":
+        datasetConfigStr = describe_splice_site_t()
+    elif datasetName == "splice_site":
+        datasetConfigStr = describe_splice_site()
     else:
         print "Unknown dataset!"
         raise
@@ -166,7 +179,7 @@ def runTest(runtimeMS,
           "./bin/spark-submit " \
           "--driver-memory 52g " \
           "--class edu.berkeley.emerson.Emerson " \
-          "emerson/target/scala-2.10/spark-emerson_* " \
+          "assembly/target/scala-2.10/spark-assembly-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
           "--algorithm " + str(algorithm) + " " + \
           "--objective " + str(objectiveFn) + " " + \
           "--regType " + str(regType) + " " + \
@@ -306,7 +319,7 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
                        broadcastDelay = broadcastDelay,
                        miscStr = miscStr,
                        localTimeout = localTimeout)
-    
+
     system("cp %s /tmp/%s" % (PICKLED_OUTPUT, PICKLED_OUTPUT))
     output = open(PICKLED_OUTPUT, 'wb')
     pickle.dump(results, output)
@@ -341,7 +354,7 @@ if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
         for dim in [3]:
             for skew in [0, .05, .5, .25]:#, .75/2]:
-                for runtime in RUNTIMES:    
+                for runtime in RUNTIMES:
                     for algorithm in ALGORITHMS:
                         runone(obj, reg, dataset, runtime, algorithm,
                                cloudDim = dim, cloudSkew = skew)
@@ -351,7 +364,7 @@ if DO_TEST_CLOUD_DIM:
     for obj, reg in TASKS:
         for dim in [3, 25, 50]:
             for skew in [0.05]:
-                for runtime in RUNTIMES:    
+                for runtime in RUNTIMES:
                     for algorithm in ALGORITHMS:
                         runone(obj, reg, dataset, runtime, algorithm,
                                cloudDim = dim, cloudSkew = skew)
@@ -369,4 +382,4 @@ if DO_TEST_CLOUD_DIM:
 print results[0].keys()
 for r in results:
     print [r[k] for k in r if k is not "line"]
-    
+
