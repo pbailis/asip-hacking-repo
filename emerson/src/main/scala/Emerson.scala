@@ -12,7 +12,7 @@ object Emerson {
 
   object Algorithm extends Enumeration {
     type Algorithm = Value
-    val AVG, GD, ADMM, MiniBatchADMM, AsyncADMM, PORKCHOP, HOGWILD, DualDecomp, MLlibGD = Value
+    val AVG, GD, ADMM, MiniBatchADMM, AsyncADMM, PORKCHOP, HOGWILD, DualDecomp, DualAvgSGD, MLlibGD = Value
   }
 
   object Objective extends Enumeration {
@@ -296,6 +296,7 @@ object Emerson {
       case AsyncADMM | PORKCHOP => new AsyncADMM()
       case HOGWILD => new HOGWILDSGD()
       case DualDecomp => new DualDecomp()
+      case DualAvgSGD => new DualAvgSGD()
       case GD => new GradientDescent()
       case MLlibGD => new MLlibGradientDescent()
       case AVG => new Avg()
