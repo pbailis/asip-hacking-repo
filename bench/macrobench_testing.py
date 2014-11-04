@@ -10,12 +10,12 @@ import json
 
 
 RUNTIMES = [2000, 5000, 10000, 20000, 30000] #[1000, 2000, 5000, 10000, 25000, 60000] #1000, 5000, 10000, 20000, 40000, 80000]
-ALGORITHMS = ["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"] #, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["DualAvgSGD"] #["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"] #, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
 
-DO_TEST_SHORT = True
+DO_TEST_SHORT = False
 DO_TEST_CLOUD_SKEW = False
 DO_TEST_CLOUD_DIM = False
 DO_TEST_DATASETS = True
@@ -351,7 +351,7 @@ if DO_TEST_DATASETS:
                 for algorithm in ALGORITHMS:
                     runone(obj, reg, dataset, runtime, algorithm)
 
-exit(-1)
+
 dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
