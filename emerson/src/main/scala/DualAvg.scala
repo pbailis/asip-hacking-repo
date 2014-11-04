@@ -23,7 +23,7 @@ import scala.language.postfixOps
 object DAInternalMessages {
   class WakeupMsg
   class PingPong
-  class DeltaUpdate(val sender: Int,
+  class DeltaUpdate(val firstSend: Boolean,
                     val delta: BV[Double])
 }
 
@@ -57,6 +57,9 @@ class DAWorkerCommunication(val address: String, val hack: DAWorkerCommunication
       if (optimizer != null) {
         optimizer.dualSum += d.delta
         optimizer.msgsRcvd.getAndIncrement()
+        if (d.firstSend) { 
+          optimizer.rcvdFrom.getAndIncrement()
+        }
       }
     }
     case _ => println("hello, world!")
@@ -91,8 +94,8 @@ class DAWorkerCommunication(val address: String, val hack: DAWorkerCommunication
     }
   }
 
-  def broadcastDeltaUpdate(delta: BV[Double]) {
-    val msg = new DAInternalMessages.DeltaUpdate(selfID, delta)
+  def broadcastDeltaUpdate(firstSend: Boolean, delta: BV[Double]) {
+    val msg = new DAInternalMessages.DeltaUpdate(firstSend, delta)
     for (other <- others.values) {
       other ! msg
     }
@@ -122,6 +125,8 @@ class DualAvgSGDWorker(subProblemId: Int,
   @volatile var dualSum: BV[Double] = BV.zeros(nDim)
   @volatile var primalSum: BV[Double] = BV.zeros(nDim)
 
+  val rcvdFrom = new AtomicInteger()
+
   @volatile var eta_t = params.eta_0
 
   override def getStats() = {
@@ -133,10 +138,12 @@ class DualAvgSGDWorker(subProblemId: Int,
 
   val broadcastThread = new Thread {
     override def run {
+      var firstSend = true
       val startTime = System.currentTimeMillis()
       while (!done) {
-        val tmp = primalVar.copy
-        comm.broadcastDeltaUpdate(tmp - lastSent)
+        val tmp = dualVar.copy
+        comm.broadcastDeltaUpdate(firstSend, tmp - lastSent)
+        firstSend = false
         lastSent = tmp
         msgsSent += 1
         Thread.sleep(params.broadcastDelayMS)
@@ -173,9 +180,7 @@ class DualAvgSGDWorker(subProblemId: Int,
       regularizer.addGradient(primalVar, params.regParam, grad)
 
       // Compute the new dual var:
-      // dualVar = (1.0 / nSubProblems) * (dualVar + otherSum)
-      dualVar += dualSum
-      dualVar /= nSubProblems.toDouble
+      dualVar = (dualVar + dualSum) / (rcvdFrom.get().toDouble + 1.0) + grad
 
       // Set the learning rate
       eta_t = params.eta_0 / math.sqrt(t.toDouble + 1.0)
@@ -188,7 +193,7 @@ class DualAvgSGDWorker(subProblemId: Int,
       t += 1
     }
     localIters = t
-    primalSum /= t.toDouble
+    primalVar = primalSum / t.toDouble
 
     broadcastThread.join()
   }
@@ -285,8 +290,6 @@ class DualAvgSGD extends BasicEmersonOptimizer with Serializable with Logging {
 
     // Run all the workers
     workers.foreach( w => w.mainLoop() )
-    // compute the final consensus value synchronously
-    val nExamples = workers.map(w=>w.data.length).reduce(_+_)
     // Collect the primal and dual averages
     stats =
       workers.map { w => w.getStats() }.reduce( _ + _ )

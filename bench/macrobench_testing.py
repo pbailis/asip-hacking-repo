@@ -10,7 +10,7 @@ import json
 
 
 RUNTIMES = [2000, 5000, 10000, 20000, 30000] #[1000, 2000, 5000, 10000, 25000, 60000] #1000, 5000, 10000, 20000, 40000, 80000]
-ALGORITHMS = ["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"] #, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
+ALGORITHMS = ["DualAvgSGD"] #["HOGWILD", "MLlibGD", "ADMM", "PORKCHOP", "AVG"] #, "MiniBatchADMM", "AVG", "DualDecomp"]#, "GD"]
 
 
 PICKLED_OUTPUT = "experiment.pkl"
@@ -31,12 +31,12 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 
-SHORT_ALGORITHMS = ["ADMM", "PORKCHOP"] #["AVG", "HOGWILD", "MLlibGD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
+SHORT_ALGORITHMS = ["DualAvgSGD"] #"ADMM", "PORKCHOP", "HOGWILD", "DualAvgSGD"] #["AVG", "HOGWILD", "MLlibGD", "PORKCHOP", "ADMM"] #, "HOGWILD"] # "ADMM", "PORKCHOP"]#, "PORKCHOP", "HOGWILD"]#, "PORKCHOP"]#"PORKCHOP", "ADMM"]
 
 
-SHORT_RUNTIMES = [20000] # [2*1000, 10*1000, 30*1000]
+SHORT_RUNTIMES = [1000, 5000, 10000] # [2*1000, 10*1000, 30*1000]
 SHORT_TASKS = [("SVM", "L2")]
-SHORT_DATASETS = ["wikipedia"]
+SHORT_DATASETS = ["bismarck"]
 
 
 
@@ -297,6 +297,9 @@ def runone(obj, reg, dataset, runtime, algorithm, cloudSkew = 0.0, cloudDim = 3)
     elif algorithm == "HOGWILD":
         maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
         broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
+    elif algorithm == "DualAvgSGD":
+        maxLocalIterations = GLOBAL_HOGWILD_maxLocalIterations
+        broadcastDelay = GLOBAL_HOGWILD_broadcastDelay
     elif algorithm == "PORKCHOP":
         maxLocalIterations = GLOBAL_PORKCHOP_maxLocalIterations
         broadcastDelay = GLOBAL_PORKCHOP_broadcastDelay
@@ -348,7 +351,7 @@ if DO_TEST_DATASETS:
                 for algorithm in ALGORITHMS:
                     runone(obj, reg, dataset, runtime, algorithm)
 
-exit(-1)
+
 dataset = "cloud"
 if DO_TEST_CLOUD_SKEW:
     for obj, reg in TASKS:
