@@ -148,7 +148,7 @@ class AsyncADMMWorker(subProblemId: Int,
     override def run {
       // Wipeout the primal variable
       if(subProblemId < 8) {
-        Thread.sleep(3000)
+        Thread.sleep(10000)
         primalVar *= 0.0
         dualVar *= 0.0
         primalConsensus *= 0.0

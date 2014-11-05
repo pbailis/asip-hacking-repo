@@ -147,7 +147,7 @@ class HOGWILDSGDWorker(subProblemId: Int,
     override def run {
       // Wipeout the primal variable
       if(subProblemId < 8) {
-        Thread.sleep(3000)
+        Thread.sleep(10000)
         primalVar *= 0.0
       }
     }

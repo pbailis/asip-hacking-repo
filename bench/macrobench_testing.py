@@ -30,7 +30,7 @@ TASKS = [("SVM", "L2"), ("LR", "L1"), ("SVM", "L1"), ("LR", "L2")]
 
 
 SHORT_ALGORITHMS = ["HOGWILD", "PORKCHOP"]
-SHORT_RUNTIMES = [5000, 10000]
+SHORT_RUNTIMES = [15000, 30000]
 SHORT_TASKS = [("SVM", "L2"), ("LR", "L1")] #, ("SVM", "L1"), ("LR", "L2")]
 SHORT_DATASETS = ["bismarck", "flights", "dblp", "wikipedia"] # ["bismarck"]
 
@@ -163,7 +163,7 @@ def runTest(runtimeMS,
           "./bin/spark-submit " \
           "--driver-memory 52g " \
           "--class edu.berkeley.emerson.Emerson " \
-          "emerson/target/scala-2.10/spark-emerson_* " \
+          "assembly/target/scala-2.10/spark-assembly-1.1.0-SNAPSHOT-hadoop1.0.4.jar " \
           "--algorithm " + str(calgorithm) + " " + \
           "--objective " + str(objectiveFn) + " " + \
           "--regType " + str(regType) + " " + \
