@@ -86,7 +86,7 @@ class RDDSamplerBase(object):
 
     def shuffle(self, vals):
         if self._random is None:
-            self.initRandomGenerator(0)  # this should only ever called on the master so
+            self.initRandomGenerator(0)  # this should only ever called on the main so
             # the split does not matter
 
         if self._use_numpy:
